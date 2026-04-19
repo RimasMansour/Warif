@@ -1,0 +1,61 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# === Node / Frontend ===
+node_modules/
+dist/
+.vite/
+*.local
+
+# === Environment files ===
+.env
+backend/.env
+frontend/.env
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# === IDEs ===
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# === Docker ===
+*.log
+
+# === ML artifacts ===
+backend/src/ml/models/*.pkl
+backend/src/ml/models/*.joblib
+backend/src/ml/models/*.h5
+!backend/src/ml/models/.gitkeep
+
+# === Database ===
+*.sqlite3
+*.db
+
+# === Misc ===
+*.bak
+*.tmp

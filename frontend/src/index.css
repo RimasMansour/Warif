@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* ── Design tokens ─────────────────────────── */
+:root {
+  --color-primary:    #2d6a4f;   /* deep green */
+  --color-accent:     #52b788;   /* leaf green */
+  --color-warning:    #f4a261;   /* amber */
+  --color-danger:     #e63946;   /* red */
+  --color-surface:    #f8f9fa;
+  --color-border:     #dee2e6;
+}
+
+body {
+  @apply bg-gray-50 text-gray-900 antialiased;
+}
