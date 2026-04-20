@@ -29,8 +29,14 @@ class Settings(BaseSettings):
     # App
     DEBUG: bool = True
     LOG_LEVEL: str = "INFO"
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:8501"]
+    ALLOWED_ORIGINS: List[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://*.railway.app",
+        "https://*.up.railway.app",
+    ]
 
+    RAILWAY_PUBLIC_DOMAIN: str = ""
     SLACK_WEBHOOK_URL: str = ""
 
     class Config:

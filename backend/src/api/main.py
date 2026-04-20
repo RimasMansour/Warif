@@ -28,6 +28,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.railway\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +43,7 @@ app.include_router(recommendations.router, prefix="/api/v1/recommendations", tag
 app.include_router(dashboard.router,       prefix="/api/v1/dashboard",       tags=["Dashboard"])
 app.include_router(alerts.router,          prefix="/api/v1/alerts",          tags=["Alerts"])
 app.include_router(commands.router,        prefix="/api/v1/commands",        tags=["Commands"])
-app.include_router(ml.router,              prefix="/api/v1/ml",              tags=["ML"])
+app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
 
 # ── Health ────────────────────────────────────────────────────────────────
