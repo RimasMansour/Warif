@@ -19,7 +19,6 @@ import numpy as np
 import pandas as pd
 import joblib
 from pathlib import Path
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.layers import LSTM, Dense, Dropout
@@ -43,8 +42,8 @@ FEATURES = [
     "cum_irr",
 ]
 
-TARGET      = "irrigation_needed"
-SEQ_LENGTH  = 24   # look at last 24 readings (2 hours at 5-min intervals)
+TARGET     = "irrigation_needed"
+SEQ_LENGTH = 24   # look at last 24 readings
 
 
 def build_sequences(X: np.ndarray, y: np.ndarray, seq_length: int) -> tuple:
@@ -67,8 +66,8 @@ def build_sequences(X: np.ndarray, y: np.ndarray, seq_length: int) -> tuple:
 
 def load_data(path: Path) -> tuple:
     """
-    Loads irrigation_data.csv, builds sequences, and splits into train/test.
-    Uses temporal split to avoid data leakage.
+    Loads irrigation_data.csv, builds sequences, and splits into
+    train (70%) / validation (15%) / test (15%) — temporal order preserved.
     """
     df = pd.read_csv(path)
     df = df.dropna(subset=FEATURES + [TARGET])
@@ -83,17 +82,26 @@ def load_data(path: Path) -> tuple:
     # Build sequences
     X_seq, y_seq = build_sequences(X_scaled, y, SEQ_LENGTH)
 
-    # Temporal split - do not shuffle
-    split = int(len(X_seq) * 0.8)
-    X_train, X_test = X_seq[:split], X_seq[split:]
-    y_train, y_test = y_seq[:split], y_seq[split:]
+    # Temporal split — do not shuffle
+    train_end = int(len(X_seq) * 0.70)
+    val_end   = int(len(X_seq) * 0.85)
 
-    print(f"Training samples : {len(X_train):,}")
-    print(f"Testing samples  : {len(X_test):,}")
-    print(f"Sequence shape   : {X_train.shape}")
-    print(f"Irrigation ratio : {y_seq.mean():.2%}")
+    X_train = X_seq[:train_end]
+    y_train = y_seq[:train_end]
 
-    return X_train, X_test, y_train, y_test, scaler
+    X_val   = X_seq[train_end:val_end]
+    y_val   = y_seq[train_end:val_end]
+
+    X_test  = X_seq[val_end:]
+    y_test  = y_seq[val_end:]
+
+    print(f"Training samples   : {len(X_train):,}")
+    print(f"Validation samples : {len(X_val):,}")
+    print(f"Testing samples    : {len(X_test):,}")
+    print(f"Sequence shape     : {X_train.shape}")
+    print(f"Irrigation ratio   : {y_seq.mean():.2%}")
+
+    return X_train, X_val, X_test, y_train, y_val, y_test, scaler
 
 
 def build_model(input_shape: tuple) -> Sequential:
@@ -105,6 +113,7 @@ def build_model(input_shape: tuple) -> Sequential:
         Dropout   -> prevents overfitting
         LSTM(32)  -> refines patterns
         Dropout   -> prevents overfitting
+        Dense(16) -> intermediate representation
         Dense(1)  -> outputs probability of irrigation needed
     """
     model = Sequential([
@@ -113,7 +122,7 @@ def build_model(input_shape: tuple) -> Sequential:
         LSTM(32, return_sequences=False),
         Dropout(0.2),
         Dense(16, activation="relu"),
-        Dense(1, activation="sigmoid"),   # sigmoid outputs 0 to 1
+        Dense(1,  activation="sigmoid"),
     ])
 
     model.compile(
@@ -131,14 +140,20 @@ def train(data_path: Path = DATA_PATH) -> dict:
     Returns training summary.
     """
     print("Loading data and building sequences...")
-    X_train, X_test, y_train, y_test, scaler = load_data(data_path)
+    X_train, X_val, X_test, y_train, y_val, y_test, scaler = load_data(data_path)
+
+    # Class weights — corrects for 91% majority class bias
+    neg = (y_train == 0).sum()
+    pos = (y_train == 1).sum()
+    class_weight = {0: 1.0, 1: round(neg / pos, 2)}
+    print(f"\nClass weight for irrigation class : {class_weight[1]}")
 
     # Build model
     print("Building LSTM model...")
     model = build_model(input_shape=(SEQ_LENGTH, len(FEATURES)))
     model.summary()
 
-    # Early stopping - stop training if no improvement for 5 epochs
+    # Early stopping — stop if val_loss does not improve for 5 epochs
     early_stop = EarlyStopping(
         monitor="val_loss",
         patience=5,
@@ -146,20 +161,21 @@ def train(data_path: Path = DATA_PATH) -> dict:
     )
 
     # Train
-    print("Training LSTM...")
-    model.fit(
+    print("\nTraining LSTM...")
+    history = model.fit(
         X_train, y_train,
         epochs=30,
-        batch_size=64,
-        validation_split=0.1,
+        batch_size=32,
+        validation_data=(X_val, y_val),
         callbacks=[early_stop],
+        class_weight=class_weight,
         verbose=1,
     )
 
-    # Evaluate
+    # Evaluate on held-out test set
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    print(f"\nTest accuracy: {accuracy:.4f}")
-    print(f"Test loss    : {loss:.4f}")
+    print(f"\nTest accuracy : {accuracy:.4f}")
+    print(f"Test loss     : {loss:.4f}")
 
     # Save model and scaler
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -180,7 +196,7 @@ def train(data_path: Path = DATA_PATH) -> dict:
 
 def predict(sequence: list) -> dict:
     """
-    Predicts irrigation need from a sequence of sensor readings.
+    Predicts irrigation need from a sequence of 24 sensor readings.
 
     Args:
         sequence: list of 24 dicts, each with sensor readings
@@ -206,10 +222,10 @@ def predict(sequence: list) -> dict:
     """
     if len(sequence) != SEQ_LENGTH:
         raise ValueError(
-            f"Sequence must have exactly {SEQ_LENGTH} readings, got {len(sequence)}"
+            f"Sequence must have exactly {SEQ_LENGTH} readings, "
+            f"got {len(sequence)}"
         )
 
-    # Load saved model and scaler
     if not MODEL_PATH.exists():
         raise FileNotFoundError(
             f"Model not found at {MODEL_PATH}. Run train() first."
@@ -218,18 +234,18 @@ def predict(sequence: list) -> dict:
     model  = load_model(MODEL_PATH)
     scaler = joblib.load(SCALER_PATH)
 
-    # Build input array
-    X = np.array([[reading[f] for f in FEATURES] for reading in sequence])
+    X        = np.array([[reading[f] for f in FEATURES] for reading in sequence])
     X_scaled = scaler.transform(X)
-    X_seq = X_scaled.reshape(1, SEQ_LENGTH, len(FEATURES))
+    X_seq    = X_scaled.reshape(1, SEQ_LENGTH, len(FEATURES))
 
-    # Predict
     probability = float(model.predict(X_seq, verbose=0)[0][0])
     prediction  = int(probability >= 0.5)
 
     return {
         "irrigation_needed": prediction,
-        "confidence"       : round(probability if prediction == 1 else 1 - probability, 4),
+        "confidence"       : round(
+            probability if prediction == 1 else 1 - probability, 4
+        ),
     }
 
 

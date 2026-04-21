@@ -85,6 +85,7 @@ def train(data_path: Path = DATA_PATH) -> dict:
         max_depth=10,       # limit tree depth to avoid overfitting
         random_state=42,    # for reproducibility
         n_jobs=-1,          # use all CPU cores
+        class_weight='balanced'
     )
     model.fit(X_train_scaled, y_train)
 
