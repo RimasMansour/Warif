@@ -86,10 +86,10 @@ def predict_single(features: dict, sequence: list) -> dict:
     )
 
     # Final decision
+    # weighted_prob is always P(irrigation=1); report it directly so callers
+    # see the true probability regardless of which class was predicted.
     final_prediction = int(weighted_prob >= THRESHOLD)
-    final_confidence = round(
-        weighted_prob if final_prediction == 1 else 1.0 - weighted_prob, 4
-    )
+    final_confidence = round(weighted_prob, 4)
 
     return {
         "irrigation_needed": final_prediction,
