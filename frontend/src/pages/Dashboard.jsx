@@ -198,6 +198,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const [globalAutoMode, setGlobalAutoMode] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSensorsPopup, setShowSensorsPopup] = useState(false);
+  const [showManualIrrigation, setShowManualIrrigation] = useState(false);
+  const [manualAmount, setManualAmount] = useState(50);
+  const [manualDuration, setManualDuration] = useState(20);
+  const [irrigationProcessing, setIrrigationProcessing] = useState(false);
+  const [irrigationSuccess, setIrrigationSuccess] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const farms = isRtl 
@@ -488,7 +493,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
             ) : page === "dss" ? (
               <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} globalAutoMode={globalAutoMode} />
             ) : page === "irrigation" ? (
-              <IrrigationPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} />
+              <IrrigationPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} onOpenManual={() => setShowManualIrrigation(true)} />
             ) : page === "microclimate" ? (
               <MicroclimatePage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} />
             ) : page === "soil" ? (
@@ -590,43 +595,24 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
             </div>
           )}
 
-          {/* ===== Redesigned Sensors & Devices Official Log Modal ===== */}
+          {/* Sensors & Hardware Inventory Modal */}
           {showSensorsPopup && (
             <Account_ModalShell onClose={() => setShowSensorsPopup(false)} isRtl={isRtl}>
-              <div className="bg-white rounded-[32px] overflow-hidden shadow-2xl animate-modal-in max-h-[85vh] flex flex-col w-[420px] max-w-[95vw] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
+              <div className="bg-white rounded-[40px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[450px] max-w-[95vw] max-h-[85vh] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
                 
-                {/* Professional Header Section */}
-                <div className="bg-gradient-to-br from-emerald-700 to-emerald-900 p-5 text-white shrink-0 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16 blur-xl" />
-                  <div className="flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center backdrop-blur-xl border border-white/20 shadow-lg">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <rect x="4" y="4" width="16" height="16" rx="4" />
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M12 7v-3" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h2 className="text-lg font-black leading-tight tracking-tight">{isEn ? 'Hardware Inventory' : 'سجل المعدات والأجهزة'}</h2>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="w-2 h-2 rounded-full bg-[var(--status-success)] shadow-[0_0_8px_var(--status-success)] animate-pulse" />
-                          <p className="text-emerald-100/90 text-[11px] font-bold uppercase tracking-widest">
-                            {isEn ? 'All Systems Operational' : 'كافة الأنظمة تعمل بكفاءة'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setShowSensorsPopup(false)}
-                      className="w-10 h-10 rounded-full bg-black/10 hover:bg-black/20 flex items-center justify-center transition-all active:scale-90"
-                    >
-                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                {/* Clean White Header with Icon */}
+                <div className="pt-8 px-6 flex flex-col items-center shrink-0">
+                  <div className="animate-float">
+                    <div className="w-16 h-16 rounded-[24px] bg-emerald-50 flex items-center justify-center shadow-sm mb-3 border border-emerald-100/50">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="2" y1="12" x2="22" y2="12" />
+                        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                       </svg>
-                    </button>
+                    </div>
                   </div>
+                  <h3 className="text-xl font-black text-gray-800 tracking-tight">{isEn ? 'Hardware Inventory' : 'سجل المعدات والأجهزة'}</h3>
+                  <p className="text-[11px] font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Connected Sensors & Controllers' : 'الحساسات ووحدات التحكم المتصلة'}</p>
                 </div>
 
                 {/* List Content Area */}
@@ -668,6 +654,123 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                     {isEn ? 'Manage Hardware' : 'إدارة الأجهزة'}
                   </button>
                 </div>
+              </div>
+            </Account_ModalShell>
+          )}
+
+          {/* ===== NEW: Premium Manual Irrigation Modal (Full Screen Overlay) ===== */}
+          {showManualIrrigation && (
+            <Account_ModalShell onClose={() => setShowManualIrrigation(false)} isRtl={isRtl}>
+              <div className="bg-white rounded-[40px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[380px] max-w-[95vw] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
+                
+                {/* Reverted Header Style - Clean White with Icon at Top */}
+                <div className="pt-8 px-6 flex flex-col items-center">
+                  <div className="animate-float">
+                    <div className="w-16 h-16 rounded-[24px] bg-emerald-50 flex items-center justify-center shadow-sm mb-3 border border-emerald-100/50">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-black text-gray-800 tracking-tight">{T.manualSettings}</h3>
+                  <p className="text-[11px] font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Direct System Control' : 'التحكم المباشر بالنظام'}</p>
+                </div>
+
+                {/* Content Area */}
+                <div className="p-8 flex flex-col gap-8">
+                  {/* Quantity Section */}
+                  <div className="flex flex-col gap-3">
+                    <div className="flex justify-between items-end px-1">
+                      <label className="text-[14px] font-black text-emerald-800 uppercase tracking-widest">
+                        {isRtl ? 'كمية الري (لتر)' : 'Irrigation Quantity (L)'}
+                      </label>
+                      <span className="text-2xl font-black text-emerald-600 tracking-tighter">
+                        {manualAmount} <span className="text-xs text-gray-400 font-bold">{isRtl ? 'لتر' : 'L'}</span>
+                      </span>
+                    </div>
+                    <div className="relative h-6 flex items-center">
+                      <input 
+                        type="range" min="10" max="500" step="10" value={manualAmount}
+                        onChange={(e) => setManualAmount(parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-100 rounded-full appearance-none cursor-pointer accent-emerald-600"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Duration Section */}
+                  <div className="flex flex-col gap-4">
+                    <label className="text-[14px] font-black text-emerald-800 uppercase tracking-widest px-1">
+                      {isRtl ? 'مدة التشغيل' : 'Operation Duration'}
+                    </label>
+                    <div className="grid grid-cols-4 gap-3">
+                      {[10, 20, 30, 60].map((val) => (
+                        <button 
+                          key={val}
+                          onClick={() => setManualDuration(val)}
+                          className={`py-3.5 rounded-2xl text-[15px] font-black transition-all border-2 ${manualDuration === val ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-600/20' : 'bg-white text-gray-500 border-gray-100 hover:border-emerald-200'}`}
+                        >
+                          {val} <span className="text-[9px] block opacity-60 font-bold uppercase mt-0.5">{isRtl ? "دقيقة" : "min"}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-col gap-4 pt-4">
+                    <button 
+                      onClick={() => {
+                        setIrrigationProcessing(true);
+                        setTimeout(() => {
+                          setIrrigationProcessing(false);
+                          setIrrigationSuccess(true);
+                          setTimeout(() => {
+                            setIrrigationSuccess(false);
+                            setShowManualIrrigation(false);
+                          }, 2500);
+                        }, 1500);
+                      }}
+                      disabled={irrigationProcessing}
+                      className="w-full py-5 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-900/10 hover:shadow-emerald-900/20 transition-all flex items-center justify-center gap-3 group active:scale-95 disabled:opacity-70"
+                    >
+                      {irrigationProcessing ? (
+                        <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <>
+                          {isRtl ? 'تأكيد وبدء التشغيل' : 'Confirm & Start Operation'}
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className={`transition-transform group-hover:translate-x-[-4px] ${isRtl ? '' : 'rotate-180'}`}>
+                            <path d="M15 18l-6-6 6-6" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
+
+                    <button 
+                      onClick={() => setShowManualIrrigation(false)}
+                      className="text-[13px] text-gray-400 hover:text-red-500 transition-all group font-black uppercase tracking-[0.2em] py-2"
+                    >
+                      {isRtl ? 'إلغاء العملية' : 'Cancel Operation'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Success Overlay */}
+                {irrigationSuccess && (
+                  <div className="absolute inset-0 bg-white z-[60] flex flex-col items-center justify-center p-10 text-center animate-fade-in rounded-[40px]">
+                    <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mb-6 animate-scale-bounce shadow-xl border border-emerald-100/50">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <h4 className="text-2xl font-black text-gray-800 mb-2">{isRtl ? "تم بنجاح!" : "Success!"}</h4>
+                    <p className="text-[14px] text-gray-400 font-bold leading-relaxed">
+                      {isRtl ? "تم بدء تسلسل عملية الري بنجاح" : "Irrigation sequence started successfully"}
+                    </p>
+                  </div>
+                )}
+
               </div>
             </Account_ModalShell>
           )}

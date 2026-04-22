@@ -4,7 +4,7 @@ import { SensorTopBar, CardShell, IrrigationSmartIcon } from './dashboardShared'
 import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './dashboardCharts';
 import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
 
-export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
+export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual }) {
   const [seconds, setSeconds] = useState(0);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -215,7 +215,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
               <div className="mt-6 flex flex-col gap-3">
                 <IrrigationActionButton 
                   active={activeAction === "irrigate"} 
-                  onClick={() => setActiveAction("irrigate")}
+                  onClick={() => onOpenManual && onOpenManual()}
                   icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
                   isRtl={isRtl}
                 >
@@ -347,115 +347,6 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
         </div>
       </div>
 
-      {/* Manual Irrigation Settings Modal - Transparent Style (No Blur, No Isolation) */}
-      {activeAction === "irrigate" && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-hidden">
-          {/* Semi-transparent Backdrop - Clear visibility of background, no blur */}
-          <div 
-            className="absolute inset-0 bg-black/10 animate-fade-in" 
-            onClick={() => setActiveAction("")}
-          />
-          
-          {/* Modal Content - Vertically Rectangular like Device Connection */}
-          <div className="relative z-10 w-[380px] max-w-[94vw] max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar bg-white rounded-[40px] shadow-2xl transition-all duration-300"
-               style={{ border: '1px solid rgba(0,0,0,0.05)', boxShadow: '0 30px 100px rgba(0,0,0,0.1)' }}>
-            
-            {/* Header Area */}
-            <div className="pt-6 px-6 flex flex-col items-center">
-               <div className="animate-float">
-                  <div className="w-16 h-16 rounded-[24px] bg-emerald-50 flex items-center justify-center shadow-sm mb-3 border border-emerald-100/50">
-                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
-                  </div>
-               </div>
-               <h3 className="text-xl font-black text-gray-800 tracking-tight">{T.manualSettings}</h3>
-               <p className="text-[11px] font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Direct System Control' : 'التحكم المباشر بالنظام'}</p>
-            </div>
-
-            <div className="p-6 flex flex-col gap-6">
-              {/* Quantity Section */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex justify-between items-end px-1">
-                  <label className="text-[11px] font-black text-emerald-800/40 uppercase tracking-widest">{T.quantity}</label>
-                  <span className="text-lg font-black text-emerald-600">{manualAmount} {T.liters}</span>
-                </div>
-                <div className="relative h-6 flex items-center">
-                  <input 
-                    type="range" 
-                    min="10" 
-                    max="500" 
-                    step="10"
-                    value={manualAmount}
-                    onChange={(e) => setManualAmount(e.target.value)}
-                    className="w-full h-1.5 bg-gray-100 rounded-full appearance-none cursor-pointer accent-emerald-600"
-                  />
-                </div>
-              </div>
-
-              {/* Duration Section */}
-              <div className="flex flex-col gap-3">
-                <label className="text-[11px] font-black text-emerald-800/40 uppercase tracking-widest px-1">{T.durationLabel}</label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[10, 20, 30, 60].map(val => (
-                    <button 
-                      key={val}
-                      onClick={() => setDuration(val)}
-                      className={`py-2.5 rounded-xl text-[13px] font-black transition-all border-2 ${duration == val ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'bg-white text-gray-500 border-gray-100 hover:border-emerald-200'}`}
-                    >
-                      {val} <span className="text-[9px] block opacity-60">{isEn ? "min" : "دقيقة"}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex flex-col gap-3 pt-2">
-                <button 
-                  onClick={() => {
-                    setIsProcessing(true);
-                    setActiveProcessing("irrigate");
-                    setTimeout(() => {
-                      setIsProcessing(false);
-                      setShowSuccess("irrigate");
-                      setTimeout(() => {
-                        setShowSuccess("");
-                        setActiveAction("");
-                      }, 2000);
-                    }, 1500);
-                  }}
-                  disabled={isProcessing}
-                  className={`w-full py-4 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[20px] font-black text-[16px] shadow-lg shadow-emerald-900/10 hover:shadow-emerald-900/20 transition-all flex items-center justify-center gap-2.5`}
-                >
-                  {isProcessing && activeProcessing === "irrigate" ? (
-                    <svg className="animate-spin h-5 w-5 text-emerald-300" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  ) : (
-                    <>
-                      {T.confirmAction}
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={isRtl ? '' : 'rotate-180'}><path d="M15 18l-6-6 6-6" /></svg>
-                    </>
-                  )}
-                </button>
-
-                <button 
-                  onClick={() => setActiveAction("")}
-                  className="text-[12px] text-emerald-800/40 hover:text-red-500 transition-all group font-black uppercase tracking-widest"
-                >
-                  {isEn ? 'Cancel Operation' : 'إلغاء العملية'}
-                </button>
-              </div>
-
-              {showSuccess === "irrigate" && (
-                <div className="absolute inset-0 bg-[#f7f7f4] z-[1010] flex flex-col items-center justify-center p-10 text-center animate-fade-in">
-                  <div className="w-24 h-24 bg-white rounded-[32px] flex items-center justify-center mb-6 animate-scale-bounce shadow-xl border border-emerald-50">
-                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  </div>
-                  <h4 className="text-2xl font-black text-gray-800 mb-2">{isEn ? "Success!" : "تم بنجاح!"}</h4>
-                  <p className="text-[14px] text-gray-400 font-bold leading-relaxed">{isEn ? "Irrigation Sequence Started" : "تم بدء تسلسل عملية الري بنجاح"}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
