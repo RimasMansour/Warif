@@ -104,7 +104,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
             className={`absolute top-6 ${isRtl ? 'left-8' : 'right-8'} z-[60] flex items-center gap-2 group transition-all active:scale-95`}
           >
             <div className="w-10 h-10 rounded-2xl bg-white/50 backdrop-blur-sm border border-white/60 flex items-center justify-center shadow-sm group-hover:bg-emerald-50 group-hover:border-emerald-100 transition-all">
-               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#065f46" strokeWidth="2.5" strokeLinecap="round" className={isRtl ? '' : 'rotate-180'}><path d="M15 18l-6-6 6-6" /></svg>
+               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#065f46" strokeWidth="2.5" strokeLinecap="round" className={isRtl ? 'rotate-180' : ''}><path d="M15 18l-6-6 6-6" /></svg>
             </div>
           </button>
         )}
@@ -616,7 +616,7 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
       <div className="flex flex-col gap-2.5">
         {Object.entries({ wifi: T.wifi, bluetooth: T.bluetooth, location: T.location }).map(([key, label], i) => (
           <div key={key} className="flex flex-col">
-            <div className={`flex justify-between items-center px-5 py-3.5 rounded-[22px] transition-all duration-300 ${permissions[key] ? 'bg-emerald-50/50 border-emerald-200 shadow-sm' : 'bg-gray-50/50 border-gray-100'} border animate-fade-in-up ${isRtl ? 'flex-row-reverse' : ''}`}
+            <div className={`flex justify-between items-center px-5 py-3.5 rounded-[22px] transition-all duration-300 ${permissions[key] ? 'bg-emerald-50/50 border-emerald-200 shadow-sm' : 'bg-gray-50/50 border-gray-100'} border animate-fade-in-up`}
               style={{ animationDelay: `${i * 100}ms` }}>
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${permissions[key] ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'bg-gray-100 text-gray-400'}`}>
@@ -692,7 +692,7 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
                   className={`w-full flex flex-col gap-1 px-5 py-4 transition-all animate-fade-in-up 
                              ${selectedDevice === d ? 'bg-emerald-600 text-white shadow-lg' : 'hover:bg-white/40 text-emerald-900'} ${isRtl ? 'text-right' : 'text-left'}`}
                   style={{ animationDelay: `${i * 100}ms` }}>
-                  <div className={`flex items-center gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                  <div className={`flex items-center gap-3`}>
                     <div className={`w-2 h-2 rounded-full ${selectedDevice === d ? 'bg-white shadow-[0_0_10px_white]' : 'bg-emerald-400 animate-pulse'}`} />
                     <span className="font-black flex-1 text-sm">{d.replace(/_/g, ' ')}</span>
                     {connecting === d && <div className="w-5 h-5 border-2 border-emerald-300 border-t-white rounded-full animate-spin" />}

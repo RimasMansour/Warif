@@ -4,7 +4,7 @@ import {
   SensorTopBar, 
   CardShell, 
   PlantSoilIcon,
-  WindIcon
+  WindSharedIcon
 } from './dashboardShared';
 import { HealthStyleBarChart, IrrigationActionButton } from './dashboardCharts';
 
@@ -91,7 +91,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
         <SensorTopBar
           title={T.title}
           subtitle={T.subtitle}
-          icon={<WindIcon />}
+          icon={<WindSharedIcon />}
           onBack={onBack}
           onExport={handleExport}
           T={translations[lang]}
@@ -159,14 +159,14 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
                   <span className="sr-only">Climate Control Actions</span>
                   <IrrigationActionButton 
                     active={activeAction === "cool"} onClick={() => setActiveAction("cool")}
-                    icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12h16M12 4v16M20 8l-4 4 4 4M4 8l4 4-4 4"/></svg>}
+                    icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/></svg>}
                     isRtl={isRtl}
                   >
                     {T.startCooling}
                   </IrrigationActionButton>
                   <IrrigationActionButton 
                     active={activeAction === "stop"} onClick={() => setActiveAction("stop")}
-                    icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>}
+                    icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" /></svg>}
                     isRtl={isRtl}
                   >
                     {T.stopFans}

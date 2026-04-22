@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useMemo, useState } from 'react';
 
 function CardShell({ children, className = "", onClick }) {
@@ -32,13 +33,32 @@ export function AutomationToggleCard({ isActive, onToggle, title="الأتمتة
   );
 }
 
-function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = false }) {
+export function TempSunIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 14.7V3a2 2 0 0 0-4 0v11.7a4.5 4.5 0 1 0 4 0z"/>
+    </svg>
+  );
+}
+
+export function AirHumidityIcon() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22c4.4 0 8-3.6 8-8 0-6-8-12-8-12S4 8 4 14c0 4.4 3.6 8 8 8z" />
+      <path d="M2 13h5c1 0 1 1 2 1s1-1 2-1h2" />
+      <path d="M2 17h5c1 0 1 1 2 1s1-1 2-1h2" />
+      <path d="M2 9h5c1 0 1 1 2 1s1-1 2-1h2" />
+    </svg>
+  );
+}
+
+function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = false, iconBg = "bg-emerald-50", iconColor = "text-[#059669]" }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-3">
         {icon && (
-          <div className="shrink-0 w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100/50 flex items-center justify-center text-[#2E7D32] shadow-sm">
-            {icon}
+          <div className={`shrink-0 w-11 h-11 rounded-2xl ${iconBg} border border-emerald-100/50 flex items-center justify-center ${iconColor} shadow-sm transition-all`}>
+            {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: 1.8 }) : icon}
           </div>
         )}
         <div className="flex flex-col">
@@ -59,18 +79,6 @@ function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = fal
   );
 }
 
-export function TempSunIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M14 4V16C14 17.1046 13.1046 18 12 18C10.8954 18 10 17.1046 10 16V4C10 2.89543 10.8954 2 12 2C13.1046 2 14 2.89543 14 4Z" fill="#E8F5E9" stroke="#2E7D32" strokeWidth="1.5"/>
-      <path d="M10 14H14" stroke="#2E7D32" strokeWidth="1.5" strokeLinecap="round"/>
-      <circle cx="12" cy="18" r="4" fill="#10b981" stroke="#2E7D32" strokeWidth="1.5"/>
-      <path d="M12 16V20M10 18H14" stroke="white" strokeWidth="1" strokeLinecap="round"/>
-      <circle cx="19" cy="8" r="3" fill="#10b981" opacity="0.3"/>
-    </svg>
-  );
-}
-
 function WeatherIcon({ weatherData, width=18, height=18 }) {
   if (!weatherData) return <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/></svg>;
   const { code, isDay } = weatherData;
@@ -87,16 +95,6 @@ function WeatherIcon({ weatherData, width=18, height=18 }) {
     <svg width={width} height={height} viewBox="0 0 24 24" fill="#fbbf24" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="5" fill="#fde68a" />
       <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-    </svg>
-  );
-}
-
-export function AirHumidityIcon() {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 22C16.4183 22 20 18.4183 20 14C20 8 12 2 12 2C12 2 4 8 4 14C4 18.4183 7.58172 22 12 22Z" fill="#E8F5E9" stroke="#10b981" strokeWidth="1.5"/>
-      <path d="M8 14C8 14 9.5 15.5 12 15.5C14.5 15.5 16 14 16 14" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round"/>
-      <circle cx="12" cy="11" r="1" fill="#10b981"/>
     </svg>
   );
 }
@@ -132,12 +130,12 @@ export function DropBadgeIcon() {
   );
 }
 
-function SensorTopBar({ title, subtitle, icon, onBack, onExport }) {
+function SensorTopBar({ title, subtitle, icon, onBack, onExport, iconBg = "bg-emerald-50", iconColor = "text-[#059669]" }) {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
-        <div className="w-12 h-12 rounded-2xl bg-[#E8F5E9] flex items-center justify-center text-[#2E7D32]">
-          {icon}
+        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${iconBg || 'bg-emerald-50'} ${iconColor || 'text-[#059669]'} border border-emerald-100/50 shadow-sm`}>
+          {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: 1.8 }) : icon}
         </div>
         <div className="text-right">
           <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{title}</div>
@@ -266,9 +264,9 @@ function Account_SensorIcon() {
 
 // --- SHARED PROFESSIONAL ICONS ---
 
-function PlantSoilIcon() {
+function PlantSoilIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M4 20c0-3 3-4 8-4s8 1 8 4" />
       <path d="M12 16V8" />
       <path d="M12 8c-2-2-5-2-5 0 0 3 3 4 5 4" />
@@ -277,9 +275,9 @@ function PlantSoilIcon() {
   );
 }
 
-function WaterValveIcon() {
+function WaterValveIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M4 12h16" />
       <path d="M12 12V8" />
       <circle cx="12" cy="6" r="3" />
@@ -288,9 +286,9 @@ function WaterValveIcon() {
   );
 }
 
-function ListIcon() {
+function ListIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <line x1="3" y1="6" x2="16" y2="6" />
       <line x1="3" y1="12" x2="16" y2="12" />
       <line x1="3" y1="18" x2="16" y2="18" />
@@ -301,9 +299,9 @@ function ListIcon() {
   );
 }
 
-function WindIcon() {
+function WindSharedIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M17.7 7.7A2.5 2.5 0 1 1 20 12H5" />
       <path d="M9.601 3.599A2.5 2.5 0 1 0 8 8h12" />
       <path d="M11.3 20.3A2.5 2.5 0 1 1 9 16h12" />
@@ -311,9 +309,10 @@ function WindIcon() {
   );
 }
 
-function IrrigationSmartIcon() {
+
+function IrrigationSmartIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
       <path d="m5 15 2-2" />
       <path d="m19 15-2-2" />
@@ -323,6 +322,8 @@ function IrrigationSmartIcon() {
     </svg>
   );
 }
+
+
 
 export {
   CardShell,
@@ -344,6 +345,6 @@ export {
   PlantSoilIcon,
   WaterValveIcon,
   ListIcon,
-  WindIcon,
+  WindSharedIcon,
   IrrigationSmartIcon
 };

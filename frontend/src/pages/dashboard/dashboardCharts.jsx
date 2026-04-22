@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { useState, useMemo } from 'react';
 import { CardShell, TempSunIcon, AirHumidityIcon, SoilDropIcon } from './dashboardShared';
 
@@ -74,14 +75,14 @@ export function IrrigationActionButton({ children, active, onClick, icon, isRtl 
       dir={isRtl ? 'rtl' : 'ltr'}
       className={`w-full px-5 py-4 rounded-2xl border text-sm transition-all duration-300 flex items-center justify-between group
                  ${active
-                   ? "bg-gradient-to-l from-[#2E7D32] to-[#388E3C] text-white border-[#2E7D32] shadow-lg shadow-green-900/20 scale-[0.98]"
+                   ? "bg-gradient-to-l from-[#059669] to-[#10b981] text-white border-[#059669] shadow-lg shadow-emerald-900/20 scale-[0.98]"
                    : "bg-white text-gray-700 border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 hover:shadow-md"
                  }`}
     >
       <span className="font-bold tracking-tight">{children}</span>
       {icon && (
-        <div className={`p-2 rounded-xl transition-all duration-300 ${active ? 'bg-white/20 text-white' : 'bg-emerald-50 text-[#2E7D32] group-hover:bg-emerald-100'}`}>
-          {icon}
+        <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300 ${active ? 'bg-white/20 text-white' : 'bg-emerald-50 text-[#059669] group-hover:bg-emerald-100 shadow-sm border border-emerald-100/50'}`}>
+          {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: 1.8 }) : icon}
         </div>
       )}
     </button>

@@ -43,6 +43,10 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
     powerLabel: isEn ? "Power Consumption" : "استهلاك الكهرباء",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
+    manualSettings: isEn ? "Irrigation Settings" : "إعدادات الري",
+    quantity: isEn ? "Quantity (Liters)" : "كمية الري (لتر)",
+    durationLabel: isEn ? "Duration (Minutes)" : "مدة الري (بالدقائق)",
+    confirmAction: isEn ? "Confirm & Start" : "تأكيد وبدء التشغيل",
   };
 
   useEffect(() => {
@@ -55,6 +59,17 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
 
   const [range, setRange] = useState("M");
   const [activeAction, setActiveAction] = useState("");
+  
+  // Manual Irrigation Settings States
+  const [manualAmount, setManualAmount] = useState(50);
+  const [duration, setDuration] = useState(15);
+
+  // Feedback states
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeProcessing, setActiveProcessing] = useState(""); // "irrigate", "stop", "flush"
+  const [showSuccess, setShowSuccess] = useState(""); // "irrigate", "stop", "flush"
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
   const data = getLiveFarmData(activeFarm);
 
   const dualSeries = useMemo(() => {
@@ -103,17 +118,53 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="animate-fade-in-up delay-1 h-full">
-            <CardShell className="p-6 h-full card-interactive">
-            <div className={isRtl ? 'text-right' : 'text-left'}>
-              <div className="text-xl font-black text-gray-800 tracking-tight">{T.flowRate}</div>
-              <div className="text-[12px] text-gray-400 mt-1 font-medium">{lastUpdateLabel}</div>
-            </div>
-            <div className="mt-8 flex items-center justify-center">
-              <IrrigationDonut value={Math.round(currentFlow)} />
-            </div>
-            <div className="mt-6 text-center text-[11px] font-black text-emerald-700 bg-emerald-50 py-1.5 rounded-xl border border-emerald-100 uppercase tracking-tighter shadow-sm">
-              {isEn ? `Flow Rate ${Math.round(currentFlow)}%` : `معدل التدفق ${Math.round(currentFlow)}٪`}
-            </div>
+            <CardShell className="p-6 h-full card-interactive overflow-hidden relative">
+              {/* Flow Animation Background Element */}
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-50 rounded-full blur-3xl opacity-60 animate-pulse" />
+              
+              <div className={isRtl ? 'text-right' : 'text-left'}>
+                <div className="text-xl font-black text-gray-800 tracking-tight flex items-center justify-between">
+                  {T.flowRate}
+                  <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                  </div>
+                </div>
+                <div className="text-[12px] text-gray-400 mt-1 font-medium">{lastUpdateLabel}</div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-center relative">
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  {/* Custom Gauge SVG with Dynamic Colors */}
+                  <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 176 176">
+                    <circle cx="88" cy="88" r="76" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-gray-100/50" />
+                    <circle
+                      cx="88" cy="88" r="76" stroke={`url(#flowGradient-${Math.round(currentFlow)})`} strokeWidth="10"
+                      strokeDasharray={477} strokeDashoffset={477 - (477 * Math.round(currentFlow)) / 100}
+                      strokeLinecap="round" fill="transparent" className="transition-all duration-1000 ease-out"
+                    />
+                    <defs>
+                      <linearGradient id={`flowGradient-${Math.round(currentFlow)}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={currentFlow >= 80 ? "#10b981" : currentFlow >= 40 ? "#f59e0b" : "#ef4444"} />
+                        <stop offset="100%" stopColor={currentFlow >= 80 ? "#3b82f6" : currentFlow >= 40 ? "#fbbf24" : "#f87171"} />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute flex flex-col items-center">
+                    <span className={`text-3xl font-black tracking-tighter ${currentFlow >= 80 ? 'text-emerald-600' : currentFlow >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+                      {Math.round(currentFlow)}%
+                    </span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{isEn ? "Live Flow" : "تدفق مباشر"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`mt-6 ${currentFlow >= 80 ? 'bg-emerald-50/50 border-emerald-100/50' : currentFlow >= 40 ? 'bg-amber-50/50 border-amber-100/50' : 'bg-red-50/50 border-red-100/50'} backdrop-blur-sm border rounded-2xl py-2.5 px-4 flex items-center justify-between shadow-sm`}>
+                <div className="flex items-center gap-2">
+                   <div className={`w-2 h-2 rounded-full animate-ping ${currentFlow >= 80 ? 'bg-emerald-500' : currentFlow >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} />
+                   <span className={`text-[12px] font-bold ${currentFlow >= 80 ? 'text-emerald-800' : currentFlow >= 40 ? 'text-amber-800' : 'text-red-800'}`}>{isEn ? "Current Rate" : "المعدل الحالي"}</span>
+                </div>
+                <span className={`text-[14px] font-black ${currentFlow >= 80 ? 'text-emerald-600' : currentFlow >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{Math.round(currentFlow)}%</span>
+              </div>
             </CardShell>
           </div>
 
@@ -164,30 +215,170 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
               <div className="mt-6 flex flex-col gap-3">
                 <IrrigationActionButton 
                   active={activeAction === "irrigate"} 
-                  onClick={() => setActiveAction("irrigate")}
-                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
+                  onClick={() => setActiveAction(activeAction === "irrigate" ? "" : "irrigate")}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
                   isRtl={isRtl}
                 >
-                  {T.startManual}
+                  <span className="text-[14px] font-black">{T.startManual}</span>
                 </IrrigationActionButton>
+
+                {activeAction === "irrigate" && (
+                  <div className="mt-2 p-4 bg-emerald-50/40 rounded-[24px] border border-emerald-100/60 animate-fade-in flex flex-col gap-3 shadow-sm relative">
+                    <div className="flex justify-between items-center mb-0">
+                       <div className="text-[14px] font-black text-emerald-800 uppercase tracking-tight">{T.manualSettings}</div>
+                       <button 
+                         onClick={() => setActiveAction("")}
+                         className="w-7 h-7 rounded-full bg-white border border-emerald-100 flex items-center justify-center text-emerald-600 hover:bg-emerald-100 transition-colors"
+                       >
+                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                       </button>
+                    </div>
+                    
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex justify-between items-center px-1">
+                        <label className="text-[12px] font-bold text-gray-500">{T.quantity}</label>
+                        <span className="text-[15px] font-black text-emerald-700">{manualAmount} {T.liters}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="10" 
+                        max="500" 
+                        step="10"
+                        value={manualAmount}
+                        onChange={(e) => setManualAmount(e.target.value)}
+                        className="w-full h-2 bg-emerald-100 rounded-lg appearance-none cursor-pointer accent-emerald-600 mt-0"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 relative">
+                      <label className="text-[12px] font-bold text-gray-500 px-1">{T.durationLabel}</label>
+                      <div className="relative">
+                        <button 
+                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          className="w-full h-11 bg-white border border-gray-100 rounded-2xl px-4 text-[14px] font-bold text-gray-700 flex items-center justify-between shadow-sm hover:border-emerald-200 transition-all active:scale-[0.98]"
+                        >
+                          <span>{duration} {isEn ? "Minutes" : "دقيقة"}</span>
+                          <svg className={`w-4 h-4 text-emerald-600 transition-transform duration-300 ${isDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
+                        {isDropdownOpen && (
+                          <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white border border-gray-100 rounded-[22px] shadow-2xl z-[100] py-2 overflow-y-auto max-h-[180px] animate-fade-in-up custom-scrollbar">
+                            {[5, 10, 15, 30, 45, 60, 90, 120].map(val => (
+                              <button 
+                                key={val}
+                                onClick={() => {
+                                  setDuration(val);
+                                  setIsDropdownOpen(false);
+                                }}
+                                className={`w-full px-5 py-2.5 text-right text-[13px] font-bold hover:bg-emerald-50 transition-colors flex items-center justify-between ${duration == val ? 'text-emerald-700 bg-emerald-50/50' : 'text-gray-600'}`}
+                              >
+                                <span>{val} {isEn ? "Minutes" : "دقيقة"}</span>
+                                {duration == val && <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.5)]" />}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2 mt-1.5">
+                        {[10, 20, 30, 60].map(val => (
+                          <button 
+                            key={val}
+                            type="button"
+                            onClick={() => setDuration(val)}
+                            className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition-all border ${duration == val ? 'bg-emerald-500 text-white border-emerald-500 shadow-md scale-105' : 'bg-white text-gray-500 border-gray-100 hover:border-emerald-200'}`}
+                          >
+                            {val} {isEn ? "min" : "دقيقة"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button 
+                      onClick={() => {
+                        setIsProcessing(true);
+                        setActiveProcessing("irrigate");
+                        setTimeout(() => {
+                          setIsProcessing(false);
+                          setShowSuccess("irrigate");
+                          setTimeout(() => setShowSuccess(""), 3000);
+                        }, 1200);
+                      }}
+                      disabled={isProcessing}
+                      className={`mt-1 w-full py-3.5 text-[14px] font-black rounded-2xl shadow-lg active:scale-[0.97] transition-all uppercase tracking-wide flex items-center justify-center gap-2.5 ${isProcessing ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-500 hover:shadow-[0_8px_20px_rgba(5,150,105,0.3)]'}`}
+                    >
+                      {isProcessing && activeProcessing === "irrigate" ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          {isEn ? "Processing..." : "جاري التشغيل..."}
+                        </>
+                      ) : T.confirmAction}
+                    </button>
+
+                    {showSuccess === "irrigate" && (
+                      <div className="mt-2 p-3 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-100 text-[13px] font-bold flex items-center justify-center gap-3 animate-bounce">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        {isEn ? "Irrigation Started Successfully!" : "تم بدء عملية الري بنجاح!"}
+                      </div>
+                    )}
+                  </div>
+                )}
                 
                 <IrrigationActionButton 
                   active={activeAction === "stop"} 
-                  onClick={() => setActiveAction("stop")}
-                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>}
+                  onClick={() => {
+                    setActiveAction("stop");
+                    setIsProcessing(true);
+                    setActiveProcessing("stop");
+                    setTimeout(() => {
+                      setIsProcessing(false);
+                      setShowSuccess("stop");
+                      setTimeout(() => setShowSuccess(""), 3000);
+                    }, 1000);
+                  }}
+                  icon={isProcessing && activeProcessing === "stop" ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
+                  )}
                   isRtl={isRtl}
                 >
-                  {T.stopAll}
+                  <span className="text-[14px] font-black">
+                    {isProcessing && activeProcessing === "stop" ? (isEn ? "Stopping..." : "جاري الإيقاف...") : T.stopAll}
+                  </span>
                 </IrrigationActionButton>
+                {showSuccess === "stop" && (
+                   <div className="p-2 bg-red-50 text-red-700 rounded-xl border border-red-100 text-[10px] font-black flex items-center justify-center gap-2 animate-pulse mt-1">
+                      {isEn ? "All Valves Closed" : "تم إغلاق كافة المحابس"}
+                   </div>
+                )}
                 
                 <IrrigationActionButton 
                   active={activeAction === "flush"} 
-                  onClick={() => setActiveAction("flush")}
-                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>}
+                  onClick={() => {
+                    setActiveAction("flush");
+                    setIsProcessing(true);
+                    setActiveProcessing("flush");
+                    setTimeout(() => {
+                      setIsProcessing(false);
+                      setShowSuccess("flush");
+                      setTimeout(() => setShowSuccess(""), 4000);
+                    }, 1500);
+                  }}
+                  icon={isProcessing && activeProcessing === "flush" ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                  )}
                   isRtl={isRtl}
                 >
-                  {T.flushNetwork}
+                  <span className="text-[14px] font-black">
+                    {isProcessing && activeProcessing === "flush" ? (isEn ? "Flushing..." : "جاري الغسيل...") : T.flushNetwork}
+                  </span>
                 </IrrigationActionButton>
+                {showSuccess === "flush" && (
+                   <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 text-[10px] font-black flex items-center justify-center gap-2 animate-pulse mt-1">
+                      {isEn ? "Network Flushed Successfully" : "تم تنظيف الشبكة بنجاح"}
+                   </div>
+                )}
               </div>
             )}
             </CardShell>
@@ -197,24 +388,24 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="animate-fade-in-up delay-4 h-full">
             <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-full card-interactive">
-            <div className={`flex items-center justify-between mb-4`}>
-              <div className={isRtl ? 'text-right' : 'text-left'}>
-                <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyWater}</div>
-                <div className="text-[12px] text-gray-400 font-medium mt-0.5">{T.dailyWaterSub}</div>
+              <div className={`flex items-center justify-between mb-4`}>
+                <div className={isRtl ? 'text-right' : 'text-left'}>
+                  <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyWater}</div>
+                  <div className="text-[12px] text-gray-400 font-medium mt-0.5">{T.dailyWaterSub}</div>
+                </div>
+                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100/30">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                </div>
               </div>
-              <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100/30">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+              <div className={`flex items-center justify-between`}>
+                 <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
+                   {data.waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
+                 </div>
+                 <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
               </div>
-            </div>
-            <div className={`flex items-center justify-between`}>
-               <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
-                 {data.waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
-               </div>
-               <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
-            </div>
-            <div className="mt-6 h-2 w-full bg-blue-50 rounded-full overflow-hidden">
-               <div className="h-full bg-blue-500 rounded-full w-[45%]" />
-            </div>
+              <div className="mt-6 h-2 w-full bg-blue-50 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: '70%' }} />
+              </div>
             </CardShell>
           </div>
 
