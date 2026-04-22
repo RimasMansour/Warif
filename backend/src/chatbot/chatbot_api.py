@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import logging
 
-from chatbot.rag_pipeline import ask, retrieve
+from src.chatbot.rag_pipeline import ask, retrieve
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -150,7 +150,7 @@ async def chat(request: ChatRequest = Body(...)):
 @router.get("/health", response_model=HealthResponse, summary="Chatbot health check")
 async def health():
     """Check if ChromaDB and Groq are connected and working."""
-    from chatbot.rag_pipeline import _collection, _groq_client
+    from src.chatbot.rag_pipeline import _collection, _groq_client
 
     chroma_ok    = False
     vector_count = 0

@@ -19,7 +19,10 @@ from typing import Optional
 
 import chromadb
 from chromadb.utils import embedding_functions
+from dotenv import load_dotenv
 from groq import Groq
+
+load_dotenv()
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -85,15 +88,21 @@ def _init_groq() -> Groq:
     return Groq(api_key=GROQ_API_KEY)
 
 
-# Module-level singletons — initialized on first import
+# Module-level singletons — initialized independently so one failure doesn't break the other
 try:
     _collection = _init_chroma()
-    _groq_client = _init_groq()
-    logger.info("RAG pipeline initialized successfully.")
 except Exception as e:
-    logger.error(f"Failed to initialize RAG pipeline: {e}")
+    logger.error(f"ChromaDB init failed: {e}")
     _collection = None
+
+try:
+    _groq_client = _init_groq()
+except Exception as e:
+    logger.error(f"Groq init failed: {e}")
     _groq_client = None
+
+if _collection and _groq_client:
+    logger.info("RAG pipeline initialized successfully.")
 
 
 # ── Retrieval ──────────────────────────────────────────────────────────────────
