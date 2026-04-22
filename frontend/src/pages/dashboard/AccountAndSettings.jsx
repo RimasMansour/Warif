@@ -168,7 +168,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
             </div>
           </div>
           <button onClick={onBack} className="p-2.5 rounded-xl bg-white border border-gray-100 shadow-sm text-gray-500 hover:text-emerald-600 transition-all active:scale-95">
-             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={isRtl ? 'rotate-180' : ''}><path d="M15 18l-6-6 6-6"/></svg>
+             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={isEn ? 'rotate-180' : ''}><path d="M15 18l-6-6 6-6"/></svg>
           </button>
         </div>
 
@@ -322,23 +322,23 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
               <div className="flex-1 overflow-auto p-4 flex flex-col gap-4 custom-scrollbar">
                  {guides[lang].masterGuide.sections.map((section, idx) => (
                    <div key={section.id} className="flex flex-col gap-1.5 group animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
-                      <div className={`flex items-center gap-3 ${isRtl ? '' : 'flex-row-reverse'}`}>
+                      <div className={`flex items-center gap-3 ${isEn ? 'flex-row' : ''}`}>
                          <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-[11px] group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
                             {idx + 1}
                          </div>
-                         <h3 className="text-[14.5px] font-black text-gray-800">{section.title}</h3>
+                         <h3 className={`text-[14.5px] font-black text-gray-800 ${isEn ? 'text-left' : 'text-right'}`}>{section.title}</h3>
                       </div>
-                      <p className={`text-[11.5px] text-gray-400 font-bold leading-relaxed ${isRtl ? 'pr-0 md:pr-11' : 'pl-0 md:pl-11'}`}>
+                      <p className={`text-[11.5px] text-gray-400 font-bold leading-relaxed ${isEn ? 'pl-9 text-left' : 'pr-9 text-right'}`}>
                          {section.content}
                       </p>
                       {idx < guides[lang].masterGuide.sections.length - 1 && (
-                        <div className={`h-px bg-gray-50 mt-2 ${isRtl ? 'mr-11' : 'ml-11'}`} />
+                        <div className={`h-px bg-gray-50 mt-2 ${isEn ? 'ml-9' : 'mr-9'}`} />
                       )}
                    </div>
                  ))}
                  
                  {/* Decorative Footer inside modal */}
-                 <div className="mt-2 p-4 bg-emerald-50 rounded-[20px] border border-emerald-100 flex items-center gap-4">
+                 <div className={`mt-2 p-4 bg-emerald-50 rounded-[20px] border border-emerald-100 flex items-center gap-4 ${isEn ? 'text-left' : 'text-right'}`}>
                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                     </div>
@@ -348,7 +348,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     </div>
                  </div>
               </div>
-              <div className="p-4 bg-white border-t border-gray-50 flex justify-end">
+              <div className={`p-4 bg-white border-t border-gray-50 flex justify-end`}>
                  <button onClick={() => setShowUnifiedGuide(false)} className="px-8 py-2.5 rounded-[18px] bg-emerald-600 text-white font-black text-[13px] shadow-lg shadow-emerald-100 active:scale-95 transition-all">
                     {isEn ? 'Got it' : 'فهمت ذلك'}
                  </button>

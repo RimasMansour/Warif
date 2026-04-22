@@ -22,8 +22,8 @@ export function AutomationToggleCard({ isActive, onToggle, title="الأتمتة
             </svg>
          </div>
          <div>
-           <div className={`font-bold text-[15px] ${isActive ? 'text-[#166534]' : 'text-gray-700'}`}>{title}</div>
-           <div className={`text-[12px] font-medium mt-0.5 max-w-sm ${isActive ? 'text-[#15803d]' : 'text-gray-500'}`}>{description}</div>
+            <div className={`font-bold text-[15px] ${isActive ? 'text-[#166534]' : 'text-gray-700'}`}>{title}</div>
+            <div className={`text-[12px] font-medium mt-0.5 max-w-sm ${isActive ? 'text-[#15803d]' : 'text-gray-500'}`}>{description}</div>
          </div>
       </div>
       <div className={`w-14 h-7 flex items-center rounded-full p-1 shrink-0 transition-colors duration-500 ${isActive ? 'bg-[#16a34a]' : 'bg-gray-300'}`}>
@@ -33,17 +33,17 @@ export function AutomationToggleCard({ isActive, onToggle, title="الأتمتة
   );
 }
 
-export function TempSunIcon() {
+export function TempSunIcon(props) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M14 14.7V3a2 2 0 0 0-4 0v11.7a4.5 4.5 0 1 0 4 0z"/>
     </svg>
   );
 }
 
-export function AirHumidityIcon() {
+export function AirHumidityIcon(props) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 22c4.4 0 8-3.6 8-8 0-6-8-12-8-12S4 8 4 14c0 4.4 3.6 8 8 8z" />
       <path d="M2 13h5c1 0 1 1 2 1s1-1 2-1h2" />
       <path d="M2 17h5c1 0 1 1 2 1s1-1 2-1h2" />
@@ -58,7 +58,7 @@ function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = fal
       <div className="flex items-start gap-3">
         {icon && (
           <div className={`shrink-0 w-11 h-11 rounded-2xl ${iconBg} border border-emerald-100/50 flex items-center justify-center ${iconColor} shadow-sm transition-all`}>
-            {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: 1.8 }) : icon}
+            {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: icon.props.strokeWidth || 1.7 }) : icon}
           </div>
         )}
         <div className="flex flex-col">
@@ -99,19 +99,19 @@ function WeatherIcon({ weatherData, width=18, height=18 }) {
   );
 }
 
-export function SoilDropIcon() {
+export function SoilDropIcon(props) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 22C17.5228 22 22 20.2091 22 18C22 15.7909 17.5228 14 12 14C6.47715 14 2 15.7909 2 18C2 20.2091 6.47715 22 12 22Z" fill="#E8F5E9" stroke="#2E7D32" strokeWidth="1.5"/>
-      <path d="M12 14V4M12 4L9 7M12 4L15 7" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M7 10C7 10 9 8 12 8C15 8 17 10 17 10" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round"/>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <path d="M12 22C17.5228 22 22 20.2091 22 18C22 15.7909 17.5228 14 12 14C6.47715 14 2 15.7909 2 18C2 20.2091 6.47715 22 12 22Z" fill="#E8F5E9" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.5"}/>
+      <path d="M12 14V4M12 4L9 7M12 4L15 7" stroke="#10b981" strokeWidth={props.strokeWidth || "2"} strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M7 10C7 10 9 8 12 8C15 8 17 10 17 10" stroke="#10b981" strokeWidth={props.strokeWidth || "1.5"} strokeLinecap="round"/>
     </svg>
   );
 }
 
-function GaugeIcon() {
+function GaugeIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="m12 14 4-4" />
       <path d="M3.34 19a10 10 0 1 1 17.32 0" />
       <circle cx="12" cy="12" r="2" fill="currentColor" />
@@ -119,25 +119,32 @@ function GaugeIcon() {
   );
 }
 
-export function DropBadgeIcon() {
+export function DropBadgeIcon(props) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <path d="M12 2L15 8H9L12 2Z" fill="#0EA5E9"/>
       <rect x="11" y="8" width="2" height="10" rx="1" fill="#0EA5E9"/>
-      <path d="M7 14L10 14M14 14L17 14" stroke="#0EA5E9" strokeWidth="2" strokeLinecap="round"/>
-      <circle cx="12" cy="18" r="3" stroke="#0EA5E9" strokeWidth="1.5" fill="#E0F2FE"/>
+      <path d="M7 14L10 14M14 14L17 14" stroke="#0EA5E9" strokeWidth={props.strokeWidth || "2"} strokeLinecap="round"/>
+      <circle cx="12" cy="18" r="3" stroke="#0EA5E9" strokeWidth={props.strokeWidth || "1.5"} fill="#E0F2FE"/>
     </svg>
   );
 }
 
-function SensorTopBar({ title, subtitle, icon, onBack, onExport, iconBg = "bg-emerald-50", iconColor = "text-[#059669]" }) {
+function SensorTopBar({ title, subtitle, icon, onBack, onExport, T, iconBg = "bg-emerald-50", iconColor = "text-[#059669]" }) {
+  const isEn = T?.back === "Back";
+  const backArrow = (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={`opacity-70 group-hover:opacity-100 transition-opacity ${isEn ? 'rotate-180' : ''}`}>
+      <path d="M15 18l-6-6 6-6"/>
+    </svg>
+  );
+
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-all ${iconBg || 'bg-emerald-50'} ${iconColor || 'text-[#059669]'} border border-emerald-100/50 shadow-sm`}>
-          {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: 1.8 }) : icon}
+          {React.isValidElement(icon) ? React.cloneElement(icon, { size: 22, strokeWidth: icon.props.strokeWidth || 1.7 }) : icon}
         </div>
-        <div className="text-right">
+        <div className={isEn ? "text-left" : "text-right"}>
           <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{title}</div>
           <div className="text-[12px] text-gray-400 font-medium mt-1">{subtitle}</div>
         </div>
@@ -149,8 +156,8 @@ function SensorTopBar({ title, subtitle, icon, onBack, onExport, iconBg = "bg-em
             onClick={onExport} 
             className="px-4 py-2.5 rounded-xl border border-gray-200 text-[14px] text-gray-600 hover:text-[#2E7D32] hover:border-[#2E7D32]/30 hover:bg-[#f0fdf4] transition-all duration-300 flex items-center gap-2 font-bold shadow-sm active:scale-95 group"
           >
-            تصدير التقرير
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity">
+            {T?.exportReport || "تصدير التقرير"}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
           </button>
@@ -160,10 +167,8 @@ function SensorTopBar({ title, subtitle, icon, onBack, onExport, iconBg = "bg-em
           onClick={onBack} 
           className="px-4 py-2.5 rounded-xl border border-gray-200 text-[14px] text-gray-600 hover:text-[#2E7D32] hover:border-[#2E7D32]/30 hover:bg-[#f0fdf4] transition-all duration-300 flex items-center gap-2 font-bold shadow-sm active:scale-95 group"
         >
-          رجوع
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity">
-            <path d="M15 18l-6-6 6-6"/>
-          </svg>
+          {T?.back || "رجوع"}
+          {backArrow}
         </button>
       </div>
     </div>
@@ -187,23 +192,31 @@ function Account_Card({ children }) {
 }
 
 function Account_EditableField({ label, value, onEdit, mono }) {
+  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
+  const isEn = lang === 'en';
+
   return (
     <div className="flex items-center justify-between gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-200">
-      <div className="text-right">
+      <div className={isEn ? "text-left" : "text-right"}>
         <div className="text-sm text-gray-500">{label}</div>
         <div className={`text-sm font-medium ${mono ? 'font-mono' : ''}`}>{value}</div>
       </div>
-      <button type="button" onClick={onEdit} className="text-sm font-semibold text-[#2E7D32] hover:text-[#1B5E20] transition-colors duration-200">تعديل</button>
+      <button type="button" onClick={onEdit} className="text-sm font-semibold text-[#2E7D32] hover:text-[#1B5E20] transition-colors duration-200">
+        {isEn ? 'Edit' : 'تعديل'}
+      </button>
     </div>
   );
 }
 
 function Account_ListRow({ icon, title, subtitle, right }) {
+  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
+  const isEn = lang === 'en';
+
   return (
     <div className="flex items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-gray-200">
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-2xl bg-[#E8F5E9] flex items-center justify-center flex-shrink-0">{icon}</div>
-        <div className="text-right">
+        <div className={isEn ? "text-left" : "text-right"}>
           <div className="text-sm font-semibold text-gray-800">{title}</div>
           <div className="text-xs text-gray-500">{subtitle}</div>
         </div>
@@ -230,33 +243,33 @@ function Account_ModalShell({ children, onClose }) {
   );
 }
 
-function Account_PencilIcon() {
+function Account_PencilIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
     </svg>
   );
 }
 
-function Account_TrashIcon() {
+function Account_TrashIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#B91C1C" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
     </svg>
   );
 }
 
-function Account_PlusIcon() {
+function Account_PlusIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
 }
 
-function Account_SensorIcon() {
+function Account_SensorIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="4" y="4" width="16" height="16" rx="4" /><circle cx="12" cy="12" r="3" /><path d="M12 7v-3" />
     </svg>
   );
@@ -266,7 +279,7 @@ function Account_SensorIcon() {
 
 function PlantSoilIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M4 20c0-3 3-4 8-4s8 1 8 4" />
       <path d="M12 16V8" />
       <path d="M12 8c-2-2-5-2-5 0 0 3 3 4 5 4" />
@@ -277,7 +290,7 @@ function PlantSoilIcon(props) {
 
 function WaterValveIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M4 12h16" />
       <path d="M12 12V8" />
       <circle cx="12" cy="6" r="3" />
@@ -288,7 +301,7 @@ function WaterValveIcon(props) {
 
 function ListIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <line x1="3" y1="6" x2="16" y2="6" />
       <line x1="3" y1="12" x2="16" y2="12" />
       <line x1="3" y1="18" x2="16" y2="18" />
@@ -301,7 +314,7 @@ function ListIcon(props) {
 
 function WindSharedIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M17.7 7.7A2.5 2.5 0 1 1 20 12H5" />
       <path d="M9.601 3.599A2.5 2.5 0 1 0 8 8h12" />
       <path d="M11.3 20.3A2.5 2.5 0 1 1 9 16h12" />
@@ -312,7 +325,7 @@ function WindSharedIcon(props) {
 
 function IrrigationSmartIcon(props) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
       <path d="m5 15 2-2" />
       <path d="m19 15-2-2" />
@@ -322,7 +335,6 @@ function IrrigationSmartIcon(props) {
     </svg>
   );
 }
-
 
 
 export {
