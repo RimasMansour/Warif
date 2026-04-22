@@ -52,6 +52,8 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode }) {
               <path d="M2 9h5c1 0 1 1 2 1s1-1 2-1h2" />
             </svg>
           ),
+          colors: "bg-blue-50 border-blue-100/40 text-blue-600"
+        };
       case 'climate': 
         return { 
           icon: <WindSharedIcon />, 
@@ -120,8 +122,8 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode }) {
         {/* Compact Intelligence Dashboard */}
         <div className="animate-fade-in-up delay-1">
           <div className="bg-white/80 backdrop-blur-md p-4 rounded-[24px] border border-emerald-100 flex items-center gap-3 w-full md:w-fit min-w-[280px] shadow-sm">
-             <div className="w-10 h-10 rounded-xl bg-[#E8F5E9] text-[#059669] flex items-center justify-center border border-[#d1fae5]/40">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+             <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-[#059669] flex items-center justify-center border border-emerald-100/50 shadow-sm">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
              </div>
              <div>
                 <div className="text-[20px] font-black text-gray-800 leading-none">١٢٤</div>
