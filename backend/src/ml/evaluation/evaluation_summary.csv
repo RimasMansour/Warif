@@ -1,5 +1,0 @@
-Model,Accuracy,Precision,Recall,F1-Score,AUC-ROC,Avg Precision,MCC
-Random Forest,80.99,20.8,40.57,27.5,76.58,20.09,0.1917
-XGBoost,80.36,20.0,40.32,26.74,75.95,19.81,0.1824
-LSTM,84.63,19.82,23.95,21.69,66.39,15.23,0.1332
-Ensemble,83.54,22.07,33.62,26.65,73.77,18.53,0.1833
