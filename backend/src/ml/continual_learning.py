@@ -43,7 +43,7 @@ FEATURE_COLS = [
 ACCURACY_THRESHOLD = 0.85
 
 # الحد الأدنى لعدد السجلات الجديدة قبل إعادة التدريب
-MIN_NEW_RECORDS = 50
+MIN_NEW_RECORDS = 1
 
 
 # ══════════════════════════════════════════════════════════════
@@ -436,6 +436,9 @@ class ContinualLearner:
         self.base_dir     = base_dir
         self.dataset_path = dataset_path
         self.version_num  = 1
+        
+        import threading
+        self._retrain_lock = threading.Lock()
 
     def process_reading(self, reading: dict) -> dict:
         """
@@ -469,6 +472,12 @@ class ContinualLearner:
             'is_correct'    : is_correct,
         })
 
+        # ----- تطبيق مبدأ التوأم الرقمي للتعلم المستمر -----
+        # التعلم المستمر فور توفر نتيجة فعلية من المزرعة
+        if actual is not None:
+            import threading
+            threading.Thread(target=self.check_and_retrain, daemon=True).start()
+
         return result
 
     def check_and_retrain(self) -> bool:
@@ -481,25 +490,32 @@ class ContinualLearner:
 
         يعيد True لو تمت إعادة التدريب
         """
-        recent_acc   = self.db.get_recent_accuracy(last_n=100)
-        new_records  = self.db.get_unlabeled_count()
-
-        print(f"\nمراقبة الأداء:")
-        print(f"   الدقة على آخر 100 تنبؤ: {recent_acc*100:.1f}%")
-        print(f"   سجلات حقيقية جديدة: {new_records}")
-
-        should_retrain = (
-            recent_acc < ACCURACY_THRESHOLD or
-            new_records >= MIN_NEW_RECORDS
-        )
-
-        if should_retrain:
-            print("\nاكتُشف انحراف في الأداء -- بدء إعادة التدريب...")
-            self._retrain()
-            return True
-        else:
-            print("   الاداء مستقر -- لا حاجة لإعادة التدريب الآن")
+        if not self._retrain_lock.acquire(blocking=False):
+            print("   إعادة التدريب قيد التنفيذ حالياً، تم تخطي الطلب.")
             return False
+
+        try:
+            recent_acc   = self.db.get_recent_accuracy(last_n=100)
+            new_records  = self.db.get_unlabeled_count()
+
+            print(f"\nمراقبة الأداء:")
+            print(f"   الدقة على آخر 100 تنبؤ: {recent_acc*100:.1f}%")
+            print(f"   سجلات حقيقية جديدة: {new_records}")
+
+            should_retrain = (
+                recent_acc < ACCURACY_THRESHOLD or
+                new_records >= MIN_NEW_RECORDS
+            )
+
+            if should_retrain:
+                print("\nتطبيق مبدأ التوأم الرقمي: بدء التدريب المستمر على البيانات الجديدة...")
+                self._retrain()
+                return True
+            else:
+                print("   الاداء مستقر -- لا حاجة لإعادة التدريب الآن")
+                return False
+        finally:
+            self._retrain_lock.release()
 
     def _retrain(self):
         """
