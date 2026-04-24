@@ -11,7 +11,10 @@ from datetime import datetime, timezone, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.db.session import AsyncSessionLocal
-from src.db.models.models import SensorReading, SensorThreshold, Tray
+from src.db.models.models import (
+    User, Farm, Device, SensorReading, SensorThreshold,
+    Actuator, Recommendation, RecommendationCategory, RecommendationSeverity
+)
 
 
 SENSOR_TYPES = {
@@ -40,14 +43,40 @@ async def seed():
         for t in DEFAULT_THRESHOLDS:
             db.add(SensorThreshold(**t))
 
-        # ── Demo tray ───────────────────────────────
-        print("Seeding demo tray…")
-        db.add(Tray(
-            name="Tray A-01",
-            crop_type="Lettuce",
-            location="Zone 1",
-            planted_at=datetime.now(timezone.utc) - timedelta(days=14),
-        ))
+        # ── Demo user ────────────────────────────────
+        print("Seeding demo user...")
+        from src.core.security import hash_password
+        user = User(
+            username="demo_farmer",
+            email="demo@warif.com",
+            password_hash=hash_password("demo1234"),
+            language="ar",
+        )
+        db.add(user)
+        await db.flush()
+
+        # ── Demo farm ────────────────────────────────
+        print("Seeding demo farm...")
+        farm = Farm(
+            user_id=user.id,
+            name="مزرعة الاختبار",
+            farm_type="greenhouse",
+            crop_type="tomatoes",
+        )
+        db.add(farm)
+        await db.flush()
+
+        # ── Demo device ──────────────────────────────
+        print("Seeding demo device...")
+        device = Device(
+            farm_id=farm.id,
+            device_id="sensor_001",
+            name="Sensor Node 1",
+            type="sensor",
+            status="active",
+        )
+        db.add(device)
+        await db.flush()
 
         # ── Sensor readings (last 24 h, every 10 min) ──
         print("Seeding sensor readings (24 h of data)…")
@@ -56,7 +85,7 @@ async def seed():
             ts = now - timedelta(minutes=minutes_ago)
             for s_type, (lo, hi, unit) in SENSOR_TYPES.items():
                 db.add(SensorReading(
-                    device_id="gh-sensor-01",
+                    device_id=device.device_id,
                     sensor_type=s_type,
                     value=round(random.uniform(lo, hi), 2),
                     unit=unit,
@@ -64,7 +93,7 @@ async def seed():
                 ))
 
         await db.commit()
-    print("✅ Seed data inserted successfully.")
+    print("[OK] Seed data inserted successfully.")
 
 
 if __name__ == "__main__":

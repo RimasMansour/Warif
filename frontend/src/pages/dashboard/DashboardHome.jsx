@@ -22,6 +22,7 @@ import {
   generateDataForRange,
   getAllCombinedRecommendations 
 } from './dashboardUtils';
+import { useLatestSensors, useDashboard } from '../../hooks/useWarifData';
 
 // Liquid Wave Animation Styles
 const waveStyles = `
@@ -39,6 +40,16 @@ const waveStyles = `
 `;
 
 export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm }) {
+
+  // ── Live data from Backend API ─────────────────────────────
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: livesensors } = useLatestSensors(10000);
+  const { data: dashboardData } = useDashboard(farmId);
+
+  const apiTemp      = livesensors?.air_temperature  ?? null;
+  const apiHum       = livesensors?.air_humidity     ?? null;
+  const apiSoilMoist = livesensors?.soil_moisture    ?? null;
+  const apiSoilTemp  = livesensors?.soil_temperature ?? null;
   const [seconds, setSeconds] = useState(0);
 
   const [resourceRange, setResourceRange] = useState("D");
@@ -112,8 +123,8 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
           {/* Main Grid: AI Modules Overview */}
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-5 min-w-0">
-            <div className="animate-fade-in-up delay-2 h-full"><MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} /></div>
-            <div className="animate-fade-in-up delay-3 h-full"><SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} /></div>
+            <div className="animate-fade-in-up delay-2 h-full"><MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} /></div>
+            <div className="animate-fade-in-up delay-3 h-full"><SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} /></div>
             <div className="animate-fade-in-up delay-4 h-full"><IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} /></div>
             <div className="animate-fade-in-up delay-5 h-full"><DSSGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} /></div>
           </div>
@@ -222,9 +233,11 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
   );
 }
 
-function MicroclimateGlanceCard({ onGo, seconds, activeFarm }) {
-  const data = getLiveFarmData(activeFarm);
-  const isOptimal = data.temp < 32 && data.hum < 65;
+function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum }) {
+  const mockData = getLiveFarmData(activeFarm);
+  const temp = apiTemp ?? mockData.temp;
+  const hum  = apiHum  ?? mockData.hum;
+  const isOptimal = temp < 32 && hum < 65;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
@@ -244,13 +257,13 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm }) {
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Temperature' : 'درجة الحرارة'}</div>
             <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {data.temp.toFixed(1)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">°C</span>
+              {temp.toFixed(1)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">°C</span>
             </div>
           </div>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Air Humidity' : 'رطوبة الجو'}</div>
             <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {data.hum.toFixed(0)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">٪</span>
+              {hum.toFixed(0)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">%</span>
             </div>
           </div>
         </div>
@@ -261,7 +274,7 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm }) {
               <div className={`text-[13px] font-black ${isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isOptimal ? (isEn ? 'Optimal' : 'مثالي') : (isEn ? 'Alert' : 'تنبيه')}</div>
            </div>
            <div className="w-full">
-              <ClimateSparkline color={data.temp > 32 ? 'var(--status-error)' : data.temp > 28 ? 'var(--status-warning)' : 'var(--status-success)'} gradientId="climateGradHome" />
+              <ClimateSparkline color={temp > 32 ? 'var(--status-error)' : temp > 28 ? 'var(--status-warning)' : 'var(--status-success)'} gradientId="climateGradHome" />
            </div>
         </div>
       </div>
@@ -270,9 +283,11 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm }) {
   );
 }
 
-function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm }) {
-  const data = getLiveFarmData(activeFarm);
-  const isHealthy = data.soilMoist > 30 && data.soilMoist < 55;
+function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, apiSoilTemp }) {
+  const mockData = getLiveFarmData(activeFarm);
+  const soilMoist = apiSoilMoist ?? mockData.soilMoist;
+  const soilTemp  = apiSoilTemp  ?? mockData.soilTemp;
+  const isHealthy = soilMoist > 30 && soilMoist < 55;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
@@ -292,7 +307,7 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm }) {
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Soil Temp' : 'حرارة التربة'}</div>
             <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {data.soilTemp.toFixed(1)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">°C</span>
+              {soilTemp.toFixed(1)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">°C</span>
             </div>
           </div>
           <div className="flex flex-col">
@@ -300,7 +315,7 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm }) {
               {isEn ? 'Soil Moisture' : 'رطوبة التربة'}
             </div>
             <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {data.soilMoist.toFixed(0)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">٪</span>
+              {soilMoist.toFixed(0)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">%</span>
             </div>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { useLatestSensors } from "../hooks/useWarifData";
 import { translations } from "../i18n";
 import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, PlaceholderPage, AccountAndSettingsPages } from "./dashboard/dashboardSections";
 import { WeatherIcon, Account_ModalShell } from "./dashboard/dashboardShared";
@@ -241,6 +242,30 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     ];
   });
 
+  // ── Real sensor data from API ──────────────────────────────
+  const { data: liveSensors } = useLatestSensors(10000);
+
+  useEffect(() => {
+    if (!liveSensors) return;
+    setConnectedSensors(prev => prev.map(sensor => {
+      const typeMap = {
+        'رطوبة التربة':       liveSensors['soil_moisture'],
+        'درجة حرارة التربة': liveSensors['soil_temperature'],
+        'رطوبة الهواء':      liveSensors['air_humidity'],
+        'درجة الحرارة':      liveSensors['air_temperature'],
+      };
+      const apiValue = typeMap[sensor.type];
+      if (apiValue === undefined) return sensor;
+      const numVal = parseFloat(apiValue);
+      const unit = sensor.value?.replace(/[\d.]/g, '').trim() || '';
+      return {
+        ...sensor,
+        value: `${numVal.toFixed(1)}${unit}`,
+        status: 'normal',
+      };
+    }));
+  }, [liveSensors]);
+
   function handleSensorsChange(newSensors) {
     const enriched = newSensors.map(s => ({
       ...s,
@@ -292,7 +317,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       const API_BASE = import.meta.env.VITE_API_URL || "https://warif.onrender.com";
       
       // Ensure the URL is valid before fetching
-      const fetchUrl = `${API_BASE.replace(/\/$/, "")}/chatbot/ask`;
+      const fetchUrl = `${API_BASE.replace(/\/$/, "")}/api/v1/chatbot/ask`;
       
       const response = await fetch(fetchUrl, {
         method: "POST",

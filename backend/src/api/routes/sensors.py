@@ -67,6 +67,24 @@ async def get_latest_readings(db: AsyncSession = Depends(get_db)):
     return out
 
 
+@router.post("", status_code=201)
+async def ingest_sensor_reading(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Ingest a single sensor reading from a device or simulator."""
+    from src.db.models.models import SensorReading
+    reading = SensorReading(
+        device_id=payload.get("device_id", "unknown"),
+        sensor_type=payload.get("sensor_type"),
+        value=float(payload.get("value", 0)),
+        unit=payload.get("unit", ""),
+    )
+    db.add(reading)
+    await db.commit()
+    return {"status": "ok", "sensor_type": reading.sensor_type, "value": reading.value}
+
+
 def _compute_status(value: float, threshold) -> str:
     if threshold is None:
         return "normal"

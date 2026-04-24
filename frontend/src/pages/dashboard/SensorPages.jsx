@@ -16,6 +16,7 @@ import {
   formatLastUpdated,
   getLiveFarmData
 } from './dashboardUtils';
+import { useLatestSensors } from '../../hooks/useWarifData';
 
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
@@ -68,7 +69,10 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
   }, [activeFarm]);
 
   const [range, setRange] = useState("W");
-  const data = getLiveFarmData(activeFarm);
+  const mockData = getLiveFarmData(activeFarm);
+  const { data: livesensors } = useLatestSensors(10000);
+  const temp = livesensors?.air_temperature ?? mockData.temp;
+  const hum  = livesensors?.air_humidity    ?? mockData.hum;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
   const tempSeries = useMemo(() => generateDataForRange(range, { 
@@ -80,9 +84,9 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
   }), [range, activeFarm]);
 
   const recommendations = useMemo(() => [
-    ...sensorBuildRecommendationsTemperature(data.temp),
-    ...sensorBuildRecommendationsHumidity(data.hum)
-  ], [data.temp, data.hum]);
+    ...sensorBuildRecommendationsTemperature(temp),
+    ...sensorBuildRecommendationsHumidity(hum)
+  ], [temp, hum]);
 
   return (
     <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -108,11 +112,11 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.temp}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.temp.toFixed(1)}°C</span>
+                  <span className="text-2xl font-black text-gray-800">{temp.toFixed(1)}°C</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.hum}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.hum.toFixed(0)}٪</span>
+                  <span className="text-2xl font-black text-gray-800">{hum.toFixed(0)}%</span>
                 </div>
               </div>
             </CardShell>
@@ -249,7 +253,10 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
   }, [activeFarm]);
 
   const [range, setRange] = useState("W");
-  const data = getLiveFarmData(activeFarm);
+  const mockData2 = getLiveFarmData(activeFarm);
+  const { data: livesensors2 } = useLatestSensors(10000);
+  const soilTemp  = livesensors2?.soil_temperature ?? mockData2.soilTemp;
+  const soilMoist = livesensors2?.soil_moisture    ?? mockData2.soilMoist;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
   const soilTempSeries = useMemo(() => generateDataForRange(range, { 
@@ -260,7 +267,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
     base: 42, amp: 10, noise: 4, min: 10, max: 95, seed: 80, farmIndex: activeFarm
   }), [range, activeFarm]);
 
-  const soilRecs = useMemo(() => sensorBuildRecommendationsSoil(data.soilTemp, data.soilMoist), [data.soilTemp, data.soilMoist]);
+  const soilRecs = useMemo(() => sensorBuildRecommendationsSoil(soilTemp, soilMoist), [soilTemp, soilMoist]);
 
   return (
     <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -286,11 +293,11 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
               <div className="flex-1 flex flex-col gap-4 justify-center">
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.soilTemp}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.soilTemp.toFixed(1)}°C</span>
+                  <span className="text-2xl font-black text-gray-800">{soilTemp.toFixed(1)}°C</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.soilMoist}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.soilMoist.toFixed(0)}٪</span>
+                  <span className="text-2xl font-black text-gray-800">{soilMoist.toFixed(0)}%</span>
                 </div>
               </div>
             </CardShell>

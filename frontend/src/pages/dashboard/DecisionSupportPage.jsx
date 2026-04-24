@@ -11,6 +11,7 @@ import {
   WindSharedIcon 
 } from './dashboardShared';
 import { formatLastUpdated, getAllCombinedRecommendations } from './dashboardUtils';
+import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
 
 export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode }) {
   const [seconds, setSeconds] = useState(0);
@@ -76,9 +77,28 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode }) {
     return () => clearInterval(timer);
   }, []);
 
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: apiRecs } = useRecommendations(farmId);
+
   const allRecommendations = useMemo(() => {
-    return getAllCombinedRecommendations(activeFarm, isEn);
-  }, [activeFarm, isEn]);
+    const mockRecs = getAllCombinedRecommendations(activeFarm, isEn);
+    if (apiRecs && apiRecs.length > 0) {
+      const mappedApiRecs = apiRecs.map(r => ({
+        id: `api-${r.id}`,
+        mode: 'auto',
+        type: r.category || 'irrigation',
+        title: r.message?.slice(0, 50) || 'توصية',
+        desc: r.message || '',
+        reasoning: '',
+        time: isEn ? 'Just now' : 'الآن',
+        status: r.is_read ? 'accepted' : 'pending',
+        week: isEn ? 'This Week' : 'هذا الأسبوع',
+        farmIndices: [0, 1, 2],
+      }));
+      return [...mappedApiRecs, ...mockRecs];
+    }
+    return mockRecs;
+  }, [activeFarm, isEn, apiRecs]);
 
   const [localRecs, setLocalRecs] = useState([]);
 

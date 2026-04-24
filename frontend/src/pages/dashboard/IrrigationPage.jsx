@@ -3,6 +3,7 @@ import { translations } from '../../i18n';
 import { SensorTopBar, CardShell, IrrigationSmartIcon } from './dashboardShared';
 import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './dashboardCharts';
 import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
+import { useLatestSensors, useIrrigationStatus } from '../../hooks/useWarifData';
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual }) {
   const [seconds, setSeconds] = useState(0);
@@ -70,7 +71,14 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const [showSuccess, setShowSuccess] = useState(""); // "irrigate", "stop", "flush"
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const data = getLiveFarmData(activeFarm);
+  const mockData = getLiveFarmData(activeFarm);
+  const { data: livesensors } = useLatestSensors(10000);
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: irrigationData } = useIrrigationStatus(farmId);
+  const soilMoist = livesensors?.soil_moisture ?? mockData.soilMoist;
+  const currentFlow = irrigationData?.flow_rate ?? mockData.flowRate;
+  const waterUsage  = irrigationData?.water_usage ?? mockData.waterUsage;
+  const powerUsage  = irrigationData?.power_usage ?? mockData.powerUsage;
 
   const dualSeries = useMemo(() => {
     const raw = generateDataForRange(range, { 
@@ -89,7 +97,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
     }));
   }, [range, activeFarm]);
 
-  const currentFlow = data.flowRate;
+
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
   return (
@@ -299,7 +307,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
               </div>
               <div className={`flex items-center justify-between`}>
                  <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
-                   {data.waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
+                   {waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
                  </div>
                  <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
               </div>
@@ -322,7 +330,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
             </div>
             <div className={`flex items-center justify-between`}>
                <div className={`text-4xl font-black text-yellow-600 tracking-tight`}>
-                 {data.powerUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.kwh}</span>
+                 {powerUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.kwh}</span>
                </div>
                <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-5% ${T.fromYesterday}` : `-٥٪ ${T.fromYesterday}`}</div>
             </div>

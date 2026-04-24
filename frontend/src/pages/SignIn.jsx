@@ -152,8 +152,34 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
             <>
               {step === 1 && <FarmInfoStep onNext={(data) => { setUserData(d => ({ ...d, ...data })); nextStep(); }} T={T} isRtl={isRtl} />}
               {step === 2 && <SensorSelectionStep onNext={(data) => { setUserData(d => ({ ...d, ...data })); nextStep(); }} T={T} />}
-              {step === 3 && <DeviceScanPage onFinish={() => {
+              {step === 3 && <DeviceScanPage onFinish={async () => {
                 const final = { ...userData };
+                try {
+                  const { registerUser, loginUser, createFarm } = await import('../services/api.js');
+                  await registerUser(
+                    final.username,
+                    final.email,
+                    final.password,
+                    lang
+                  );
+                  const loginData = await loginUser(final.username, final.password);
+                  localStorage.setItem('warif_token', loginData.access_token);
+                  const farmTypeMap = {
+                    'محمية (مغلقة)': 'greenhouse',
+                    'Greenhouse (Closed)': 'greenhouse',
+                    'مزرعة مفتوحة': 'open_field',
+                    'Open Farm': 'open_field',
+                  };
+                  const farmType = farmTypeMap[final.farmType] || 'greenhouse';
+                  const farmData = await createFarm(final.farmName, farmType, final.cropType);
+                  if (farmData?.id) {
+                    const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+                    localStorage.setItem('warif_user', JSON.stringify({ ...saved, farmId: farmData.id }));
+                  }
+                } catch (err) {
+                  console.error('Registration error:', err);
+                }
+                localStorage.setItem('warif_logged_in', 'true');
                 localStorage.setItem('warif_user', JSON.stringify(final));
                 onLogin();
               }} T={T} isRtl={isRtl} selectedSensors={userData.sensors || []} />}
@@ -237,24 +263,35 @@ function LoginPage({ onLogin, onNewUser, T, isRtl }) {
     }
   }, []);
 
-  const validate = () => {
+  const handleLogin = async () => {
     const errs = {};
-    const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
     if (!username.trim()) errs.username = T.errUsernameRequired;
-    else if (username !== 'admin' && username !== savedUser.username) errs.username = T.errUsernameWrong;
     if (!password) errs.password = T.errPasswordRequired;
-    else if (username === 'admin' && password !== '123456') errs.password = T.errPasswordWrong;
-    else if (username === savedUser.username && password !== savedUser.password) errs.password = T.errPasswordWrong;
-    return errs;
-  };
-
-  const handleLogin = () => {
-    const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
-    if (remember) localStorage.setItem('warif_remember', JSON.stringify({ username, password }));
-    else localStorage.removeItem('warif_remember');
     setLoading(true);
-    setTimeout(() => { setLoading(false); localStorage.setItem('warif_logged_in', 'true'); onLogin(); }, 1200);
+    try {
+      const { loginUser } = await import('../services/api.js');
+      const data = await loginUser(username, password);
+      localStorage.setItem('warif_token', data.access_token);
+      localStorage.setItem('warif_logged_in', 'true');
+      try {
+        const { getFarms } = await import('../services/api.js');
+        const farms = await getFarms();
+        if (farms && farms.length > 0) {
+          const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+          localStorage.setItem('warif_user', JSON.stringify({ ...saved, farmId: farms[0].id }));
+        }
+      } catch (e) {
+        console.log('Could not fetch farms:', e);
+      }
+      if (remember) localStorage.setItem('warif_remember', JSON.stringify({ username, password }));
+      else localStorage.removeItem('warif_remember');
+      setLoading(false);
+      onLogin();
+    } catch (err) {
+      setLoading(false);
+      setErrors({ password: T.errPasswordWrong });
+    }
   };
 
   return (
