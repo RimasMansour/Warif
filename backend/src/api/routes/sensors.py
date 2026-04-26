@@ -72,17 +72,62 @@ async def ingest_sensor_reading(
     payload: dict,
     db: AsyncSession = Depends(get_db),
 ):
-    """Ingest a single sensor reading from a device or simulator."""
-    from src.db.models.models import SensorReading
+    """Ingest a single sensor reading and auto-generate alerts if thresholds exceeded."""
+    from src.db.models.models import SensorReading, Alert, AlertSeverity, AlertStatus
+
+    sensor_type = payload.get("sensor_type")
+    value       = float(payload.get("value", 0))
+
+    # 1. Save the reading
     reading = SensorReading(
         device_id=payload.get("device_id", "unknown"),
-        sensor_type=payload.get("sensor_type"),
-        value=float(payload.get("value", 0)),
+        sensor_type=sensor_type,
+        value=value,
         unit=payload.get("unit", ""),
     )
     db.add(reading)
+    await db.flush()
+
+    # 2. Check thresholds and generate alert if needed
+    thresh_result = await db.execute(
+        select(SensorThreshold).where(SensorThreshold.sensor_type == sensor_type)
+    )
+    threshold = thresh_result.scalar_one_or_none()
+
+    if threshold:
+        status = _compute_status(value, threshold)
+
+        if status in ("warning", "critical"):
+            severity = AlertSeverity.critical if status == "critical" else AlertSeverity.warning
+
+            SENSOR_LABELS = {
+                "soil_moisture":    "رطوبة التربة",
+                "soil_temperature": "حرارة التربة",
+                "air_temperature":  "درجة الحرارة",
+                "air_humidity":     "رطوبة الهواء",
+            }
+            label = SENSOR_LABELS.get(sensor_type, sensor_type)
+
+            if status == "critical":
+                message = f"{label} خارج النطاق الآمن: {value:.1f} {reading.unit}"
+            else:
+                message = f"{label} تحتاج انتباه: {value:.1f} {reading.unit}"
+
+            alert = Alert(
+                sensor_type=sensor_type,
+                message=message,
+                severity=severity,
+                status=AlertStatus.open,
+            )
+            db.add(alert)
+
     await db.commit()
-    return {"status": "ok", "sensor_type": reading.sensor_type, "value": reading.value}
+    return {
+        "status": "ok",
+        "sensor_type": sensor_type,
+        "value": value,
+        "alert_generated": threshold is not None and _compute_status(value, threshold) in ("warning", "critical")
+    }
 
 
 def _compute_status(value: float, threshold) -> str:
