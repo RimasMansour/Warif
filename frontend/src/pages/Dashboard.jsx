@@ -514,15 +514,15 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           {/* Content Area */}
           <div className="flex-1 min-h-0 overflow-auto w-full">
             {page === "dashboard" ? (
-              <DashboardHome onGo={go} onSendAI={sendToAI} globalAutoMode={globalAutoMode} onOpenAssets={() => setShowSensorsPopup(true)} activeFarm={activeFarm} />
+              <DashboardHome onGo={go} onSendAI={sendToAI} globalAutoMode={globalAutoMode} onOpenAssets={() => setShowSensorsPopup(true)} activeFarm={activeFarm} sharedSensors={liveSensors} />
             ) : page === "dss" ? (
-              <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} globalAutoMode={globalAutoMode} />
+              <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} globalAutoMode={globalAutoMode} sharedSensors={liveSensors} />
             ) : page === "irrigation" ? (
-              <IrrigationPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} onOpenManual={() => setShowManualIrrigation(true)} />
+              <IrrigationPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} onOpenManual={() => setShowManualIrrigation(true)} sharedSensors={liveSensors} />
             ) : page === "microclimate" ? (
-              <MicroclimatePage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} />
+              <MicroclimatePage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} sharedSensors={liveSensors} />
             ) : page === "soil" ? (
-              <SoilRootDataPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} />
+              <SoilRootDataPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} sharedSensors={liveSensors} />
             ) : page === "profile" ? (
               <AccountAndSettingsPages initialPage="profile" onBack={() => go("dashboard")} onLogout={onLogout} onNameUpdate={handleNameUpdate} language={language} onLanguageChange={handleLanguageChange} sensors={connectedSensors} onSensorsChange={handleSensorsChange} />
             ) : page === "settings" ? (

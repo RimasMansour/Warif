@@ -21,7 +21,7 @@ import { useLatestSensors } from '../../hooks/useWarifData';
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
-export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
+export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [activeAction, setActiveAction] = useState("");
 
@@ -70,7 +70,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
 
   const [range, setRange] = useState("W");
   const mockData = getLiveFarmData(activeFarm);
-  const { data: livesensors } = useLatestSensors(10000);
+  const { data: localSensors } = useLatestSensors(10000);
+  const livesensors = sharedSensors || localSensors;
   const temp = livesensors?.air_temperature ?? mockData.temp;
   const hum  = livesensors?.air_humidity    ?? mockData.hum;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
@@ -213,7 +214,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
 /* =========================================================
    2. Soil Module (بيئة وصحة التربة)
 ========================================================= */
-export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
+export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -254,7 +255,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
 
   const [range, setRange] = useState("W");
   const mockData2 = getLiveFarmData(activeFarm);
-  const { data: livesensors2 } = useLatestSensors(10000);
+  const { data: localSensors2 } = useLatestSensors(10000);
+  const livesensors2 = sharedSensors || localSensors2;
   const soilTemp  = livesensors2?.soil_temperature ?? mockData2.soilTemp;
   const soilMoist = livesensors2?.soil_moisture    ?? mockData2.soilMoist;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);

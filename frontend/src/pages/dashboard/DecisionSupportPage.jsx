@@ -13,7 +13,7 @@ import {
 import { formatLastUpdated, getAllCombinedRecommendations } from './dashboardUtils';
 import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
 
-export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode }) {
+export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [showThanksIds, setShowThanksIds] = useState([]);
 

@@ -39,12 +39,14 @@ const waveStyles = `
   }
 `;
 
-export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm }) {
+export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, sharedSensors }) {
 
   // ── Live data from Backend API ─────────────────────────────
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
-  const { data: livesensors } = useLatestSensors(10000);
+  const { data: localSensors } = useLatestSensors(10000);
   const { data: dashboardData } = useDashboard(farmId);
+
+  const livesensors = sharedSensors || localSensors;
 
   const apiTemp      = livesensors?.air_temperature  ?? null;
   const apiHum       = livesensors?.air_humidity     ?? null;

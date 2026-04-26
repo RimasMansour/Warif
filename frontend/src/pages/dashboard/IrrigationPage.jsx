@@ -5,7 +5,7 @@ import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from
 import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
 import { useLatestSensors, useIrrigationStatus } from '../../hooks/useWarifData';
 
-export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual }) {
+export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -72,7 +72,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const mockData = getLiveFarmData(activeFarm);
-  const { data: livesensors } = useLatestSensors(10000);
+  const { data: localSensors } = useLatestSensors(10000);
+  const livesensors = sharedSensors || localSensors;
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: irrigationData } = useIrrigationStatus(farmId);
   const soilMoist = livesensors?.soil_moisture ?? mockData.soilMoist;
