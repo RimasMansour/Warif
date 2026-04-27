@@ -5,9 +5,9 @@ import {
   PlantSoilIcon, 
   WaterValveIcon, 
   ListIcon,
-  WindIcon,
+  WindSharedIcon,
   IrrigationSmartIcon 
-} from './dashboardShared';
+} from './DashboardShared';
 
 export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
 
@@ -58,7 +58,7 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
               }`}>
             <span className={`w-6 h-6 flex items-center justify-center rounded-lg ${currentPage === item.page ? 'bg-emerald-100/50 text-emerald-600' : 'text-gray-400'}`}>
               {item.icon === "dashboard" && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /></svg>}
-              {item.icon === "wind" && <WindIcon />}
+              {item.icon === "wind" && <WindSharedIcon />}
               {item.icon === "soil" && <PlantSoilIcon />}
               {item.icon === "irrigation" && <IrrigationSmartIcon />}
               {item.icon === "list" && <ListIcon />}

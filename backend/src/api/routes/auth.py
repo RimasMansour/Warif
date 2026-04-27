@@ -114,10 +114,28 @@ async def update_me(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if body.username:
+    if body.username and body.username != user.username:
+        taken = await db.execute(
+            select(User).where(User.username == body.username)
+        )
+        if taken.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username already taken",
+            )
         user.username = body.username
-    if body.email:
+
+    if body.email and body.email != user.email:
+        taken = await db.execute(
+            select(User).where(User.email == body.email)
+        )
+        if taken.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
         user.email = body.email
+
     if body.language:
         user.language = body.language
 
