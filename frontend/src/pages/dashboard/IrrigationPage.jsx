@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon } from './dashboardShared';
-import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './dashboardCharts';
+import { SensorTopBar, CardShell, IrrigationSmartIcon } from './DashboardShared';
+import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './DashboardCharts';
 import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
 import { useLatestSensors, useIrrigationStatus } from '../../hooks/useWarifData';
 

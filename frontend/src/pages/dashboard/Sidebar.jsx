@@ -7,7 +7,7 @@ import {
   ListIcon,
   WindSharedIcon,
   IrrigationSmartIcon 
-} from './dashboardShared';
+} from './DashboardShared';
 
 export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
 

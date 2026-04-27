@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
-import { useLatestSensors } from "../hooks/useWarifData";
-import { translations } from "../i18n";
-import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, PlaceholderPage, AccountAndSettingsPages } from "./dashboard/dashboardSections";
-import { WeatherIcon, Account_ModalShell } from "./dashboard/dashboardShared";
+import { useLatestSensors } from "../../hooks/useWarifData";
+import { translations } from "../../i18n";
+import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, PlaceholderPage, AccountAndSettingsPages } from "./DashboardSections";
+import { WeatherIcon, Account_ModalShell } from "./DashboardShared";
 
 const DeviceRow = ({ s, T, isEn, isRtl }) => (
   <div className="flex items-center justify-between p-3.5 rounded-[22px] bg-white border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all duration-300 group">

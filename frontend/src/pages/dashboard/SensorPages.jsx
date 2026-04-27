@@ -5,8 +5,8 @@ import {
   CardShell, 
   PlantSoilIcon,
   WindSharedIcon
-} from './dashboardShared';
-import { HealthStyleBarChart, IrrigationActionButton } from './dashboardCharts';
+} from './DashboardShared';
+import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
 
 import { 
   generateDataForRange, 

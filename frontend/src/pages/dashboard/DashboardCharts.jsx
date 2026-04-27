@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo } from 'react';
-import { CardShell, TempSunIcon, AirHumidityIcon, SoilDropIcon } from './dashboardShared';
+import { CardShell, TempSunIcon, AirHumidityIcon, SoilDropIcon } from './DashboardShared';
 
 /* =========================================================
    WARIF | BILINGUAL & SYMMETRIC CHARTS MODULE

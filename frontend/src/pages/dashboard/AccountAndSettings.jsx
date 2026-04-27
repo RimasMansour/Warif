@@ -10,7 +10,7 @@ import {
   Account_TrashIcon, 
   Account_PlusIcon, 
   Account_SensorIcon 
-} from './dashboardShared';
+} from './DashboardShared';
 import { guides } from './GuidesContent';
 
 export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLogout, onNameUpdate, sensors: propSensors, onSensorsChange, language: currentLang, onLanguageChange }) {

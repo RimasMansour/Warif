@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import SignIn from './pages/SignIn'
-import Dashboard from './pages/Dashboard'
+import SignIn from './pages/dashboard/SignIn'
+import Dashboard from './pages/dashboard/Dashboard'
 
 export default function App() {
   const [screen, setScreen] = useState(() => {

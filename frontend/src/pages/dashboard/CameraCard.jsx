@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { CardShell, Account_ModalShell } from './dashboardShared';
+import { CardShell, Account_ModalShell } from './DashboardShared';
 import { WARIF_CONFIG } from './warifConfig';
 
 export function CameraCard() {

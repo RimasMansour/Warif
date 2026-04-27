@@ -9,7 +9,7 @@ import {
   IrrigationSmartIcon,
   ListIcon,
   WindSharedIcon 
-} from './dashboardShared';
+} from './DashboardShared';
 import { formatLastUpdated, getAllCombinedRecommendations } from './dashboardUtils';
 import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
 

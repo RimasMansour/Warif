@@ -11,10 +11,10 @@ import {
   ListIcon,
   WindSharedIcon,
   IrrigationSmartIcon
-} from './dashboardShared';
+} from './DashboardShared';
 import { 
   Donut
-} from './dashboardCharts';
+} from './DashboardCharts';
 import { CameraCard } from './CameraCard';
 import { 
   formatLastUpdated, 

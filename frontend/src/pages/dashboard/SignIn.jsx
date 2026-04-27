@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { translations } from "../i18n";
+import { translations } from "../../i18n";
 
 /* =========================================================
    WARIF | Ultra-Premium Sign-In & Registration Flow
@@ -155,7 +155,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
               {step === 3 && <DeviceScanPage onFinish={async () => {
                 const final = { ...userData };
                 try {
-                  const { registerUser, loginUser, createFarm } = await import('../services/api.js');
+                  const { registerUser, loginUser, createFarm } = await import('../../services/api.js');
                   await registerUser(
                     final.username,
                     final.email,
@@ -270,12 +270,12 @@ function LoginPage({ onLogin, onNewUser, T, isRtl }) {
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setLoading(true);
     try {
-      const { loginUser } = await import('../services/api.js');
+      const { loginUser } = await import('../../services/api.js');
       const data = await loginUser(username, password);
       localStorage.setItem('warif_token', data.access_token);
       localStorage.setItem('warif_logged_in', 'true');
       try {
-        const { getFarms } = await import('../services/api.js');
+        const { getFarms } = await import('../../services/api.js');
         const farms = await getFarms();
         if (farms && farms.length > 0) {
           const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
