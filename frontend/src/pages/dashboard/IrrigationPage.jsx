@@ -3,7 +3,7 @@ import { translations } from '../../i18n';
 import { SensorTopBar, CardShell, IrrigationSmartIcon } from './DashboardShared';
 import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './DashboardCharts';
 import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
-import { useLatestSensors, useIrrigationStatus } from '../../hooks/useWarifData';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction } from '../../hooks/useWarifData';
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
@@ -76,6 +76,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const livesensors = sharedSensors || localSensors;
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: irrigationData } = useIrrigationStatus(farmId);
+  const { data: mlPrediction } = useIrrigationPrediction(farmId, livesensors);
   const soilMoist = livesensors?.soil_moisture ?? mockData.soilMoist;
   const currentFlow = irrigationData?.flow_rate ?? mockData.flowRate;
   const waterUsage  = irrigationData?.water_usage ?? mockData.waterUsage;
@@ -186,6 +187,37 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
               </div>
               <div className="text-[12px] text-gray-400 mt-1 font-medium">{T.dssSub}</div>
             </div>
+            {mlPrediction && (
+              <div className={`p-4 rounded-2xl border-2 mb-4 ${
+                mlPrediction.irrigation_needed 
+                  ? 'bg-amber-50 border-amber-200' 
+                  : 'bg-emerald-50 border-emerald-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[13px] font-black text-gray-800">
+                      {isEn ? 'AI Irrigation Decision' : 'قرار الري بالذكاء الاصطناعي'}
+                    </div>
+                    <div className={`text-[12px] font-bold mt-1 ${
+                      mlPrediction.irrigation_needed ? 'text-amber-600' : 'text-emerald-600'
+                    }`}>
+                      {mlPrediction.irrigation_needed 
+                        ? (isEn ? 'Irrigation Needed' : 'يحتاج ري') 
+                        : (isEn ? 'No Irrigation Needed' : 'لا يحتاج ري')}
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">
+                      {isEn ? 'Confidence' : 'الثقة'}: {(mlPrediction.confidence * 100).toFixed(0)}%
+                      {' | '}{isEn ? 'Model' : 'النموذج'}: {mlPrediction.model_version || mlPrediction.model}
+                    </div>
+                  </div>
+                  <div className={`text-3xl ${
+                    mlPrediction.irrigation_needed ? '💧' : '✅'
+                  }`}>
+                    {mlPrediction.irrigation_needed ? '💧' : '✅'}
+                  </div>
+                </div>
+              </div>
+            )}
             <ul className="mt-6 flex flex-col gap-5">
               <li className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
                  <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />

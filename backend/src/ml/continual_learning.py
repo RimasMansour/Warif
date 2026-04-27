@@ -338,9 +338,16 @@ class WarifEnsemble:
             # LSTM اختياري -- قد لا يكون موجوداً في كل بيئة
             lstm_path = os.path.join(self.models_dir, "lstm_model.keras")
             if os.path.exists(lstm_path):
-                import tensorflow as tf
-                self.lstm = tf.keras.models.load_model(lstm_path)
-                self.has_lstm = True
+                try:
+                    import tensorflow as tf
+                    self.lstm = tf.keras.models.load_model(lstm_path)
+                    self.has_lstm = True
+                    print("[ML] LSTM loaded successfully")
+                except Exception as e:
+                    print(f"[ML] LSTM skipped: {e}")
+                    self.lstm = None
+                    self.has_lstm = False
+                    self.weights = {'rf': 0.45, 'xgb': 0.55, 'lstm': 0.0}
             else:
                 self.lstm     = None
                 self.has_lstm = False

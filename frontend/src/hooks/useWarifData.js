@@ -136,3 +136,42 @@ export function useIrrigationStatus(farm_id) {
 
   return { data, loading, error, refetch: fetch_data }
 }
+
+export function useIrrigationPrediction(farm_id, sensors) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  const fetch_data = useCallback(async () => {
+    if (!farm_id || !sensors) return
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        soil_moisture: sensors.soil_moisture ?? 45,
+        air_temp: sensors.air_temperature ?? 30,
+        humidity: sensors.air_humidity ?? 60,
+        soil_temp: sensors.soil_temperature ?? 25,
+      })
+      const res = await fetch(
+        `${API_BASE}/api/v1/ml/predictions/irrigation/${farm_id}?${params}`,
+        { headers: authHeaders() }
+      )
+      if (!res.ok) throw new Error('Failed to fetch ML prediction')
+      const json = await res.json()
+      setData(json)
+      setError(null)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [farm_id, sensors])
+
+  useEffect(() => {
+    fetch_data()
+    const id = setInterval(fetch_data, 30000)
+    return () => clearInterval(id)
+  }, [fetch_data])
+
+  return { data, loading, error, refetch: fetch_data }
+}
