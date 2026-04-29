@@ -166,7 +166,7 @@ class RecommendationOut(BaseModel):
     category:   str
     severity:   str
     is_read:    bool
-    created_at: datetime
+    created_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
 
