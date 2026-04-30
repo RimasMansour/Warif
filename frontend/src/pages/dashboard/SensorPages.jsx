@@ -4,23 +4,25 @@ import {
   SensorTopBar, 
   CardShell, 
   PlantSoilIcon,
-  WindIcon
-} from './dashboardShared';
-import { HealthStyleBarChart, IrrigationActionButton } from './dashboardCharts';
+  WindSharedIcon
+} from './DashboardShared';
+import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
 
 import { 
   generateDataForRange, 
   sensorBuildRecommendationsTemperature, 
   sensorBuildRecommendationsHumidity, 
+  sensorBuildRecommendationsLight,
   sensorBuildRecommendationsSoil,
   formatLastUpdated,
   getLiveFarmData
 } from './dashboardUtils';
+import { useLatestSensors, triggerManualCooling } from '../../hooks/useWarifData';
 
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
-export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
+export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [activeAction, setActiveAction] = useState("");
 
@@ -49,8 +51,10 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
     climateLogSub: isEn ? "Historical sensor pattern discovery." : "اكتشاف الأنماط التاريخية للحساسات.",
     tempChart: isEn ? "Temperature Trend" : "مسار درجة الحرارة",
     humChart: isEn ? "Air Humidity Trend" : "مسار رطوبة الهواء",
+    lightChart: isEn ? "Light Intensity Trend" : "مسار شدة الإضاءة",
     tempY: isEn ? "Temp (°C)" : "درجة الحرارة (°C)",
     humY: isEn ? "Humidity (%)" : "رطوبة الهواء (٪)",
+    lightY: isEn ? "Lux" : "لوكس",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
   };
@@ -67,22 +71,48 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
     return () => clearInterval(interval);
   }, [activeFarm]);
 
-  const [range, setRange] = useState("W");
-  const data = getLiveFarmData(activeFarm);
+  const [range, setRange] = useState("D");
+  const mockData = getLiveFarmData(activeFarm);
+  const { data: localSensors } = useLatestSensors(10000);
+  const livesensors = sharedSensors || localSensors;
+  const temp = livesensors?.air_temperature ?? mockData.temp;
+  const hum  = livesensors?.air_humidity    ?? mockData.hum;
+  const light = livesensors?.light_intensity ?? mockData.light_intensity;
+  const coolingActive = livesensors?.coolingActive ?? false;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const tempSeries = useMemo(() => generateDataForRange(range, { 
-    base: 28, amp: 8, noise: 3, min: 10, max: 45, seed: 42, farmIndex: activeFarm
-  }), [range, activeFarm]);
+  const tempSeries = useMemo(() => {
+    if (range === 'D' && livesensors?.history?.length > 0) {
+      return livesensors.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round(h.temp * 10) / 10 }));
+    }
+    return generateDataForRange(range, { 
+      base: 28, amp: 8, noise: 3, min: 10, max: 45, seed: 42, farmIndex: activeFarm
+    });
+  }, [range, activeFarm, livesensors?.history]);
   
-  const humSeries = useMemo(() => generateDataForRange(range, { 
-    base: 55, amp: 12, noise: 5, min: 20, max: 95, seed: 101, farmIndex: activeFarm
-  }), [range, activeFarm]);
+  const humSeries = useMemo(() => {
+    if (range === 'D' && livesensors?.history?.length > 0) {
+      return livesensors.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round(h.hum) }));
+    }
+    return generateDataForRange(range, { 
+      base: 55, amp: 12, noise: 5, min: 20, max: 95, seed: 101, farmIndex: activeFarm
+    });
+  }, [range, activeFarm, livesensors?.history]);
+
+  const lightSeries = useMemo(() => {
+    if (range === 'D' && livesensors?.history?.length > 0) {
+      return livesensors.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round((h.temp / 35) * 80000) })); // Mocked light relation
+    }
+    return generateDataForRange(range, { 
+      base: 60000, amp: 30000, noise: 5000, min: 0, max: 120000, seed: 99, farmIndex: activeFarm
+    });
+  }, [range, activeFarm, livesensors?.history]);
 
   const recommendations = useMemo(() => [
-    ...sensorBuildRecommendationsTemperature(data.temp),
-    ...sensorBuildRecommendationsHumidity(data.hum)
-  ], [data.temp, data.hum]);
+    ...sensorBuildRecommendationsTemperature(temp),
+    ...sensorBuildRecommendationsHumidity(hum),
+    ...sensorBuildRecommendationsLight(light)
+  ], [temp, hum, light]);
 
   return (
     <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -91,7 +121,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
         <SensorTopBar
           title={T.title}
           subtitle={T.subtitle}
-          icon={<WindIcon />}
+          icon={<WindSharedIcon />}
           onBack={onBack}
           onExport={handleExport}
           T={translations[lang]}
@@ -108,11 +138,15 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
               <div className="flex flex-col gap-4">
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.temp}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.temp.toFixed(1)}°C</span>
+                  <span className="text-2xl font-black text-gray-800">{temp.toFixed(1)}°C</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.hum}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.hum.toFixed(0)}٪</span>
+                  <span className="text-2xl font-black text-gray-800">{hum.toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
+                  <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{isEn ? 'Light Intensity' : 'شدة الإضاءة'}</span>
+                  <span className="text-2xl font-black text-gray-800">{Math.round(light).toLocaleString()} <span className="text-[14px]">Lux</span></span>
                 </div>
               </div>
             </CardShell>
@@ -158,15 +192,15 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
                 <div className="flex flex-col gap-2">
                   <span className="sr-only">Climate Control Actions</span>
                   <IrrigationActionButton 
-                    active={activeAction === "cool"} onClick={() => setActiveAction("cool")}
-                    icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12h16M12 4v16M20 8l-4 4 4 4M4 8l4 4-4 4"/></svg>}
+                    active={activeAction === "cool" || coolingActive} onClick={() => { setActiveAction("cool"); triggerManualCooling(); }}
+                    icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/></svg>}
                     isRtl={isRtl}
                   >
-                    {T.startCooling}
+                    {coolingActive ? (isEn ? "Cooling Active..." : "جاري التبريد...") : T.startCooling}
                   </IrrigationActionButton>
                   <IrrigationActionButton 
                     active={activeAction === "stop"} onClick={() => setActiveAction("stop")}
-                    icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>}
+                    icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" /></svg>}
                     isRtl={isRtl}
                   >
                     {T.stopFans}
@@ -198,6 +232,13 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
                 T={translations[lang]}
                 isRtl={isRtl}
               />
+              <HealthStyleBarChart 
+                range={range} onRangeChange={setRange} data={lightSeries} 
+                unit=" Lux" metricName={T.lightChart} color="#f59e0b" 
+                yAxisTitle={T.lightY}
+                T={translations[lang]}
+                isRtl={isRtl}
+              />
             </div>
           </CardShell>
         </div>
@@ -209,7 +250,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm }) {
 /* =========================================================
    2. Soil Module (بيئة وصحة التربة)
 ========================================================= */
-export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
+export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -248,19 +289,34 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
     return () => clearInterval(interval);
   }, [activeFarm]);
 
-  const [range, setRange] = useState("W");
-  const data = getLiveFarmData(activeFarm);
+  const [range, setRange] = useState("D");
+  const mockData2 = getLiveFarmData(activeFarm);
+  const { data: localSensors2 } = useLatestSensors(10000);
+  const livesensors2 = sharedSensors || localSensors2;
+  const soilTemp  = livesensors2?.soil_temperature ?? mockData2.soilTemp;
+  const soilMoist = livesensors2?.soil_moisture    ?? mockData2.soilMoist;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const soilTempSeries = useMemo(() => generateDataForRange(range, { 
-    base: 24, amp: 5, noise: 2.5, min: 10, max: 40, seed: 90, farmIndex: activeFarm
-  }), [range, activeFarm]);
+  const soilTempSeries = useMemo(() => {
+    if (range === 'D' && livesensors2?.history?.length > 0) {
+      // Offset air temp slightly for soil temp realism
+      return livesensors2.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round((h.temp - 4) * 10) / 10 }));
+    }
+    return generateDataForRange(range, { 
+      base: 24, amp: 5, noise: 2.5, min: 10, max: 40, seed: 90, farmIndex: activeFarm
+    });
+  }, [range, activeFarm, livesensors2?.history]);
   
-  const soilMoistSeries = useMemo(() => generateDataForRange(range, { 
-    base: 42, amp: 10, noise: 4, min: 10, max: 95, seed: 80, farmIndex: activeFarm
-  }), [range, activeFarm]);
+  const soilMoistSeries = useMemo(() => {
+    if (range === 'D' && livesensors2?.history?.length > 0) {
+      return livesensors2.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round(h.soil) }));
+    }
+    return generateDataForRange(range, { 
+      base: 42, amp: 10, noise: 4, min: 10, max: 95, seed: 80, farmIndex: activeFarm
+    });
+  }, [range, activeFarm, livesensors2?.history]);
 
-  const soilRecs = useMemo(() => sensorBuildRecommendationsSoil(data.soilTemp, data.soilMoist), [data.soilTemp, data.soilMoist]);
+  const soilRecs = useMemo(() => sensorBuildRecommendationsSoil(soilTemp, soilMoist), [soilTemp, soilMoist]);
 
   return (
     <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -286,11 +342,11 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm }) {
               <div className="flex-1 flex flex-col gap-4 justify-center">
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.soilTemp}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.soilTemp.toFixed(1)}°C</span>
+                  <span className="text-2xl font-black text-gray-800">{soilTemp.toFixed(1)}°C</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.soilMoist}</span>
-                  <span className="text-2xl font-black text-gray-800">{data.soilMoist.toFixed(0)}٪</span>
+                  <span className="text-2xl font-black text-gray-800">{soilMoist.toFixed(0)}%</span>
                 </div>
               </div>
             </CardShell>

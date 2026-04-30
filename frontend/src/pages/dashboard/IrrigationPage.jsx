@@ -1,10 +1,11 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon } from './dashboardShared';
-import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './dashboardCharts';
+import { SensorTopBar, CardShell, IrrigationSmartIcon } from './DashboardShared';
+import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './DashboardCharts';
 import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction } from '../../hooks/useWarifData';
 
-export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
+export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -43,6 +44,10 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
     powerLabel: isEn ? "Power Consumption" : "استهلاك الكهرباء",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
+    manualSettings: isEn ? "Irrigation Settings" : "إعدادات الري",
+    quantity: isEn ? "Quantity (Liters)" : "كمية الري (لتر)",
+    durationLabel: isEn ? "Duration (Minutes)" : "مدة الري (بالدقائق)",
+    confirmAction: isEn ? "Confirm & Start" : "تأكيد وبدء التشغيل",
   };
 
   useEffect(() => {
@@ -55,7 +60,27 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
 
   const [range, setRange] = useState("M");
   const [activeAction, setActiveAction] = useState("");
-  const data = getLiveFarmData(activeFarm);
+  
+  // Manual Irrigation Settings States
+  const [manualAmount, setManualAmount] = useState(50);
+  const [duration, setDuration] = useState(15);
+
+  // Feedback states
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeProcessing, setActiveProcessing] = useState(""); // "irrigate", "stop", "flush"
+  const [showSuccess, setShowSuccess] = useState(""); // "irrigate", "stop", "flush"
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  const mockData = getLiveFarmData(activeFarm);
+  const { data: localSensors } = useLatestSensors(10000);
+  const livesensors = sharedSensors || localSensors;
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: irrigationData } = useIrrigationStatus(farmId);
+  const { data: mlPrediction } = useIrrigationPrediction(farmId, livesensors);
+  const soilMoist = livesensors?.soil_moisture ?? mockData.soilMoist;
+  const currentFlow = irrigationData?.flow_rate ?? mockData.flowRate;
+  const waterUsage  = irrigationData?.water_usage ?? mockData.waterUsage;
+  const powerUsage  = irrigationData?.power_usage ?? mockData.powerUsage;
 
   const dualSeries = useMemo(() => {
     const raw = generateDataForRange(range, { 
@@ -74,7 +99,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
     }));
   }, [range, activeFarm]);
 
-  const currentFlow = data.flowRate;
+
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
   return (
@@ -103,17 +128,53 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="animate-fade-in-up delay-1 h-full">
-            <CardShell className="p-6 h-full card-interactive">
-            <div className={isRtl ? 'text-right' : 'text-left'}>
-              <div className="text-xl font-black text-gray-800 tracking-tight">{T.flowRate}</div>
-              <div className="text-[12px] text-gray-400 mt-1 font-medium">{lastUpdateLabel}</div>
-            </div>
-            <div className="mt-8 flex items-center justify-center">
-              <IrrigationDonut value={Math.round(currentFlow)} />
-            </div>
-            <div className="mt-6 text-center text-[11px] font-black text-emerald-700 bg-emerald-50 py-1.5 rounded-xl border border-emerald-100 uppercase tracking-tighter shadow-sm">
-              {isEn ? `Flow Rate ${Math.round(currentFlow)}%` : `معدل التدفق ${Math.round(currentFlow)}٪`}
-            </div>
+            <CardShell className="p-6 h-full card-interactive overflow-hidden relative">
+              {/* Flow Animation Background Element */}
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-50 rounded-full blur-3xl opacity-60 animate-pulse" />
+              
+              <div className={isRtl ? 'text-right' : 'text-left'}>
+                <div className="text-xl font-black text-gray-800 tracking-tight flex items-center justify-between">
+                  {T.flowRate}
+                  <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                  </div>
+                </div>
+                <div className="text-[12px] text-gray-400 mt-1 font-medium">{lastUpdateLabel}</div>
+              </div>
+
+              <div className="mt-8 flex items-center justify-center relative">
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  {/* Custom Gauge SVG with Dynamic Colors */}
+                  <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 176 176">
+                    <circle cx="88" cy="88" r="76" stroke="currentColor" strokeWidth="10" fill="transparent" className="text-gray-100/50" />
+                    <circle
+                      cx="88" cy="88" r="76" stroke={`url(#flowGradient-${Math.round(currentFlow)})`} strokeWidth="10"
+                      strokeDasharray={477} strokeDashoffset={477 - (477 * Math.round(currentFlow)) / 100}
+                      strokeLinecap="round" fill="transparent" className="transition-all duration-1000 ease-out"
+                    />
+                    <defs>
+                      <linearGradient id={`flowGradient-${Math.round(currentFlow)}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor={currentFlow >= 80 ? "#10b981" : currentFlow >= 40 ? "#f59e0b" : "#ef4444"} />
+                        <stop offset="100%" stopColor={currentFlow >= 80 ? "#3b82f6" : currentFlow >= 40 ? "#fbbf24" : "#f87171"} />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute flex flex-col items-center">
+                    <span className={`text-3xl font-black tracking-tighter ${currentFlow >= 80 ? 'text-emerald-600' : currentFlow >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
+                      {Math.round(currentFlow)}%
+                    </span>
+                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{isEn ? "Live Flow" : "تدفق مباشر"}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className={`mt-6 ${currentFlow >= 80 ? 'bg-emerald-50/50 border-emerald-100/50' : currentFlow >= 40 ? 'bg-amber-50/50 border-amber-100/50' : 'bg-red-50/50 border-red-100/50'} backdrop-blur-sm border rounded-2xl py-2.5 px-4 flex items-center justify-between shadow-sm`}>
+                <div className="flex items-center gap-2">
+                   <div className={`w-2 h-2 rounded-full animate-ping ${currentFlow >= 80 ? 'bg-emerald-500' : currentFlow >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} />
+                   <span className={`text-[12px] font-bold ${currentFlow >= 80 ? 'text-emerald-800' : currentFlow >= 40 ? 'text-amber-800' : 'text-red-800'}`}>{isEn ? "Current Rate" : "المعدل الحالي"}</span>
+                </div>
+                <span className={`text-[14px] font-black ${currentFlow >= 80 ? 'text-emerald-600' : currentFlow >= 40 ? 'text-amber-600' : 'text-red-600'}`}>{Math.round(currentFlow)}%</span>
+              </div>
             </CardShell>
           </div>
 
@@ -126,6 +187,37 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
               </div>
               <div className="text-[12px] text-gray-400 mt-1 font-medium">{T.dssSub}</div>
             </div>
+            {mlPrediction && (
+              <div className={`p-4 rounded-2xl border-2 mb-4 ${
+                mlPrediction.irrigation_needed 
+                  ? 'bg-amber-50 border-amber-200' 
+                  : 'bg-emerald-50 border-emerald-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-[13px] font-black text-gray-800">
+                      {isEn ? 'AI Irrigation Decision' : 'قرار الري بالذكاء الاصطناعي'}
+                    </div>
+                    <div className={`text-[12px] font-bold mt-1 ${
+                      mlPrediction.irrigation_needed ? 'text-amber-600' : 'text-emerald-600'
+                    }`}>
+                      {mlPrediction.irrigation_needed 
+                        ? (isEn ? 'Irrigation Needed' : 'يحتاج ري') 
+                        : (isEn ? 'No Irrigation Needed' : 'لا يحتاج ري')}
+                    </div>
+                    <div className="text-[11px] text-gray-400 mt-0.5">
+                      {isEn ? 'Confidence' : 'الثقة'}: {(mlPrediction.confidence * 100).toFixed(0)}%
+                      {' | '}{isEn ? 'Model' : 'النموذج'}: {mlPrediction.model_version || mlPrediction.model}
+                    </div>
+                  </div>
+                  <div className={`text-3xl ${
+                    mlPrediction.irrigation_needed ? '💧' : '✅'
+                  }`}>
+                    {mlPrediction.irrigation_needed ? '💧' : '✅'}
+                  </div>
+                </div>
+              </div>
+            )}
             <ul className="mt-6 flex flex-col gap-5">
               <li className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
                  <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
@@ -164,30 +256,70 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
               <div className="mt-6 flex flex-col gap-3">
                 <IrrigationActionButton 
                   active={activeAction === "irrigate"} 
-                  onClick={() => setActiveAction("irrigate")}
-                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
+                  onClick={() => onOpenManual && onOpenManual()}
+                  icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>}
                   isRtl={isRtl}
                 >
-                  {T.startManual}
+                  <span className="text-[14px] font-black">{T.startManual}</span>
                 </IrrigationActionButton>
                 
                 <IrrigationActionButton 
                   active={activeAction === "stop"} 
-                  onClick={() => setActiveAction("stop")}
-                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>}
+                  onClick={() => {
+                    setActiveAction("stop");
+                    setIsProcessing(true);
+                    setActiveProcessing("stop");
+                    setTimeout(() => {
+                      setIsProcessing(false);
+                      setShowSuccess("stop");
+                      setTimeout(() => setShowSuccess(""), 3000);
+                    }, 1000);
+                  }}
+                  icon={isProcessing && activeProcessing === "stop" ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><rect x="4" y="4" width="16" height="16" rx="3"/></svg>
+                  )}
                   isRtl={isRtl}
                 >
-                  {T.stopAll}
+                  <span className="text-[14px] font-black">
+                    {isProcessing && activeProcessing === "stop" ? (isEn ? "Stopping..." : "جاري الإيقاف...") : T.stopAll}
+                  </span>
                 </IrrigationActionButton>
+                {showSuccess === "stop" && (
+                   <div className="p-2 bg-red-50 text-red-700 rounded-xl border border-red-100 text-[10px] font-black flex items-center justify-center gap-2 animate-pulse mt-1">
+                      {isEn ? "All Valves Closed" : "تم إغلاق كافة المحابس"}
+                   </div>
+                )}
                 
                 <IrrigationActionButton 
                   active={activeAction === "flush"} 
-                  onClick={() => setActiveAction("flush")}
-                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>}
+                  onClick={() => {
+                    setActiveAction("flush");
+                    setIsProcessing(true);
+                    setActiveProcessing("flush");
+                    setTimeout(() => {
+                      setIsProcessing(false);
+                      setShowSuccess("flush");
+                      setTimeout(() => setShowSuccess(""), 4000);
+                    }, 1500);
+                  }}
+                  icon={isProcessing && activeProcessing === "flush" ? (
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                  )}
                   isRtl={isRtl}
                 >
-                  {T.flushNetwork}
+                  <span className="text-[14px] font-black">
+                    {isProcessing && activeProcessing === "flush" ? (isEn ? "Flushing..." : "جاري الغسيل...") : T.flushNetwork}
+                  </span>
                 </IrrigationActionButton>
+                {showSuccess === "flush" && (
+                   <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 text-[10px] font-black flex items-center justify-center gap-2 animate-pulse mt-1">
+                      {isEn ? "Network Flushed Successfully" : "تم تنظيف الشبكة بنجاح"}
+                   </div>
+                )}
               </div>
             )}
             </CardShell>
@@ -197,24 +329,24 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="animate-fade-in-up delay-4 h-full">
             <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-full card-interactive">
-            <div className={`flex items-center justify-between mb-4`}>
-              <div className={isRtl ? 'text-right' : 'text-left'}>
-                <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyWater}</div>
-                <div className="text-[12px] text-gray-400 font-medium mt-0.5">{T.dailyWaterSub}</div>
+              <div className={`flex items-center justify-between mb-4`}>
+                <div className={isRtl ? 'text-right' : 'text-left'}>
+                  <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyWater}</div>
+                  <div className="text-[12px] text-gray-400 font-medium mt-0.5">{T.dailyWaterSub}</div>
+                </div>
+                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100/30">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                </div>
               </div>
-              <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100/30">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+              <div className={`flex items-center justify-between`}>
+                 <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
+                   {waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
+                 </div>
+                 <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
               </div>
-            </div>
-            <div className={`flex items-center justify-between`}>
-               <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
-                 {data.waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
-               </div>
-               <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
-            </div>
-            <div className="mt-6 h-2 w-full bg-blue-50 rounded-full overflow-hidden">
-               <div className="h-full bg-blue-500 rounded-full w-[45%]" />
-            </div>
+              <div className="mt-6 h-2 w-full bg-blue-50 rounded-full overflow-hidden">
+                <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: '70%' }} />
+              </div>
             </CardShell>
           </div>
 
@@ -231,7 +363,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
             </div>
             <div className={`flex items-center justify-between`}>
                <div className={`text-4xl font-black text-yellow-600 tracking-tight`}>
-                 {data.powerUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.kwh}</span>
+                 {powerUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.kwh}</span>
                </div>
                <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-5% ${T.fromYesterday}` : `-٥٪ ${T.fromYesterday}`}</div>
             </div>
@@ -255,6 +387,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm }) {
            />
         </div>
       </div>
+
     </div>
   );
 }

@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     def DATABASE_URL(self) -> str:
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-    # JWT
-    JWT_SECRET_KEY: str = "insecure-dev-secret"
+    # JWT — must be set via JWT_SECRET_KEY env var in production
+    JWT_SECRET_KEY: str = "insecure-dev-secret-change-in-prod"
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 60
 
@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     MQTT_PASSWORD: str = ""
 
     # App
-    DEBUG: bool = True
+    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:5173",

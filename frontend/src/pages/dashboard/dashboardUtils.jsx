@@ -198,12 +198,32 @@ export function sensorBuildRecommendationsSoil(soilTemp, soilMoist) {
   return rec;
 }
 
+export function sensorBuildRecommendationsLight(current) {
+  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
+  const isEn = lang === 'en';
+  const rec = [];
+  
+  if (current >= 100000) {
+    rec.push({
+      text: isEn ? "High light intensity: activate shading to prevent heat stress." : "شدة إضاءة عالية: قم بتفعيل التظليل لتجنب الإجهاد الحراري.",
+      reasoning: isEn ? "Lux exceeded 100,000, risking leaf burn and severe evaporation." : "تجاوزت شدة الإضاءة 100 ألف لوكس، مما يهدد باحتراق الأوراق وزيادة التبخر بشكل حاد."
+    });
+  } else if (current <= 10000) {
+    rec.push({
+      text: isEn ? "Low light intensity: activate artificial lighting if necessary." : "إضاءة منخفضة: قم بتشغيل الإضاءة الاصطناعية لدعم البناء الضوئي إذا استمر الانخفاض.",
+      reasoning: isEn ? "Prolonged low light slows down plant metabolism and fruit development." : "الانخفاض المستمر في الإضاءة يبطئ عمليات الأيض وتطور الثمار."
+    });
+  }
+  return rec;
+}
+
 export function getLiveFarmData(activeFarm) {
   return {
     temp: 28.4 + (activeFarm * 2),
     hum: 56 + (activeFarm * 3),
     soilTemp: 24.5 + (activeFarm * 1.5),
     soilMoist: 42 + (activeFarm * 2),
+    light_intensity: 60000 + (activeFarm * 5000),
     waterUsage: 5000 + (activeFarm * 500),
     powerUsage: 360 + (activeFarm * 40),
     flowRate: 60 + (activeFarm * 7)
@@ -221,10 +241,11 @@ export function getStrategicRecommendations(activeFarm, isEn) {
       desc: "Due to high solar radiation, the system activated 40% automated shading.",
       reasoning: "Solar radiation peaked at 850 W/m², requiring preventive intervention to protect leaves from burning.",
       time: "2 hours ago",
+      week: "This Week",
     },
     {
        id: "v1",
-       farmIndices: [0],
+       farmIndices: [0, 1, 2],
        mode: "manual",
        type: "irrigation",
        title: "Rec: Flowering Support (Vegetables)",
@@ -232,28 +253,31 @@ export function getStrategicRecommendations(activeFarm, isEn) {
        reasoning: "Sensor data shows moisture fluctuations. During fruiting, stable irrigation prevents fruit cracking.",
        time: "4 hours ago",
        status: "pending", 
+       week: "This Week",
     },
     {
-       id: "f1",
-       farmIndices: [1],
+       id: "acc-1",
+       farmIndices: [0, 1, 2],
        mode: "manual",
-       type: "irrigation",
-       title: "Rec: Sugar Conc. Check (Fruits)",
-       desc: "Gradual reduction in irrigation can stimulate sugar concentration in fruits.",
-       reasoning: "Digital twin predicts ripening in 5 days; water restriction enhances flavor and desired taste.",
-       time: "1 hour ago",
-       status: "pending", 
+       type: "soil",
+       title: "Rec: Nutrient Injection Approved",
+       desc: "Nutrient levels are stable after the approved injection protocol.",
+       reasoning: "User approved the recommendation based on NPK sensors showing a decline in nitrogen levels.",
+       time: "5 hours ago",
+       status: "accepted", 
+       week: "This Week",
     },
     {
-       id: "l1",
-       farmIndices: [2],
+       id: "rej-1",
+       farmIndices: [0, 1, 2],
        mode: "manual",
        type: "humidity",
-       title: "Rec: Transpiration Check (Leafy)",
-       desc: "Dew accumulation on wide leaves detected; ventilation is recommended.",
-       reasoning: "High interstitial humidity in lettuce leaves inhibits respiration; activating dry air prevents fungal growth.",
-       time: "30 mins ago",
-       status: "pending", 
+       title: "Rec: Manual Misting Rejected",
+       desc: "The suggestion to increase misting was declined by the user.",
+       reasoning: "User preferred natural ventilation over misting to maintain a specific humidity balance.",
+       time: "6 hours ago",
+       status: "rejected", 
+       week: "This Week",
     },
     {
        id: "r3",
@@ -264,6 +288,7 @@ export function getStrategicRecommendations(activeFarm, isEn) {
        desc: "Top windows opened automatically to reduce accumulated air humidity.",
        reasoning: "Relative air humidity exceeded 85%; phased ventilation was activated to maintain target 65% range.",
        time: "Yesterday",
+       week: "Last Week",
     }
   ] : [
     {
@@ -275,10 +300,11 @@ export function getStrategicRecommendations(activeFarm, isEn) {
       desc: "بسبب ارتفاع الإشعاع الشمسي، قام النظام بتفعيل التظليل الآلي بنسبة 40%.",
       reasoning: "تم رصد ارتفاع مفاجئ في إشعاع الشمس (850 واط/م²) مما استدعى التدخل الوقائي لحماية الأوراق من الاحتراق.",
       time: "منذ ساعتين",
+      week: "هذا الأسبوع",
     },
     {
        id: "v1",
-       farmIndices: [0],
+       farmIndices: [0, 1, 2],
        mode: "manual",
        type: "irrigation",
        title: "توصية: دعم التزهير (الخضروات)",
@@ -286,28 +312,31 @@ export function getStrategicRecommendations(activeFarm, isEn) {
        reasoning: "بيانات الحساسات تشير لتذبذب في الرطوبة، وبما أن الخضروات في مرحلة الإثمار، فإن استقرار الري يمنع تشقق الثمار.",
        time: "منذ 4 ساعات",
        status: "pending", 
+       week: "هذا الأسبوع",
     },
     {
-       id: "f1",
-       farmIndices: [1],
+       id: "acc-1",
+       farmIndices: [0, 1, 2],
        mode: "manual",
-       type: "irrigation",
-       title: "توصية: فحص نسبة السكر (الفواكه)",
-       desc: "تقليل الري تدريجياً في هذه المرحلة يحفز تركيز السكر في الثمار.",
-       reasoning: "التوأم الرقمي يتوقع نضج المحصول خلال 5 أيام؛ تقنين المياه يعزز الطعم والمذاق المطلوب في الفواكه.",
-       time: "منذ ساعة",
-       status: "pending", 
+       type: "soil",
+       title: "توصية مقبولة: حقن المغذيات",
+       desc: "مستويات المغذيات مستقرة الآن بعد تنفيذ بروتوكول الحقن المعتمد.",
+       reasoning: "قام المستخدم بقبول التوصية بناءً على قراءات NPK التي أظهرت انخفاضاً في مستويات النيتروجين.",
+       time: "منذ 5 ساعات",
+       status: "accepted", 
+       week: "هذا الأسبوع",
     },
     {
-       id: "l1",
-       farmIndices: [2],
+       id: "rej-1",
+       farmIndices: [0, 1, 2],
        mode: "manual",
        type: "humidity",
-       title: "توصية: فحص النتح (الورقيات)",
-       desc: "تراكم الندى على الأوراق العريضة قد يسبب بياض دقيقي؛ يوصى بالتهوية.",
-       reasoning: "ارتفاع الرطوبة البينية بين أوراق الخص يعيق التنفس؛ تفعيل الهواء الجاف يمنع نمو المستعمرات الفطرية.",
-       time: "منذ 30 دقيقة",
-       status: "pending", 
+       title: "توصية مرفوضة: تفعيل الرش الضبابي",
+       desc: "تم رفض مقترح زيادة الرش الضبابي من قبل المستخدم.",
+       reasoning: "فضل المستخدم الاعتماد على التهوية الطبيعية بدلاً من الرش للحفاظ على توازن رطوبة محدد.",
+       time: "منذ 6 ساعات",
+       status: "rejected", 
+       week: "هذا الأسبوع",
     },
     {
        id: "r3",
@@ -318,6 +347,7 @@ export function getStrategicRecommendations(activeFarm, isEn) {
        desc: "تم فتح النوافذ العلوية تلقائياً لخفض رطوبة الهواء المتراكمة.",
        reasoning: "تجاوزت رطوبة الهواء النسبية حاجز 85%، وتم تفعيل التهوية المتدرجة للحفاظ على النطاق الآمن (65%).",
        time: "أمس",
+       week: "الأسبوع الماضي",
     }
   ];
   return base.filter(r => r.farmIndices.includes(activeFarm));
@@ -328,6 +358,7 @@ export function getAllCombinedRecommendations(activeFarm, isEn) {
   const tempRecs = sensorBuildRecommendationsTemperature(data.temp);
   const humRecs = sensorBuildRecommendationsHumidity(data.hum);
   const soilRecs = sensorBuildRecommendationsSoil(data.soilTemp, data.soilMoist);
+  const lightRecs = sensorBuildRecommendationsLight(data.light_intensity);
   const strategic = getStrategicRecommendations(activeFarm, isEn);
 
   // Convert sensor-based to strategic format for consistency
@@ -352,6 +383,19 @@ export function getAllCombinedRecommendations(activeFarm, isEn) {
       week: isEn ? "This Week" : "هذا الأسبوع",
       mode: "auto",
       type: "humidity",
+      title: r.text,
+      desc: r.text,
+      reasoning: r.reasoning,
+      time: isEn ? "Live" : "لحظي"
+    });
+  });
+
+  lightRecs.forEach((r, i) => {
+    converted.push({
+      id: `live-light-${i}`,
+      week: isEn ? "This Week" : "هذا الأسبوع",
+      mode: "auto",
+      type: "light",
       title: r.text,
       desc: r.text,
       reasoning: r.reasoning,

@@ -1,0 +1,22 @@
+# Chatbot Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables (NEVER commit real .env files)
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Chroma DB (local vector store - ok to commit empty structure)
+# chroma_db/
+# chroma_db_Allam_warif/ — keep for knowledge base
