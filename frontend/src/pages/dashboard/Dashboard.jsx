@@ -1,8 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
-import { useLatestSensors } from "../../hooks/useWarifData";
+import { useLatestSensors, useAutoAlerts, triggerManualIrrigation, triggerManualCooling } from "../../hooks/useWarifData";
 import { translations } from "../../i18n";
 import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, PlaceholderPage, AccountAndSettingsPages } from "./DashboardSections";
-import { WeatherIcon, Account_ModalShell } from "./DashboardShared";
+import { WeatherIcon, Account_ModalShell, BellAlertIcon, AlertsPanel } from "./DashboardShared";
 
 const DeviceRow = ({ s, T, isEn, isRtl }) => (
   <div className="flex items-center justify-between p-3.5 rounded-[22px] bg-white border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all duration-300 group">
@@ -244,6 +244,27 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   // ── Real sensor data from API ──────────────────────────────
   const { data: liveSensors } = useLatestSensors(10000);
+  const { alerts: activeAlerts, dismissAlert } = useAutoAlerts(liveSensors, globalAutoMode);
+  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
+
+  const handleAlertAccept = (id, actionType) => {
+    if (actionType === 'cool') {
+      triggerManualCooling();
+    } else if (actionType === 'irrigate') {
+      triggerManualIrrigation();
+    }
+    // Dismiss after action
+    dismissAlert(id);
+  };
+
+  const handleAlertReject = (id) => {
+    dismissAlert(id);
+  };
+
+  const handleAlertFeedback = (id, isPositive) => {
+    // Collect feedback for AI training later
+    dismissAlert(id);
+  };
 
   useEffect(() => {
     if (!liveSensors) return;
@@ -434,8 +455,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
               </button>
             </div>
 
-            {/* End (Left in RTL): Weather + Lang + User */}
-            <div className="flex items-center gap-4">
+            {/* End (Left in RTL): Weather + Alerts + Lang + User */}
+            <div className="flex items-center gap-4 relative">
               
               {/* Compact Weather Widget */}
               <div className={`hidden lg:flex items-center gap-2 ${isRtl ? 'border-l border-gray-200/80 pl-4' : 'border-r border-gray-200/80 pr-4'} py-1`}>
@@ -514,7 +535,18 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           {/* Content Area */}
           <div className="flex-1 min-h-0 overflow-auto w-full">
             {page === "dashboard" ? (
-              <DashboardHome onGo={go} onSendAI={sendToAI} globalAutoMode={globalAutoMode} onOpenAssets={() => setShowSensorsPopup(true)} activeFarm={activeFarm} sharedSensors={liveSensors} />
+              <DashboardHome 
+                onGo={go} 
+                onSendAI={sendToAI} 
+                globalAutoMode={globalAutoMode} 
+                onOpenAssets={() => setShowSensorsPopup(true)} 
+                activeFarm={activeFarm} 
+                sharedSensors={liveSensors} 
+                alerts={activeAlerts}
+                onAlertAccept={handleAlertAccept}
+                onAlertReject={handleAlertReject}
+                onAlertFeedback={handleAlertFeedback}
+              />
             ) : page === "dss" ? (
               <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} globalAutoMode={globalAutoMode} sharedSensors={liveSensors} />
             ) : page === "irrigation" ? (
@@ -746,6 +778,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                       onClick={() => {
                         setIrrigationProcessing(true);
                         setTimeout(() => {
+                          triggerManualIrrigation();
                           setIrrigationProcessing(false);
                           setIrrigationSuccess(true);
                           setTimeout(() => {

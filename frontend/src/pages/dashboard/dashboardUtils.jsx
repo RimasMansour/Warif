@@ -198,12 +198,32 @@ export function sensorBuildRecommendationsSoil(soilTemp, soilMoist) {
   return rec;
 }
 
+export function sensorBuildRecommendationsLight(current) {
+  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
+  const isEn = lang === 'en';
+  const rec = [];
+  
+  if (current >= 100000) {
+    rec.push({
+      text: isEn ? "High light intensity: activate shading to prevent heat stress." : "شدة إضاءة عالية: قم بتفعيل التظليل لتجنب الإجهاد الحراري.",
+      reasoning: isEn ? "Lux exceeded 100,000, risking leaf burn and severe evaporation." : "تجاوزت شدة الإضاءة 100 ألف لوكس، مما يهدد باحتراق الأوراق وزيادة التبخر بشكل حاد."
+    });
+  } else if (current <= 10000) {
+    rec.push({
+      text: isEn ? "Low light intensity: activate artificial lighting if necessary." : "إضاءة منخفضة: قم بتشغيل الإضاءة الاصطناعية لدعم البناء الضوئي إذا استمر الانخفاض.",
+      reasoning: isEn ? "Prolonged low light slows down plant metabolism and fruit development." : "الانخفاض المستمر في الإضاءة يبطئ عمليات الأيض وتطور الثمار."
+    });
+  }
+  return rec;
+}
+
 export function getLiveFarmData(activeFarm) {
   return {
     temp: 28.4 + (activeFarm * 2),
     hum: 56 + (activeFarm * 3),
     soilTemp: 24.5 + (activeFarm * 1.5),
     soilMoist: 42 + (activeFarm * 2),
+    light_intensity: 60000 + (activeFarm * 5000),
     waterUsage: 5000 + (activeFarm * 500),
     powerUsage: 360 + (activeFarm * 40),
     flowRate: 60 + (activeFarm * 7)
@@ -338,6 +358,7 @@ export function getAllCombinedRecommendations(activeFarm, isEn) {
   const tempRecs = sensorBuildRecommendationsTemperature(data.temp);
   const humRecs = sensorBuildRecommendationsHumidity(data.hum);
   const soilRecs = sensorBuildRecommendationsSoil(data.soilTemp, data.soilMoist);
+  const lightRecs = sensorBuildRecommendationsLight(data.light_intensity);
   const strategic = getStrategicRecommendations(activeFarm, isEn);
 
   // Convert sensor-based to strategic format for consistency
@@ -362,6 +383,19 @@ export function getAllCombinedRecommendations(activeFarm, isEn) {
       week: isEn ? "This Week" : "هذا الأسبوع",
       mode: "auto",
       type: "humidity",
+      title: r.text,
+      desc: r.text,
+      reasoning: r.reasoning,
+      time: isEn ? "Live" : "لحظي"
+    });
+  });
+
+  lightRecs.forEach((r, i) => {
+    converted.push({
+      id: `live-light-${i}`,
+      week: isEn ? "This Week" : "هذا الأسبوع",
+      mode: "auto",
+      type: "light",
       title: r.text,
       desc: r.text,
       reasoning: r.reasoning,

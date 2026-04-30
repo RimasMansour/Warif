@@ -15,7 +15,6 @@ import {
 import { 
   Donut
 } from './DashboardCharts';
-import { CameraCard } from './CameraCard';
 import { 
   formatLastUpdated, 
   getLiveFarmData, 
@@ -39,7 +38,7 @@ const waveStyles = `
   }
 `;
 
-export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, sharedSensors }) {
+export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback }) {
 
   // ── Live data from Backend API ─────────────────────────────
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
@@ -50,6 +49,8 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
   const apiTemp      = livesensors?.air_temperature  ?? null;
   const apiHum       = livesensors?.air_humidity     ?? null;
+  const apiLight     = livesensors?.light_intensity  ?? null;
+  const coolingActive= livesensors?.coolingActive    ?? false;
   const apiSoilMoist = livesensors?.soil_moisture    ?? null;
   const apiSoilTemp  = livesensors?.soil_temperature ?? null;
   const [seconds, setSeconds] = useState(0);
@@ -125,15 +126,22 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
           {/* Main Grid: AI Modules Overview */}
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-5 min-w-0">
-            <div className="animate-fade-in-up delay-2 h-full"><MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} /></div>
+            <div className="animate-fade-in-up delay-2 h-full"><MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} /></div>
             <div className="animate-fade-in-up delay-3 h-full"><SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} /></div>
             <div className="animate-fade-in-up delay-4 h-full"><IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} /></div>
             <div className="animate-fade-in-up delay-5 h-full"><DSSGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} /></div>
           </div>
 
-          {/* Side Column: Camera / Live Monitoring */}
-          <div className="w-full lg:w-[450px] shrink-0 animate-fade-in-up delay-6 flex flex-col min-w-0 h-full">
-            <CameraCard />
+          {/* Side Column: System Health & Alerts */}
+          <div className="w-full lg:w-[450px] shrink-0 animate-fade-in-up delay-6 flex flex-col gap-5 min-w-0 h-full">
+            <IoTSystemHealthCard isEn={isEn} seconds={seconds} />
+            <DashboardAlertsCard 
+              alerts={alerts} 
+              onAccept={onAlertAccept} 
+              onReject={onAlertReject} 
+              onFeedback={onAlertFeedback} 
+              isEn={isEn} 
+            />
           </div>
 
         </div>
@@ -142,6 +150,88 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
       </div>
     </div>
     </>
+  );
+}
+
+function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
+  return (
+    <CardShell className="flex-1 flex flex-col bg-white p-5 md:p-6">
+      <CardTopRow 
+        icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
+        iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
+        iconColor={alerts.length > 0 ? "text-red-500" : "text-emerald-600"}
+        title={isEn ? "System Alerts" : "تنبيهات النظام اللحظية"}
+        subtitle={
+          alerts.length > 0 
+            ? `${alerts.length} ${isEn ? 'Active alerts' : 'تنبيهات نشطة'}`
+            : isEn ? "System Stable" : "النظام مستقر تماماً"
+        }
+      />
+      <div className="flex-1 mt-4 overflow-y-auto max-h-[250px] pr-2 custom-scrollbar flex flex-col gap-3">
+        {alerts.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[150px]">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <div className="text-sm font-bold">{isEn ? 'System Operating Normally' : 'جميع الأنظمة تعمل بشكل طبيعي'}</div>
+          </div>
+        ) : (
+          alerts.map((alert, i) => (
+            <div key={alert.id || i} className={`p-4 rounded-2xl border ${alert.severity === 'high' ? 'bg-red-50/30 border-red-100' : alert.severity === 'medium' ? 'bg-amber-50/30 border-amber-100' : 'bg-blue-50/30 border-blue-100'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col gap-1.5 w-full">
+                  <div className={`text-[14px] font-black ${alert.severity === 'high' ? 'text-red-700' : alert.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'}`}>
+                    {alert.title}
+                  </div>
+                  <div className="text-[12px] text-gray-500 font-bold">{alert.sensor}: <span className="text-gray-800">{alert.value}</span></div>
+                  <div className="text-[11px] text-gray-600 mt-1 flex items-start gap-1.5 font-medium leading-relaxed bg-white/50 p-2 rounded-lg">
+                    <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-400 shrink-0"></div>
+                    {alert.action}
+                  </div>
+
+                  {/* Interactive Footer */}
+                  <div className="mt-3 pt-3 border-t border-gray-200/60 flex items-center justify-end gap-2">
+                    {alert.autoMode ? (
+                      // Auto Mode: Feedback buttons
+                      <>
+                        <span className="text-[10px] text-gray-400 font-bold me-auto">{isEn ? 'Was this helpful?' : 'تقييم الإجراء التلقائي'}</span>
+                        <button 
+                          onClick={() => onFeedback && onFeedback(alert.id, true)}
+                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all shadow-sm"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                        </button>
+                        <button 
+                          onClick={() => onFeedback && onFeedback(alert.id, false)}
+                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm"
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                        </button>
+                      </>
+                    ) : (
+                      // Manual Mode: Accept/Reject buttons
+                      <>
+                        <button 
+                          onClick={() => onReject && onReject(alert.id)}
+                          className="px-4 py-2 rounded-xl text-[11px] font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-all shadow-sm"
+                        >
+                          {isEn ? 'Reject' : 'تجاهل الخلل'}
+                        </button>
+                        <button 
+                          onClick={() => onAccept && onAccept(alert.id, alert.actionType)}
+                          className="px-4 py-2 rounded-xl text-[11px] font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:to-emerald-600 transition-all shadow-md shadow-emerald-600/20"
+                        >
+                          {isEn ? 'Accept Action' : 'تأكيد وتنفيذ'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </CardShell>
   );
 }
 
@@ -235,11 +325,12 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
   );
 }
 
-function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum }) {
+function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, apiLight, coolingActive }) {
   const mockData = getLiveFarmData(activeFarm);
   const temp = apiTemp ?? mockData.temp;
   const hum  = apiHum  ?? mockData.hum;
-  const isOptimal = temp < 32 && hum < 65;
+  const light = apiLight ?? mockData.light_intensity;
+  const isOptimal = temp < 32 && hum < 65 && light < 100000;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
@@ -255,25 +346,31 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum }) 
       />
 
       <div className={`mt-4 flex items-end justify-between gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex flex-col gap-4 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
+        <div className={`flex flex-col gap-3 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Temperature' : 'درجة الحرارة'}</div>
-            <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {temp.toFixed(1)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">°C</span>
+            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+              {temp.toFixed(1)}<span className="text-[12px] font-bold text-gray-400 mx-1">°C</span>
             </div>
           </div>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Air Humidity' : 'رطوبة الجو'}</div>
-            <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {hum.toFixed(0)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">%</span>
+            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+              {hum.toFixed(0)}<span className="text-[12px] font-bold text-gray-400 mx-1">%</span>
+            </div>
+          </div>
+          <div className="flex flex-col">
+            <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Light Intensity' : 'شدة الإضاءة'}</div>
+            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+              {Math.round(light).toLocaleString()}<span className="text-[12px] font-bold text-gray-400 mx-1">Lux</span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col items-center gap-4">
-           <div className={`px-3 py-2 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm min-w-[70px] border ${isOptimal ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-              <div className={`text-[10px] font-bold mb-0.5 ${isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
-              <div className={`text-[13px] font-black ${isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isOptimal ? (isEn ? 'Optimal' : 'مثالي') : (isEn ? 'Alert' : 'تنبيه')}</div>
+        <div className="flex flex-col items-center gap-3">
+           <div className={`px-3 py-1.5 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm min-w-[70px] border ${coolingActive ? 'bg-blue-50 border-blue-200' : isOptimal ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
+              <div className={`text-[9px] font-bold mb-0.5 ${coolingActive ? 'text-blue-600' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
+              <div className={`text-[12px] font-black ${coolingActive ? 'text-blue-700' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{coolingActive ? (isEn ? 'Cooling...' : 'يبرد...') : isOptimal ? (isEn ? 'Optimal' : 'مثالي') : (isEn ? 'Alert' : 'تنبيه')}</div>
            </div>
            <div className="w-full">
               <ClimateSparkline color={temp > 32 ? 'var(--status-error)' : temp > 28 ? 'var(--status-warning)' : 'var(--status-success)'} gradientId="climateGradHome" />
@@ -532,5 +629,66 @@ function MinimalStat({ value, label }) {
       <div className="text-3xl font-black text-gray-900 leading-none mb-0.5">{value}</div>
       <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{label}</div>
     </div>
+  );
+}
+
+function IoTSystemHealthCard({ isEn, seconds }) {
+  return (
+    <CardShell className="flex flex-col bg-white p-5 md:p-6 min-h-[220px]">
+      <CardTopRow 
+        icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>}
+        iconBg="bg-blue-50"
+        iconColor="text-blue-500"
+        title={isEn ? "IoT Sensors Network" : "شبكة حساسات إنترنت الأشياء"}
+        subtitle={isEn ? "Live System Health" : "حالة اتصال الأجهزة الميدانية"}
+      />
+      <div className="flex-1 mt-5 flex flex-col gap-3">
+        
+        {/* Main Gateway Status */}
+        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100/50 text-emerald-600 flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[12px] font-black text-gray-800">{isEn ? 'Main IoT Gateway' : 'البوابة الرئيسية (Gateway)'}</span>
+              <span className="text-[10px] font-bold text-emerald-600">{isEn ? 'Connected & Stable' : 'متصل ومستقر'}</span>
+            </div>
+          </div>
+          <div className="text-[10px] font-bold text-gray-400 bg-white px-2 py-1 rounded shadow-sm">
+            Ping: 12ms
+          </div>
+        </div>
+
+        {/* Nodes Health Grid */}
+        <div className="grid grid-cols-2 gap-3 mt-1">
+          <div className="flex flex-col p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-gray-500">{isEn ? 'Climate Nodes' : 'عقد المناخ'}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
+            </div>
+            <div className="text-xl font-black text-gray-800">100%</div>
+            <div className="text-[9px] text-gray-400 font-medium mt-0.5">{isEn ? 'Signal Strength' : 'قوة إشارة النقل'}</div>
+          </div>
+
+          <div className="flex flex-col p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold text-gray-500">{isEn ? 'Soil Probes' : 'مجسات التربة'}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
+            </div>
+            <div className="text-xl font-black text-gray-800">96%</div>
+            <div className="text-[9px] text-gray-400 font-medium mt-0.5">{isEn ? 'Battery Level' : 'مستوى البطارية'}</div>
+          </div>
+        </div>
+
+      </div>
+      <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-50">
+        <div className="text-[10px] font-bold text-gray-400 tracking-tighter">{isEn ? 'Last Sync Time' : 'آخر مزامنة للبيانات'}</div>
+        <div className="flex items-center gap-1.5">
+           <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+           <span className="text-[10px] font-black text-blue-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
+        </div>
+      </div>
+    </CardShell>
   );
 }

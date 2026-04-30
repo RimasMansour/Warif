@@ -41,6 +41,23 @@ export function TempSunIcon(props) {
   );
 }
 
+export function SunIcon(props) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+    </svg>
+  );
+}
+
+export function BellAlertIcon(props) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  );
+}
+
 export function AirHumidityIcon(props) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -336,6 +353,87 @@ function IrrigationSmartIcon(props) {
   );
 }
 
+export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, onFeedback }) {
+  const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
+  
+  if (!isOpen) return null;
+
+  return (
+    <div className="absolute top-14 left-0 w-80 bg-white/95 backdrop-blur-xl border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center justify-between p-4 border-b border-gray-50 bg-gray-50/50">
+        <div className="font-black text-gray-800">{isEn ? 'System Alerts' : 'تنبيهات النظام'}</div>
+        <div className="text-[10px] font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
+          {alerts.length} {isEn ? 'Active' : 'نشط'}
+        </div>
+      </div>
+      
+      <div className="max-h-[400px] overflow-y-auto p-2 flex flex-col gap-2">
+        {alerts.length === 0 ? (
+          <div className="p-6 text-center text-gray-400 text-sm font-semibold">
+            {isEn ? 'No active alerts' : 'لا توجد تنبيهات حالية'}
+          </div>
+        ) : (
+          alerts.map((alert, i) => (
+            <div key={alert.id || i} className={`p-3 rounded-xl border ${alert.severity === 'high' ? 'bg-red-50/50 border-red-100' : alert.severity === 'medium' ? 'bg-amber-50/50 border-amber-100' : 'bg-blue-50/50 border-blue-100'}`}>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex flex-col gap-1 w-full">
+                  <div className={`text-[13px] font-black ${alert.severity === 'high' ? 'text-red-700' : alert.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'}`}>
+                    {alert.title}
+                  </div>
+                  <div className="text-[11px] text-gray-500 font-bold">{alert.sensor}: <span className="text-gray-800">{alert.value}</span></div>
+                  <div className="text-[10.5px] text-gray-600 mt-1 flex items-start gap-1 font-medium leading-relaxed">
+                    <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-400 shrink-0"></div>
+                    {alert.action}
+                  </div>
+
+                  {/* Interactive Footer */}
+                  <div className="mt-3 pt-2 border-t border-gray-200/60 flex items-center justify-end gap-2">
+                    {alert.autoMode ? (
+                      // Auto Mode: Feedback buttons
+                      <>
+                        <span className="text-[9px] text-gray-400 font-bold me-auto">{isEn ? 'Was this helpful?' : 'هل كان هذا مفيداً؟'}</span>
+                        <button 
+                          onClick={() => onFeedback && onFeedback(alert.id, true)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                        </button>
+                        <button 
+                          onClick={() => onFeedback && onFeedback(alert.id, false)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+                        </button>
+                      </>
+                    ) : (
+                      // Manual Mode: Accept/Reject buttons
+                      <>
+                        <button 
+                          onClick={() => onReject && onReject(alert.id)}
+                          className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-all"
+                        >
+                          {isEn ? 'Reject' : 'تجاهل'}
+                        </button>
+                        <button 
+                          onClick={() => onAccept && onAccept(alert.id, alert.actionType)}
+                          className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20"
+                        >
+                          {isEn ? 'Accept' : 'تأكيد الإجراء'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                </div>
+                <div className="text-[9px] font-bold text-gray-400 shrink-0">{alert.timestamp}</div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 export {
   CardShell,
