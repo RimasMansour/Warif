@@ -92,7 +92,7 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
         id: `api-${r.id}`,
         mode: 'auto',
         type: r.category || 'irrigation',
-        title: r.message?.slice(0, 50) || 'توصية',
+        title: r.message || 'توصية',
         desc: r.message || '',
         reasoning: r.reasoning || '',
         time: isEn ? 'Just now' : 'الآن',
