@@ -94,7 +94,7 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
         type: r.category || 'irrigation',
         title: r.message?.slice(0, 50) || 'توصية',
         desc: r.message || '',
-        reasoning: '',
+        reasoning: r.reasoning || '',
         time: isEn ? 'Just now' : 'الآن',
         status: r.is_read ? 'accepted' : 'pending',
         week: isEn ? 'This Week' : 'هذا الأسبوع',

@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     @property
     def DATABASE_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return "sqlite+aiosqlite:///./warif.db"
 
     # JWT — must be set via JWT_SECRET_KEY env var in production
     JWT_SECRET_KEY: str = "insecure-dev-secret-change-in-prod"
