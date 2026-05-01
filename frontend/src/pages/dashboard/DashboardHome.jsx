@@ -145,6 +145,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           {/* Row 1: Top Aligned Cards */}
           <div className="animate-fade-in-up delay-2">
             <MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
+          </div>
           <div className="animate-fade-in-up delay-3">
             <SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
           </div>
