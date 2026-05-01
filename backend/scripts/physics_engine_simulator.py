@@ -81,7 +81,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         .limit(1)
     )
     evt = irr_evt.scalar_one_or_none()
-    if evt and evt.status.value == "in_progress":
+    if evt and evt.status.value == "active":
         pump_on = True
 
     # Physics Calculations

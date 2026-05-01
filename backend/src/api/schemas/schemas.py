@@ -173,6 +173,7 @@ class RecommendationOut(BaseModel):
     id:         int
     farm_id:    int
     message:    str
+    reasoning:  Optional[str] = None
     category:   str
     severity:   str
     is_read:    bool
