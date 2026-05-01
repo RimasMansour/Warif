@@ -1,12 +1,15 @@
 # backend/src/api/routes/sensors.py
+import logging
 from typing import Optional, List
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from src.db.session import get_db
-from src.db.models.models import SensorReading, SensorThreshold
+from src.db.models.models import SensorReading, SensorThreshold, Device
 from src.api.schemas.schemas import SensorReadingOut, SensorLatestOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -120,6 +123,81 @@ async def ingest_sensor_reading(
                 status=AlertStatus.open,
             )
             db.add(alert)
+
+    # ── Smart Recommendation Generation ──────────────────────────────
+    try:
+        # Get farm_id from device
+        device_result = await db.execute(
+            select(Device).where(Device.device_id == payload.get("device_id", "unknown"))
+        )
+        device_obj = device_result.scalar_one_or_none()
+
+        if device_obj and device_obj.farm_id:
+            # Gather all recent sensor readings for this farm (last 10 per type)
+            from sqlalchemy import func
+            sub = (
+                select(
+                    SensorReading.sensor_type,
+                    func.max(SensorReading.timestamp).label("max_ts"),
+                )
+                .join(Device, SensorReading.device_id == Device.device_id)
+                .where(Device.farm_id == device_obj.farm_id)
+                .group_by(SensorReading.sensor_type)
+                .subquery()
+            )
+            recent_result = await db.execute(
+                select(SensorReading).join(
+                    sub,
+                    (SensorReading.sensor_type == sub.c.sensor_type)
+                    & (SensorReading.timestamp == sub.c.max_ts),
+                )
+            )
+            recent_readings = recent_result.scalars().all()
+
+            # Build complete sensor_data dict
+            full_sensor_data = {}
+            for r in recent_readings:
+                full_sensor_data[r.sensor_type] = r.value
+
+            # Also include current reading
+            full_sensor_data[sensor_type] = value
+
+            # Run smart decision engine
+            from src.services.decision_engine import SmartDecisionEngine
+            from src.db.models.models import (
+                Recommendation, RecommendationCategory, RecommendationSeverity
+            )
+
+            engine = SmartDecisionEngine()
+            smart_recs = await engine.analyze(full_sensor_data)
+
+            cat_map = {
+                "irrigation":  RecommendationCategory.irrigation,
+                "temperature": RecommendationCategory.temperature,
+                "humidity":    RecommendationCategory.humidity,
+                "soil":        RecommendationCategory.soil,
+            }
+            sev_map = {
+                "normal":  RecommendationSeverity.normal,
+                "warning": RecommendationSeverity.warning,
+                "urgent":  RecommendationSeverity.urgent,
+            }
+
+            for sr in smart_recs:
+                # Only save non-normal OR irrigation recommendations
+                if sr.severity != "normal" or sr.category == "irrigation":
+                    rec = Recommendation(
+                        farm_id=device_obj.farm_id,
+                        message=sr.message,
+                        category=cat_map.get(sr.category, RecommendationCategory.irrigation),
+                        severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
+                        is_read=False,
+                    )
+                    db.add(rec)
+
+    except Exception as rec_err:
+        logger.warning(f"Smart recommendation generation failed: {rec_err}")
+    # ── End Smart Recommendation Generation ──────────────────────────
 
     await db.commit()
     return {
