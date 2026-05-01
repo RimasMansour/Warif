@@ -10,14 +10,9 @@ import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
 
 import { 
   generateDataForRange, 
-  sensorBuildRecommendationsTemperature, 
-  sensorBuildRecommendationsHumidity, 
-  sensorBuildRecommendationsLight,
-  sensorBuildRecommendationsSoil,
-  formatLastUpdated,
-  getLiveFarmData
+  formatLastUpdated
 } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
 
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
@@ -72,47 +67,51 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
   }, [activeFarm]);
 
   const [range, setRange] = useState("D");
-  const mockData = getLiveFarmData(activeFarm);
   const { data: localSensors } = useLatestSensors(10000);
   const livesensors = sharedSensors || localSensors;
-  const temp = livesensors?.air_temperature ?? mockData.temp;
-  const hum  = livesensors?.air_humidity    ?? mockData.hum;
-  const light = livesensors?.light_intensity ?? mockData.light_intensity;
+  const temp = livesensors?.air_temperature ?? 0;
+  const hum  = livesensors?.air_humidity    ?? 0;
+  const light = livesensors?.light_intensity ?? 0;
   const coolingActive = livesensors?.coolingActive ?? false;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const tempSeries = useMemo(() => {
-    if (range === 'D' && livesensors?.history?.length > 0) {
-      return livesensors.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round(h.temp * 10) / 10 }));
-    }
-    return generateDataForRange(range, { 
-      base: 28, amp: 8, noise: 3, min: 10, max: 45, seed: 42, farmIndex: activeFarm
-    });
-  }, [range, activeFarm, livesensors?.history]);
-  
-  const humSeries = useMemo(() => {
-    if (range === 'D' && livesensors?.history?.length > 0) {
-      return livesensors.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round(h.hum) }));
-    }
-    return generateDataForRange(range, { 
-      base: 55, amp: 12, noise: 5, min: 20, max: 95, seed: 101, farmIndex: activeFarm
-    });
-  }, [range, activeFarm, livesensors?.history]);
+  const { data: rawTemp } = useSensorHistory('air_temperature', 12);
+  const { data: rawHum } = useSensorHistory('air_humidity', 12);
+  const { data: rawLight } = useSensorHistory('light_intensity', 12);
 
-  const lightSeries = useMemo(() => {
-    if (range === 'D' && livesensors?.history?.length > 0) {
-      return livesensors.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round((h.temp / 35) * 80000) })); // Mocked light relation
+  const formatPoints = (rawData) => {
+    const points = [];
+    const len = Math.max(12, rawData?.length || 0);
+    for (let i = 0; i < len; i++) {
+      const item = rawData?.[i];
+      let val = item?.value ?? 0;
+      let label = "";
+      if (item?.timestamp) {
+        const d = new Date(item.timestamp);
+        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } else {
+        const now = new Date();
+        now.setHours(now.getHours() - (len - i));
+        label = `${now.getHours()}:00`;
+      }
+      points.push({ label, value: val });
     }
-    return generateDataForRange(range, { 
-      base: 60000, amp: 30000, noise: 5000, min: 0, max: 120000, seed: 99, farmIndex: activeFarm
-    });
-  }, [range, activeFarm, livesensors?.history]);
+    return points;
+  };
 
-  const recommendations = useMemo(() => [
-    ...sensorBuildRecommendationsTemperature(temp),
-    ...sensorBuildRecommendationsHumidity(hum),
-    ...sensorBuildRecommendationsLight(light)
-  ], [temp, hum, light]);
+  const tempSeries = useMemo(() => formatPoints(rawTemp), [rawTemp, range]);
+  const humSeries = useMemo(() => formatPoints(rawHum), [rawHum, range]);
+  const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range]);
+
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: apiRecs } = useRecommendations(farmId);
+  const recommendations = useMemo(() => {
+    if (!apiRecs) return [];
+    return apiRecs.map(r => ({
+      text: r.message,
+      reasoning: r.message
+    }));
+  }, [apiRecs]);
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -290,33 +289,47 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
   }, [activeFarm]);
 
   const [range, setRange] = useState("D");
-  const mockData2 = getLiveFarmData(activeFarm);
   const { data: localSensors2 } = useLatestSensors(10000);
   const livesensors2 = sharedSensors || localSensors2;
-  const soilTemp  = livesensors2?.soil_temperature ?? mockData2.soilTemp;
-  const soilMoist = livesensors2?.soil_moisture    ?? mockData2.soilMoist;
+  const soilTemp  = livesensors2?.soil_temperature ?? 0;
+  const soilMoist = livesensors2?.soil_moisture    ?? 0;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const soilTempSeries = useMemo(() => {
-    if (range === 'D' && livesensors2?.history?.length > 0) {
-      // Offset air temp slightly for soil temp realism
-      return livesensors2.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round((h.temp - 4) * 10) / 10 }));
-    }
-    return generateDataForRange(range, { 
-      base: 24, amp: 5, noise: 2.5, min: 10, max: 40, seed: 90, farmIndex: activeFarm
-    });
-  }, [range, activeFarm, livesensors2?.history]);
-  
-  const soilMoistSeries = useMemo(() => {
-    if (range === 'D' && livesensors2?.history?.length > 0) {
-      return livesensors2.history.map(h => ({ label: h.time.substring(0, 5), value: Math.round(h.soil) }));
-    }
-    return generateDataForRange(range, { 
-      base: 42, amp: 10, noise: 4, min: 10, max: 95, seed: 80, farmIndex: activeFarm
-    });
-  }, [range, activeFarm, livesensors2?.history]);
+  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', 12);
+  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', 12);
 
-  const soilRecs = useMemo(() => sensorBuildRecommendationsSoil(soilTemp, soilMoist), [soilTemp, soilMoist]);
+  const formatPoints = (rawData) => {
+    const points = [];
+    const len = Math.max(12, rawData?.length || 0);
+    for (let i = 0; i < len; i++) {
+      const item = rawData?.[i];
+      let val = item?.value ?? 0;
+      let label = "";
+      if (item?.timestamp) {
+        const d = new Date(item.timestamp);
+        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } else {
+        const now = new Date();
+        now.setHours(now.getHours() - (len - i));
+        label = `${now.getHours()}:00`;
+      }
+      points.push({ label, value: val });
+    }
+    return points;
+  };
+
+  const soilTempSeries = useMemo(() => formatPoints(rawSoilTemp), [rawSoilTemp, range]);
+  const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range]);
+
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: apiRecs } = useRecommendations(farmId);
+  const soilRecs = useMemo(() => {
+    if (!apiRecs) return [];
+    return apiRecs.map(r => ({
+      text: r.message,
+      reasoning: r.message
+    }));
+  }, [apiRecs]);
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>

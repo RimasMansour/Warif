@@ -275,14 +275,18 @@ function LoginPage({ onLogin, onNewUser, T, isRtl }) {
       localStorage.setItem('warif_token', data.access_token);
       localStorage.setItem('warif_logged_in', 'true');
       try {
-        const { getFarms } = await import('../../services/api.js');
+        const { getFarms, getMe } = await import('../../services/api.js');
+        const me = await getMe();
         const farms = await getFarms();
-        if (farms && farms.length > 0) {
-          const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-          localStorage.setItem('warif_user', JSON.stringify({ ...saved, farmId: farms[0].id }));
-        }
+        const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+        const updatedUser = { 
+          ...saved, 
+          ...me,
+          farmId: farms && farms.length > 0 ? farms[0].id : saved.farmId 
+        };
+        localStorage.setItem('warif_user', JSON.stringify(updatedUser));
       } catch (e) {
-        console.log('Could not fetch farms:', e);
+        console.log('Could not fetch user/farms:', e);
       }
       if (remember) localStorage.setItem('warif_remember', JSON.stringify({ username, password }));
       else localStorage.removeItem('warif_remember');

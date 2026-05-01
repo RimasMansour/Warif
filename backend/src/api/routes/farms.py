@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from src.db.session import get_db
 from src.db.models.models import Farm, Device
-from src.api.schemas.schemas import FarmIn, FarmOut, DeviceIn, DeviceOut
+from src.api.schemas.schemas import FarmIn, FarmOut, DeviceIn, DeviceOut, FarmResourceUpdateIn
 from src.core.security import get_current_user
 
 router = APIRouter()
@@ -51,6 +51,27 @@ async def get_farm(
 ):
     farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
     return farm
+
+
+@router.patch("/{farm_id}/resources")
+async def update_farm_resources(
+    farm_id: int,
+    body: FarmResourceUpdateIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Update water and energy consumption directly from the simulator/edge device."""
+    farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+    
+    # Deduct water, ensuring it doesn't drop below zero
+    farm.current_water_level = max(0.0, farm.current_water_level - body.water_consumed_l)
+    
+    # Add consumed energy
+    farm.total_energy_kwh += body.energy_consumed_kwh
+    
+    await db.commit()
+    await db.refresh(farm)
+    return {"status": "success", "water_level": farm.current_water_level, "energy_kwh": farm.total_energy_kwh}
 
 
 @router.post("/{farm_id}/devices", response_model=DeviceOut, status_code=status.HTTP_201_CREATED)

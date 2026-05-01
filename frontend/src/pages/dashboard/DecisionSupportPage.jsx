@@ -10,7 +10,7 @@ import {
   ListIcon,
   WindSharedIcon 
 } from './DashboardShared';
-import { formatLastUpdated, getAllCombinedRecommendations } from './dashboardUtils';
+import { formatLastUpdated } from './dashboardUtils';
 import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
 
 export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, sharedSensors }) {
@@ -87,9 +87,8 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
   const { data: apiRecs } = useRecommendations(farmId);
 
   const allRecommendations = useMemo(() => {
-    const mockRecs = getAllCombinedRecommendations(activeFarm, isEn);
     if (apiRecs && apiRecs.length > 0) {
-      const mappedApiRecs = apiRecs.map(r => ({
+      return apiRecs.map(r => ({
         id: `api-${r.id}`,
         mode: 'auto',
         type: r.category || 'irrigation',
@@ -101,10 +100,9 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
         week: isEn ? 'This Week' : 'هذا الأسبوع',
         farmIndices: [0, 1, 2],
       }));
-      return [...mappedApiRecs, ...mockRecs];
     }
-    return mockRecs;
-  }, [activeFarm, isEn, apiRecs]);
+    return [];
+  }, [apiRecs, isEn]);
 
   const [localRecs, setLocalRecs] = useState([]);
 

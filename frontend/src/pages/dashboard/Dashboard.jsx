@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
-import { useLatestSensors, useAutoAlerts, triggerManualIrrigation, triggerManualCooling } from "../../hooks/useWarifData";
+import { useLatestSensors, useAutoAlerts, triggerManualCooling } from "../../hooks/useWarifData";
+import { startManualIrrigation } from "../../services/api";
 import { translations } from "../../i18n";
 import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, AccountAndSettingsPages } from "./DashboardSections";
 import { Footer } from "./Footer";
@@ -253,7 +254,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     if (actionType === 'cool') {
       triggerManualCooling();
     } else if (actionType === 'irrigate') {
-      triggerManualIrrigation();
+      const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+      startManualIrrigation(`valve_farm_${farmId}_01`, 20).catch(e => console.error(e));
     }
     // Dismiss after action
     dismissAlert(id);
@@ -755,17 +757,22 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                   {/* Action Buttons */}
                   <div className="flex flex-col gap-4 pt-4">
                     <button 
-                      onClick={() => {
+                      onClick={async () => {
                         setIrrigationProcessing(true);
-                        setTimeout(() => {
-                          triggerManualIrrigation();
+                        try {
+                          const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+                          const device_id = `valve_farm_${farmId}_01`;
+                          await startManualIrrigation(device_id, manualDuration);
                           setIrrigationProcessing(false);
                           setIrrigationSuccess(true);
                           setTimeout(() => {
                             setIrrigationSuccess(false);
                             setShowManualIrrigation(false);
                           }, 2500);
-                        }, 1500);
+                        } catch (e) {
+                          setIrrigationProcessing(false);
+                          console.error("Manual irrigation failed", e);
+                        }
                       }}
                       disabled={irrigationProcessing}
                       className="w-full py-5 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-900/10 hover:shadow-emerald-900/20 transition-all flex items-center justify-center gap-3 group active:scale-95 disabled:opacity-70"

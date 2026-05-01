@@ -24,10 +24,8 @@ router = APIRouter()
 async def get_irrigation_status(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
 ):
     """Get current irrigation status for a farm."""
-    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
 
     # Get latest irrigation event
     result = await db.execute(
@@ -57,7 +55,6 @@ async def get_irrigation_status(
 async def start_manual_irrigation(
     body: IrrigationManualIn,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
 ):
     """Trigger manual irrigation for a specific device."""
     actuator = await _get_or_create_actuator(body.device_id, db)
@@ -112,7 +109,6 @@ async def schedule_irrigation(
 async def stop_irrigation(
     device_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
 ):
     """Stop active irrigation for a device."""
     result = await db.execute(
@@ -172,12 +168,46 @@ async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm
 
 
 async def _get_or_create_actuator(device_id: str, db: AsyncSession) -> Actuator:
+    """Get actuator by device_id, or create Device + Actuator if neither exists."""
     result = await db.execute(
         select(Actuator).where(Actuator.device_id == device_id)
     )
     actuator = result.scalar_one_or_none()
 
     if not actuator:
+        # Make sure the Device row exists first (FK requirement)
+        dev_result = await db.execute(
+            select(Device).where(Device.device_id == device_id)
+        )
+        device = dev_result.scalar_one_or_none()
+
+        if not device:
+            # Determine farm_id from device naming convention (valve_farm_<id>_xx)
+            farm_id = 1
+            parts = device_id.split("_")
+            for i, p in enumerate(parts):
+                if p == "farm" and i + 1 < len(parts):
+                    try:
+                        farm_id = int(parts[i + 1])
+                    except ValueError:
+                        pass
+            # Check if farm exists, get first farm if not
+            farm_res = await db.execute(select(Farm).where(Farm.id == farm_id))
+            farm = farm_res.scalar_one_or_none()
+            if not farm:
+                any_farm = await db.execute(select(Farm).limit(1))
+                farm = any_farm.scalar_one_or_none()
+                farm_id = farm.id if farm else 1
+
+            device = Device(
+                farm_id=farm_id,
+                device_id=device_id,
+                name=f"Irrigation Valve {device_id}",
+                type="actuator",
+            )
+            db.add(device)
+            await db.flush()
+
         actuator = Actuator(
             device_id=device_id,
             actuator_type="irrigation_valve",

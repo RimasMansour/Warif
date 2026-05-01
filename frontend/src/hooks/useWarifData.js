@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 const getToken = () => localStorage.getItem('warif_token')
 
@@ -62,8 +62,8 @@ export function useLatestSensors(intervalMs = 10000) {
       }
 
       // --- SIMULATION ENGINE (FRONTEND INJECTION) ---
-      if (import.meta.env.VITE_SIMULATION_MODE !== 'false') {
-      // Ensure values exist and are parsed as floats before math operations
+      // DISABLED: Now using the true Backend Physics Engine.
+      if (false) {
       mapped.air_temperature = parseFloat(mapped.air_temperature || mapped['درجة الحرارة'] || 31);
       mapped.air_humidity = parseFloat(mapped.air_humidity || mapped['رطوبة الهواء'] || 45);
       mapped.soil_moisture = parseFloat(mapped.soil_moisture || mapped['رطوبة التربة'] || 42);
@@ -148,6 +148,36 @@ export function useLatestSensors(intervalMs = 10000) {
   }, [fetch_data, intervalMs])
 
   return { data, loading, error, refetch: fetch_data }
+}
+
+export function useSensorHistory(sensor_type, limit = 100) {
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetch_data = useCallback(async () => {
+    if (!sensor_type) return
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&limit=${limit}`, {
+        headers: authHeaders()
+      })
+      if (res.ok) {
+        const json = await res.json()
+        setData(json.reverse()) // Reverse so oldest is first for chart plotting
+      }
+    } catch (err) {
+      console.error("History fetch failed:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [sensor_type, limit])
+
+  useEffect(() => {
+    fetch_data()
+    const id = setInterval(fetch_data, 30000)
+    return () => clearInterval(id)
+  }, [fetch_data])
+
+  return { data, loading, refetch: fetch_data }
 }
 
 export function useAutoAlerts(sensors, globalAutoMode) {

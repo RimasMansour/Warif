@@ -64,7 +64,6 @@ async def get_irrigation_prediction(
     air_temp: float = 30.0,
     humidity: float = 60.0,
     soil_temp: float = 25.0,
-    current_user: dict = Depends(get_current_user),
 ):
     ensemble = get_ensemble()
 

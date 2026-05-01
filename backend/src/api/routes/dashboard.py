@@ -25,7 +25,7 @@ async def get_dashboard(
     Return a summary of the current farm state:
     latest sensor readings, irrigation status, and latest recommendation.
     """
-    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+    farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
 
     # ── Latest sensor readings ──────────────────────────────────────────
     sensor_map = await _get_latest_sensors(farm_id, db)
@@ -45,11 +45,19 @@ async def get_dashboard(
     )
     latest_rec = rec_result.scalar_one_or_none()
 
+    # Calculate water tank percentage
+    water_tank_level = 0.0
+    if farm.water_tank_capacity > 0:
+        water_tank_level = (farm.current_water_level / farm.water_tank_capacity) * 100
+
     return DashboardOut(
         soil_moisture=sensor_map.get("soil_moisture"),
         soil_temperature=sensor_map.get("soil_temperature"),
         air_temperature=sensor_map.get("air_temperature"),
         air_humidity=sensor_map.get("air_humidity"),
+        water_tank_level=water_tank_level,
+        energy_kwh=farm.total_energy_kwh,
+        light_intensity=sensor_map.get("light_intensity"),
         irrigation_status=irrigation_status,
         latest_recommendation=latest_rec.message if latest_rec else None,
         timestamp=sensor_map.get("_timestamp"),

@@ -57,9 +57,15 @@ class FarmOut(BaseModel):
     name:       str
     farm_type:  str
     crop_type:  Optional[str]
+    current_water_level: float
+    total_energy_kwh:    float
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+class FarmResourceUpdateIn(BaseModel):
+    water_consumed_l: float = 0.0
+    energy_consumed_kwh: float = 0.0
 
 
 # ── Device ─────────────────────────────────────────────────────────────────
@@ -111,6 +117,9 @@ class DashboardOut(BaseModel):
     soil_temperature: Optional[float]
     air_temperature: Optional[float]
     air_humidity:    Optional[float]
+    water_tank_level: Optional[float] # نسبة مئوية
+    energy_kwh:      Optional[float]
+    light_intensity: Optional[float]
     irrigation_status: Optional[str]
     latest_recommendation: Optional[str]
     timestamp:       Optional[datetime]
@@ -119,8 +128,9 @@ class DashboardOut(BaseModel):
 # ── Irrigation ─────────────────────────────────────────────────────────────
 
 class IrrigationManualIn(BaseModel):
-    device_id:    str
-    duration_min: int = Field(..., gt=0, le=120)
+    device_id:     str
+    duration_min:  Optional[int] = Field(None, gt=0, le=120)
+    target_volume: Optional[float] = Field(None, gt=0) # لتر
 
 
 class IrrigationScheduleIn(BaseModel):
