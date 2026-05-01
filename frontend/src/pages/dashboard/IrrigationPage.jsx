@@ -103,7 +103,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
   return (
-    <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-6">
 
         <SensorTopBar
@@ -163,7 +163,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                     <span className={`text-3xl font-black tracking-tighter ${currentFlow >= 80 ? 'text-emerald-600' : currentFlow >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
                       {Math.round(currentFlow)}%
                     </span>
-                    <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">{isEn ? "Live Flow" : "تدفق مباشر"}</span>
+                    <span className="text-xs font-black text-gray-400 uppercase tracking-widest mt-0.5">{isEn ? "Live Flow" : "تدفق مباشر"}</span>
                   </div>
                 </div>
               </div>
@@ -183,7 +183,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
             <div className={isRtl ? 'text-right' : 'text-left'}>
               <div className="text-xl font-black text-gray-800 tracking-tight flex items-center gap-2">
                 {T.latestRecs} 
-                <span className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.realTime}</span>
+                <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.realTime}</span>
               </div>
               <div className="text-[12px] text-gray-400 mt-1 font-medium">{T.dssSub}</div>
             </div>
@@ -205,7 +205,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                         ? (isEn ? 'Irrigation Needed' : 'يحتاج ري') 
                         : (isEn ? 'No Irrigation Needed' : 'لا يحتاج ري')}
                     </div>
-                    <div className="text-[11px] text-gray-400 mt-0.5">
+                    <div className="text-xs text-gray-400 mt-0.5">
                       {isEn ? 'Confidence' : 'الثقة'}: {(mlPrediction.confidence * 100).toFixed(0)}%
                       {' | '}{isEn ? 'Model' : 'النموذج'}: {mlPrediction.model_version || mlPrediction.model}
                     </div>
@@ -287,7 +287,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                   </span>
                 </IrrigationActionButton>
                 {showSuccess === "stop" && (
-                   <div className="p-2 bg-red-50 text-red-700 rounded-xl border border-red-100 text-[10px] font-black flex items-center justify-center gap-2 animate-pulse mt-1">
+                   <div className="p-2 bg-red-50 text-red-700 rounded-xl border border-red-100 text-xs font-black flex items-center justify-center gap-2 animate-pulse mt-1">
                       {isEn ? "All Valves Closed" : "تم إغلاق كافة المحابس"}
                    </div>
                 )}
@@ -316,7 +316,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                   </span>
                 </IrrigationActionButton>
                 {showSuccess === "flush" && (
-                   <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 text-[10px] font-black flex items-center justify-center gap-2 animate-pulse mt-1">
+                   <div className="p-2 bg-blue-50 text-blue-700 rounded-xl border border-blue-100 text-xs font-black flex items-center justify-center gap-2 animate-pulse mt-1">
                       {isEn ? "Network Flushed Successfully" : "تم تنظيف الشبكة بنجاح"}
                    </div>
                 )}
@@ -342,7 +342,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                  <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
                    {waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
                  </div>
-                 <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
+                 <div className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
               </div>
               <div className="mt-6 h-2 w-full bg-blue-50 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: '70%' }} />
@@ -365,7 +365,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                <div className={`text-4xl font-black text-yellow-600 tracking-tight`}>
                  {powerUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.kwh}</span>
                </div>
-               <div className="text-[11px] font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-5% ${T.fromYesterday}` : `-٥٪ ${T.fromYesterday}`}</div>
+               <div className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-5% ${T.fromYesterday}` : `-٥٪ ${T.fromYesterday}`}</div>
             </div>
             <div className="mt-6 h-2 w-full bg-yellow-50 rounded-full overflow-hidden">
                <div className="h-full bg-yellow-500 rounded-full w-[60%]" />

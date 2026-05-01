@@ -42,32 +42,38 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
       case 'heat': 
         return { 
           icon: <TempSunIcon />,
-          colors: "bg-[#fff7ed]/50 border-[#fed7aa]/30 text-orange-400 shadow-sm" 
+          border: isRtl ? "border-r-4 border-r-orange-400" : "border-l-4 border-l-orange-400",
+          iconBg: "bg-orange-50 text-orange-500 border-orange-100"
         };
       case 'humidity': 
         return { 
           icon: <AirHumidityIcon />,
-          colors: "bg-[#f0f9ff]/70 border-[#e0f2fe]/40 text-[#0ea5e9] shadow-sm"
+          border: isRtl ? "border-r-4 border-r-sky-400" : "border-l-4 border-l-sky-400",
+          iconBg: "bg-sky-50 text-sky-500 border-sky-100"
         };
       case 'climate': 
         return { 
           icon: <WindSharedIcon />, 
-          colors: "bg-sky-50/50 border-sky-100/30 text-sky-400 shadow-sm" 
+          border: isRtl ? "border-r-4 border-r-blue-400" : "border-l-4 border-l-blue-400",
+          iconBg: "bg-blue-50 text-blue-500 border-blue-100"
         };
       case 'irrigation': 
         return { 
           icon: <IrrigationSmartIcon />, 
-          colors: "bg-emerald-50/50 border-emerald-100/30 text-[#10b981] shadow-sm" 
+          border: isRtl ? "border-r-4 border-r-emerald-500" : "border-l-4 border-l-emerald-500",
+          iconBg: "bg-emerald-50 text-emerald-600 border-emerald-100"
         };
       case 'soil': 
         return { 
           icon: <PlantSoilIcon />, 
-          colors: "bg-emerald-50/50 border-emerald-100/30 text-[#10b981] shadow-sm" 
+          border: isRtl ? "border-r-4 border-r-emerald-600" : "border-l-4 border-l-emerald-600",
+          iconBg: "bg-emerald-50 text-emerald-600 border-emerald-100"
         };
       default: 
         return { 
           icon: <ListIcon />, 
-          colors: "bg-emerald-50/50 border-emerald-100/30 text-[#10b981] shadow-sm" 
+          border: isRtl ? "border-r-4 border-r-emerald-500" : "border-l-4 border-l-emerald-500",
+          iconBg: "bg-emerald-50 text-emerald-600 border-emerald-100"
         };
     }
   };
@@ -124,7 +130,7 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
   const sections = isEn ? ["This Week", "Last Week"] : ["هذا الأسبوع", "الأسبوع الماضي"];
 
   return (
-    <div className="w-full h-full px-4 md:px-8 py-4 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="w-full px-4 md:px-8 py-4 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="w-full max-w-[1100px] mx-auto flex flex-col gap-5 pb-8">
         
         <SensorTopBar
@@ -156,7 +162,7 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
           return (
             <div key={week} className={`flex flex-col gap-4 animate-fade-in-up delay-${sIdx + 2}`}>
               <div className={`text-[14px] font-bold text-gray-800 flex items-center gap-3 mt-2`}>
-                <span className="text-[10px] font-black text-emerald-700 bg-emerald-50/50 px-3 py-1 rounded-xl border border-emerald-100/30 uppercase tracking-widest">{week}</span>
+                <span className="text-xs font-black text-emerald-700 bg-emerald-50/50 px-3 py-1 rounded-xl border border-emerald-100/30 uppercase tracking-widest">{week}</span>
                 <div className="h-px bg-gray-100 flex-1" />
               </div>
   
@@ -164,17 +170,17 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                 {weekRecs.map((item, idx) => {
                   const styles = getRecStyles(item.type);
                   return (
-                    <CardShell key={item.id} className="relative overflow-hidden card-interactive p-4 rounded-[24px] border-gray-100 bg-white">
+                    <CardShell key={item.id} className={`relative overflow-hidden card-interactive p-4 rounded-[24px] bg-white border-y border-gray-100 ${isRtl ? 'border-l' : 'border-r'} ${styles.border}`}>
                       <div className={`flex flex-col lg:flex-row lg:items-start justify-between gap-5 ${isRtl ? 'text-right' : 'text-left'}`}>
                         
                         <div className="flex items-start gap-4 flex-1">
-                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${styles.colors}`}>
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${styles.iconBg}`}>
                             {React.isValidElement(styles.icon) ? React.cloneElement(styles.icon, { size: 22, strokeWidth: 1.7 }) : styles.icon}
                           </div>
  
                         <div className="flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
-                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider ${item.mode === 'auto' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                            <span className={`text-xs font-black px-2.5 py-1 rounded-lg border uppercase tracking-wider ${item.mode === 'auto' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                               {item.mode === 'auto' ? T.autoAction : T.manualRec}
                             </span>
                             <span className="text-[12px] text-gray-400 font-bold">• {item.time}</span>
@@ -185,11 +191,11 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
  
                           {/* Compact Reasoning */}
                           <div className={`bg-gray-50/50 rounded-2xl p-3 border border-gray-100`}>
-                             <div className={`flex items-center gap-2 text-[11px] font-black text-emerald-700 mb-1 uppercase`}>
+                             <div className={`flex items-center gap-2 text-xs font-black text-emerald-700 mb-1 uppercase`}>
                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                                {T.reasoning}
                              </div>
-                             <div className="text-[11px] text-gray-600 leading-normal font-bold italic border-r-2 border-emerald-500/20 pr-3">
+                             <div className="text-xs text-gray-600 leading-normal font-bold italic border-r-2 border-emerald-500/20 pr-3">
                                {item.reasoning}
                              </div>
                           </div>
@@ -200,7 +206,7 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                       <div className={`flex flex-col items-center lg:items-end justify-center min-w-[160px] lg:border-r border-gray-100 ${isRtl ? 'lg:pr-6' : 'lg:pl-6'}`}>
                         {(item.mode === 'auto' || globalAutoMode) ? (
                           <div className="flex flex-col items-center gap-3">
-                            <div className="flex items-center gap-2 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100 font-black text-[10px] uppercase">
+                            <div className="flex items-center gap-2 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100 font-black text-xs uppercase">
                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><polyline points="20 6 9 17 4 12"/></svg>
                                {T.executed}
                             </div>
@@ -224,7 +230,7 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                               {showThanksIds.includes(item.id) && (
                                 <div className="mt-2 flex items-center gap-1.5 text-[#10b981] animate-fade-in">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><polyline points="20 6 9 17 4 12"/></svg>
-                                  <span className="text-[10px] font-black uppercase tracking-tight">{T.thanks}</span>
+                                  <span className="text-xs font-black uppercase tracking-tight">{T.thanks}</span>
                                 </div>
                               )}
                             </div>

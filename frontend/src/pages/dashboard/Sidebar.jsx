@@ -9,7 +9,7 @@ import {
   IrrigationSmartIcon 
 } from './DashboardShared';
 
-export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
+export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globalAutoMode, setGlobalAutoMode }) {
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isRtl = lang === 'ar';
@@ -29,17 +29,49 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
   return (
     <div className={`w-64 bg-white flex flex-col flex-shrink-0 h-full shadow-2xl lg:shadow-none ${isRtl ? 'border-l' : 'border-r'} border-gray-100/60`}>
       {/* Logo and System Name */}
-      <div className="pt-8 pb-6 flex flex-col items-center justify-center gap-2 mx-4 transition-all duration-300">
+      <div className="pt-8 pb-3 flex flex-col items-center justify-center gap-2 mx-4 transition-all duration-300">
         <img src="/logo.png" alt="Warif" className="w-40 h-auto object-contain cursor-pointer drop-shadow-sm hover:scale-105 transition-transform duration-300" onClick={() => onGo("dashboard")} />
         <div className="text-[16px] font-black text-gray-800 tracking-tight mt-1">{isRtl ? 'نظام وارِف' : 'Warif System'}</div>
-        <div className="text-[9px] font-black text-emerald-600/60 tracking-[0.3em] uppercase opacity-80">
+        <div className="text-xs font-black text-emerald-600/60 tracking-[0.3em] uppercase opacity-80">
           {T.digitalTwin}
+        </div>
+      </div>
+
+      {/* Auto/Manual Toggle Switch in Sidebar */}
+      <div className="px-5 pb-5 border-b border-gray-50/80">
+        <div className={`flex items-center justify-between p-1.5 rounded-2xl border bg-white/50 backdrop-blur-sm ${globalAutoMode ? 'border-emerald-100/50' : 'border-orange-100/50'}`}>
+          <div className="flex bg-gray-100/80 rounded-xl p-1 shadow-inner relative overflow-hidden w-full">
+            <button
+              onClick={() => setGlobalAutoMode && setGlobalAutoMode(true)}
+              className={`flex-1 py-1.5 text-[11px] font-black rounded-lg transition-all duration-300 z-10 flex items-center justify-center gap-1.5 ${globalAutoMode ? 'text-white drop-shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {globalAutoMode && <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse"></span>}
+              {T.auto || (isRtl ? 'تلقائي' : 'Auto')}
+            </button>
+            <button
+              onClick={() => setGlobalAutoMode && setGlobalAutoMode(false)}
+              className={`flex-1 py-1.5 text-[11px] font-black rounded-lg transition-all duration-300 z-10 flex items-center justify-center gap-1.5 ${!globalAutoMode ? 'text-white drop-shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {!globalAutoMode && <span className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_white] animate-pulse"></span>}
+              {T.manual || (isRtl ? 'يدوي' : 'Manual')}
+            </button>
+            {/* Sliding indicator */}
+            <div 
+              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-transform duration-300 ease-in-out shadow-sm ${globalAutoMode ? 'bg-emerald-500' : 'bg-orange-400'}`} 
+              style={{
+                ...(isRtl ? { right: '4px' } : { left: '4px' }),
+                transform: globalAutoMode 
+                  ? 'translateX(0)' 
+                  : (isRtl ? 'translateX(-100%)' : 'translateX(100%)')
+              }}
+            ></div>
+          </div>
         </div>
       </div>
 
       {/* Farms Selection */}
       <div className="p-4 border-b border-gray-50/80">
-        <div className={`text-[11px] text-gray-400 font-bold mb-3 px-1 uppercase tracking-widest ${isRtl ? 'text-right' : 'text-left'}`}>{translations[lang].selectGreenhouse}</div>
+        <div className={`text-xs text-gray-400 font-bold mb-3 px-1 uppercase tracking-widest ${isRtl ? 'text-right' : 'text-left'}`}>{translations[lang].selectGreenhouse}</div>
         {farms.map((farm, i) => (
           <div key={farm} onClick={() => { setActiveFarm(i); onGo("dashboard"); }} className={`sidebar-item flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer text-[13px] mb-1 transition-all duration-300 ${activeFarm === i ? "active bg-emerald-50 text-emerald-700 font-bold shadow-sm border border-emerald-100/50" : "text-gray-500 hover:bg-gray-50"
             }`}>
@@ -51,7 +83,7 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
 
       {/* Modules */}
       <div className="p-4 flex-1">
-        <div className={`text-[11px] text-gray-400 font-bold mb-3 px-1 uppercase tracking-widest ${isRtl ? 'text-right' : 'text-left'}`}>{translations[lang].moduleControl}</div>
+        <div className={`text-xs text-gray-400 font-bold mb-3 px-1 uppercase tracking-widest ${isRtl ? 'text-right' : 'text-left'}`}>{translations[lang].moduleControl}</div>
         {modulesMenu.map((item) => (
           <div key={item.page} onClick={() => onGo(item.page)}
             className={`sidebar-item flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer text-[13px] font-bold mb-1 transition-all duration-300 ${currentPage === item.page ? "active bg-emerald-50 text-emerald-700 shadow-sm border border-emerald-100/50" : "text-gray-600 hover:bg-gray-50/80"
@@ -65,7 +97,7 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm }) {
             </span>
             <span className="flex-1">{item.label}</span>
             {item.badge && (
-              <span className="bg-[#fff7ed] text-[#ea580c] text-[10px] px-1.5 py-0.5 rounded font-bold border border-orange-200">{item.badge}</span>
+              <span className="bg-[#fff7ed] text-[#ea580c] text-xs px-1.5 py-0.5 rounded font-bold border border-orange-200">{item.badge}</span>
             )}
           </div>
         ))}

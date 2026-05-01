@@ -189,7 +189,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
 
         {/* Footer Polish */}
         <div className="pb-8 text-center px-8">
-           <p className="text-[11px] font-black text-emerald-800/40 uppercase tracking-[0.2em]">{T.systemSubtitle}</p>
+           <p className="text-xs font-black text-emerald-800/40 uppercase tracking-[0.2em]">{T.systemSubtitle}</p>
         </div>
       </div>
     </div>
@@ -238,7 +238,7 @@ function InputField({ label, placeholder, type = "text", value, onChange, error,
         )}
       </div>
       <div className={`overflow-hidden transition-all duration-500 ${error ? 'max-h-6 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-        <span className="text-[11px] font-black text-red-600 flex items-center gap-1">
+        <span className="text-xs font-black text-red-600 flex items-center gap-1">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
           {error}
         </span>
@@ -319,11 +319,21 @@ function LoginPage({ onLogin, onNewUser, T, isRtl }) {
         </div>
       </div>
 
-      <div className={`flex items-center gap-3 cursor-pointer group animate-fade-in-up delay-3 ${isRtl ? 'flex-row' : 'flex-row-reverse justify-end'}`} onClick={() => setRemember(!remember)}>
-        <div className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all duration-300 ${remember ? 'bg-emerald-600 border-emerald-600 shadow-lg shadow-emerald-500/20' : 'border-emerald-100 group-hover:border-emerald-300'}`}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" className={`transition-all ${remember ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <div className="flex justify-between items-center px-1 animate-fade-in-up delay-3 mt-1">
+        <div className="flex items-center gap-3 cursor-pointer group" onClick={() => setRemember(!remember)}>
+          <div className={`w-6 h-6 rounded-xl border-2 flex items-center justify-center transition-all duration-300 ${remember ? 'bg-emerald-600 border-emerald-600 shadow-lg shadow-emerald-500/20' : 'border-emerald-100 group-hover:border-emerald-300'}`}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" className={`transition-all ${remember ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`}><path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </div>
+          <span className="text-[13px] font-bold text-emerald-800/60 group-hover:text-emerald-700 transition-colors">{T.rememberMe}</span>
         </div>
-        <span className="text-[13px] font-bold text-emerald-800/60 group-hover:text-emerald-700 transition-colors">{T.rememberMe}</span>
+        
+        <button 
+          type="button"
+          onClick={() => alert(isRtl ? "سيتم تفعيل استعادة كلمة المرور قريباً" : "Password recovery coming soon")}
+          className="text-[13px] font-black text-emerald-600 hover:text-emerald-500 transition-colors border-b border-emerald-100 hover:border-emerald-500 pb-0.5"
+        >
+          {T.forgotPassword}
+        </button>
       </div>
 
       <div className="animate-fade-in-up delay-4">
@@ -385,7 +395,7 @@ function RegisterUserPage({ onNext, T, isRtl }) {
     <div className="flex flex-col gap-4">
       <div className="text-center mb-1 animate-fade-in-up">
         <h1 className="text-xl font-black text-emerald-900 tracking-tight">{T.createAccount}</h1>
-        <p className="text-[11px] font-bold text-gray-400 mt-0.5">{T.enterData}</p>
+        <p className="text-xs font-bold text-gray-400 mt-0.5">{T.enterData}</p>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -522,7 +532,7 @@ function FarmInfoStep({ onNext, T, isRtl }) {
     <div className="flex flex-col gap-4">
       <div className="text-center mb-1 animate-fade-in-up">
         <h1 className="text-xl font-black text-emerald-900 tracking-tight">{T.farmInfo}</h1>
-        <p className="text-[11px] font-bold text-gray-400 mt-0.5">{T.step1of3}</p>
+        <p className="text-xs font-bold text-gray-400 mt-0.5">{T.step1of3}</p>
       </div>
 
       <div className="animate-fade-in-up delay-1">
@@ -574,7 +584,7 @@ function SensorSelectionStep({ onNext, T }) {
           >
             <div className={`transition-transform duration-500 ${selected.includes(d.key) ? 'scale-105 rotate-3' : 'scale-90 opacity-60'}`}>{d.icon}</div>
             <span className={`text-[13px] font-black transition-colors ${selected.includes(d.key) ? 'text-emerald-900' : 'text-emerald-900/70'}`}>{d.name}</span>
-            <span className={`text-[10px] font-bold px-1 text-center leading-tight transition-colors ${selected.includes(d.key) ? 'text-emerald-700/80' : 'text-gray-500'}`}>{d.desc}</span>
+            <span className={`text-xs font-bold px-1 text-center leading-tight transition-colors ${selected.includes(d.key) ? 'text-emerald-700/80' : 'text-gray-500'}`}>{d.desc}</span>
             <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500 mt-1
                            ${selected.includes(d.key) ? 'bg-[var(--status-success)] scale-100 shadow-md' : 'bg-gray-200/50 scale-90'}`}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" className={selected.includes(d.key) ? 'opacity-100' : 'opacity-0'}><path d="M20 6L9 17l-5-5"/></svg>
@@ -677,7 +687,7 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
                   <button 
                     key={net}
                     onClick={() => setSelectedWifi(net)}
-                    className={`whitespace-nowrap px-3 py-1 rounded-full text-[10px] font-black transition-all border 
+                    className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-black transition-all border 
                                ${selectedWifi === net ? 'bg-emerald-600 border-emerald-600 text-white shadow-md' : 'bg-white/80 border-emerald-50 text-emerald-800/60 hover:bg-white'}`}
                   >
                     {net}
@@ -711,14 +721,14 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
         </button>
         
         {!isScanEnabled && !scanning && (
-          <div className="text-[10px] text-red-500 font-bold text-center mt-2 animate-bounce">
+          <div className="text-xs text-red-500 font-bold text-center mt-2 animate-bounce">
             {isRtl ? 'يرجى تفعيل البلوتوث والموقع للبحث عن الأجهزة' : 'Please enable Bluetooth and Location to scan'}
           </div>
         )}
       </div>
 
       <div className="bg-gray-50/30 rounded-[28px] border border-gray-100 overflow-hidden min-h-[160px] flex flex-col shadow-inner shadow-black/5">
-        <div className={`text-[11px] font-black text-emerald-800/40 px-5 py-3 border-b border-white/20 uppercase tracking-widest ${isRtl ? 'text-right' : 'text-left'}`}>{T.availableDevices}</div>
+        <div className={`text-xs font-black text-emerald-800/40 px-5 py-3 border-b border-white/20 uppercase tracking-widest ${isRtl ? 'text-right' : 'text-left'}`}>{T.availableDevices}</div>
         <div className="flex-1 overflow-y-auto max-h-[220px] custom-scrollbar">
           {scanDone && foundDevices.length > 0 ? (
             foundDevices.map((d, i) => {
@@ -735,7 +745,7 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
                     {connecting === d && <div className="w-5 h-5 border-2 border-emerald-300 border-t-white rounded-full animate-spin" />}
                     {selectedDevice === d && <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                   </div>
-                  <span className={`text-[10px] ${selectedDevice === d ? 'text-white/70' : 'text-gray-400'} font-bold`}>{info}</span>
+                  <span className={`text-xs ${selectedDevice === d ? 'text-white/70' : 'text-gray-400'} font-bold`}>{info}</span>
                 </button>
               );
             })

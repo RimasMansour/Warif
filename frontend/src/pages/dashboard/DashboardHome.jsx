@@ -13,7 +13,8 @@ import {
   IrrigationSmartIcon
 } from './DashboardShared';
 import { 
-  Donut
+  Donut,
+  SoilTrendChart
 } from './DashboardCharts';
 import { 
   formatLastUpdated, 
@@ -96,7 +97,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   return (
     <>
       <style>{waveStyles}</style>
-      <div className="w-full h-full overflow-auto px-8 py-5 min-h-0 page-enter">
+      <div className="w-full px-4 md:px-8 py-5 page-enter">
       <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-5">
 
         {/* Page Header */}
@@ -117,7 +118,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
         {/* Top Section: Digital Twin Command Center */}
         <div className="animate-fade-in-up delay-1">
-          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} />
+          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={alerts.length} />
         </div>
 
 
@@ -133,8 +134,8 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           </div>
 
           {/* Side Column: System Health & Alerts */}
-          <div className="w-full lg:w-[450px] shrink-0 animate-fade-in-up delay-6 flex flex-col gap-5 min-w-0 h-full">
-            <IoTSystemHealthCard isEn={isEn} seconds={seconds} />
+          <div className="w-full lg:w-[450px] shrink-0 animate-fade-in-up delay-6 flex flex-col gap-5 min-w-0">
+
             <DashboardAlertsCard 
               alerts={alerts} 
               onAccept={onAlertAccept} 
@@ -142,11 +143,15 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
               onFeedback={onAlertFeedback} 
               isEn={isEn} 
             />
+
+            {/* Compact Trend Chart under Alerts */}
+            <div className="animate-fade-in-up delay-7">
+              <SoilTrendChart isRtl={!isEn} isEn={isEn} activeFarm={activeFarm} compact />
+            </div>
           </div>
 
         </div>
-
-
+        
       </div>
     </div>
     </>
@@ -155,9 +160,9 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
 function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
   return (
-    <CardShell className="flex-1 flex flex-col bg-white p-5 md:p-6">
+    <CardShell className="flex-1 flex flex-col bg-white p-5">
       <CardTopRow 
-        icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
+        icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
         iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
         iconColor={alerts.length > 0 ? "text-red-500" : "text-emerald-600"}
         title={isEn ? "System Alerts" : "تنبيهات النظام اللحظية"}
@@ -167,64 +172,37 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="flex-1 mt-4 overflow-y-auto max-h-[250px] pr-2 custom-scrollbar flex flex-col gap-3">
+      <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-2.5">
         {alerts.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[150px]">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-3"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <div className="text-sm font-bold">{isEn ? 'System Operating Normally' : 'جميع الأنظمة تعمل بشكل طبيعي'}</div>
+          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <div className="text-[13px] font-bold">{isEn ? 'System Normal' : 'جميع الأنظمة طبيعية'}</div>
           </div>
         ) : (
           alerts.map((alert, i) => (
-            <div key={alert.id || i} className={`p-4 rounded-2xl border ${alert.severity === 'high' ? 'bg-red-50/30 border-red-100' : alert.severity === 'medium' ? 'bg-amber-50/30 border-amber-100' : 'bg-blue-50/30 border-blue-100'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex flex-col gap-1.5 w-full">
-                  <div className={`text-[14px] font-black ${alert.severity === 'high' ? 'text-red-700' : alert.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'}`}>
-                    {alert.title}
-                  </div>
-                  <div className="text-[12px] text-gray-500 font-bold">{alert.sensor}: <span className="text-gray-800">{alert.value}</span></div>
-                  <div className="text-[11px] text-gray-600 mt-1 flex items-start gap-1.5 font-medium leading-relaxed bg-white/50 p-2 rounded-lg">
-                    <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-400 shrink-0"></div>
-                    {alert.action}
-                  </div>
+            <div key={alert.id || i} className={`p-3 rounded-xl border flex flex-col gap-2 animate-fade-in ${alert.severity === 'high' ? 'bg-red-50/20 border-red-100/50' : 'bg-amber-50/20 border-amber-100/50'}`}>
+              <div className="flex justify-between items-start gap-2">
+                <div className="flex flex-col">
+                  <h4 className={`text-[14px] font-black leading-tight ${alert.severity === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{alert.title}</h4>
+                  <div className="text-[11px] font-bold text-gray-400 mt-0.5">{alert.sensor}: <span className="text-gray-700">{alert.value}</span></div>
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.time}</span>
+              </div>
+              
+              <div className="text-[12px] text-gray-600 font-medium leading-relaxed bg-white/60 p-2 rounded-lg border border-gray-100/50 flex items-start gap-1.5">
+                <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-300 shrink-0" />
+                {alert.action || alert.desc}
+              </div>
 
-                  {/* Interactive Footer */}
-                  <div className="mt-3 pt-3 border-t border-gray-200/60 flex items-center justify-end gap-2">
-                    {alert.autoMode ? (
-                      // Auto Mode: Feedback buttons
-                      <>
-                        <span className="text-[10px] text-gray-400 font-bold me-auto">{isEn ? 'Was this helpful?' : 'تقييم الإجراء التلقائي'}</span>
-                        <button 
-                          onClick={() => onFeedback && onFeedback(alert.id, true)}
-                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all shadow-sm"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-                        </button>
-                        <button 
-                          onClick={() => onFeedback && onFeedback(alert.id, false)}
-                          className="w-8 h-8 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm"
-                        >
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
-                        </button>
-                      </>
-                    ) : (
-                      // Manual Mode: Accept/Reject buttons
-                      <>
-                        <button 
-                          onClick={() => onReject && onReject(alert.id)}
-                          className="px-4 py-2 rounded-xl text-[11px] font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-all shadow-sm"
-                        >
-                          {isEn ? 'Reject' : 'تجاهل الخلل'}
-                        </button>
-                        <button 
-                          onClick={() => onAccept && onAccept(alert.id, alert.actionType)}
-                          className="px-4 py-2 rounded-xl text-[11px] font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:to-emerald-600 transition-all shadow-md shadow-emerald-600/20"
-                        >
-                          {isEn ? 'Accept Action' : 'تأكيد وتنفيذ'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Feedback' : 'تقييم الإجراء'}</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => onFeedback?.(alert.id, true)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                  </button>
+                  <button onClick={() => onFeedback?.(alert.id, false)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -253,8 +231,8 @@ function ClimateSparkline({ color = "#ef4444", gradientId = "climateGradient" })
   return (
     <div className="flex flex-col gap-1.5 h-full justify-center">
       <div className="flex items-center justify-between opacity-70">
-        <div className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">{isEn ? 'Temp Trend (24h)' : 'ميول الحرارة (٢٤ ساعة)'}</div>
-        <div className="text-[9px] font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}10` }}>{isEn ? 'Peak' : 'الأعلى'}: ٣٤°C</div>
+        <div className="text-xs font-black text-gray-400 uppercase tracking-tighter">{isEn ? 'Temp Trend (24h)' : 'ميول الحرارة (٢٤ ساعة)'}</div>
+        <div className="text-xs font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}10` }}>{isEn ? 'Peak' : 'الأعلى'}: ٣٤°C</div>
       </div>
       <div className="relative w-32 h-16 bg-gray-50/30 rounded-xl overflow-hidden border border-gray-100/50 flex items-center">
         <svg viewBox="0 0 100 40" className="w-full h-full preserve-3d ml-2">
@@ -288,8 +266,8 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
   return (
     <div className="flex flex-col gap-1.5 h-full justify-center">
       <div className="flex items-center justify-between opacity-70">
-        <div className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">{isEn ? 'Moisture Trend (24h)' : 'اتجاه الرطوبة (٢٤ ساعة)'}</div>
-        <div className="text-[9px] font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}15` }}>{isEn ? 'Peak' : 'الأعلى'}: ٤٨٪</div>
+        <div className="text-xs font-black text-gray-400 uppercase tracking-tighter">{isEn ? 'Moisture Trend (24h)' : 'اتجاه الرطوبة (٢٤ ساعة)'}</div>
+        <div className="text-xs font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}15` }}>{isEn ? 'Peak' : 'الأعلى'}: ٤٨٪</div>
       </div>
       
       <div className="relative w-32 h-16 bg-gray-50/30 rounded-xl overflow-hidden border border-gray-100/50 flex items-center">
@@ -318,8 +296,8 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
       </div>
 
       <div className={`flex items-center justify-between px-1 ${isEn ? 'flex-row-reverse' : ''}`}>
-        <span className="text-[9px] font-bold text-gray-400">{isEn ? 'Stable Trend' : 'تحليل الميول مستقر'}</span>
-        <span className="text-[9px] font-black text-gray-300">{isEn ? 'Low' : 'الأقل'}: ٣٢٪</span>
+        <span className="text-xs font-bold text-gray-400">{isEn ? 'Stable Trend' : 'تحليل الميول مستقر'}</span>
+        <span className="text-xs font-black text-gray-300">{isEn ? 'Low' : 'الأقل'}: ٣٢٪</span>
       </div>
     </div>
   );
@@ -369,8 +347,8 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, ap
 
         <div className="flex flex-col items-center gap-3">
            <div className={`px-3 py-1.5 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm min-w-[70px] border ${coolingActive ? 'bg-blue-50 border-blue-200' : isOptimal ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-              <div className={`text-[9px] font-bold mb-0.5 ${coolingActive ? 'text-blue-600' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
-              <div className={`text-[12px] font-black ${coolingActive ? 'text-blue-700' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{coolingActive ? (isEn ? 'Cooling...' : 'يبرد...') : isOptimal ? (isEn ? 'Optimal' : 'مثالي') : (isEn ? 'Alert' : 'تنبيه')}</div>
+              <div className={`text-xs font-bold mb-0.5 ${coolingActive ? 'text-blue-600' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
+              <div className={`text-[12px] font-black ${coolingActive ? 'text-blue-700' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{coolingActive ? (isEn ? 'Cooling...' : 'تبريد نشط') : isOptimal ? (isEn ? 'Stable' : 'مستقر') : (isEn ? 'Unstable' : 'غير مستقر')}</div>
            </div>
            <div className="w-full">
               <ClimateSparkline color={temp > 32 ? 'var(--status-error)' : temp > 28 ? 'var(--status-warning)' : 'var(--status-success)'} gradientId="climateGradHome" />
@@ -421,8 +399,8 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, api
 
         <div className="flex flex-col items-center gap-4">
            <div className={`px-3 py-2 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm min-w-[70px] border ${isHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
-              <div className={`text-[10px] font-bold mb-0.5 ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
-              <div className={`text-[13px] font-black ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isHealthy ? (isEn ? 'Healthy' : 'سليم') : (isEn ? 'Warning' : 'تنبيه')}</div>
+              <div className={`text-xs font-bold mb-0.5 ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
+              <div className={`text-[13px] font-black ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isHealthy ? (isEn ? 'Stable' : 'مستقر') : (isEn ? 'Unstable' : 'غير مستقر')}</div>
            </div>
            <div className="w-full">
               <SoilSparkline color={isHealthy ? 'var(--status-success)' : 'var(--status-warning)'} gradientId="soilGradHome" />
@@ -451,7 +429,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
 
         <div className="mt-5 flex items-end justify-between gap-2">
           <div className="flex flex-col gap-3">
-            <div className={`text-[10px] font-black px-2.5 py-1 rounded-lg w-max mb-3 shadow-sm flex items-center gap-1.5 border ${data.flowRate > 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100/50' : 'text-gray-500 bg-gray-50 border-gray-100'}`}>
+            <div className={`text-xs font-black px-2.5 py-1 rounded-lg w-max mb-3 shadow-sm flex items-center gap-1.5 border ${data.flowRate > 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100/50' : 'text-gray-500 bg-gray-50 border-gray-100'}`}>
               <span className="relative flex h-1.5 w-1.5 ">
                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${data.flowRate > 0 ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
                 <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${data.flowRate > 0 ? 'bg-emerald-600' : 'bg-gray-600'}`}></span>
@@ -460,7 +438,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
             </div>
             
             <div className="flex flex-col">
-              <div className="text-[11px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
+              <div className="text-xs text-gray-400 font-bold uppercase mb-0.5 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
               <div className="text-3xl font-black text-gray-800 tracking-tight">
                 {data.waterUsage} <span className="text-[13px] font-bold text-gray-400 mx-1 tracking-normal">{isEn ? 'L' : 'لتر'}</span>
               </div>
@@ -571,17 +549,17 @@ function DSSGlanceCard({ onGo, seconds, activeFarm }) {
       </div>
 
       <div className="mt-5 pt-3 flex items-center justify-between border-t border-gray-50">
-        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'Infer Engine Active' : 'محرك الاستدلال نشط'}</div>
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'Infer Engine Active' : 'محرك الاستدلال نشط'}</div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-           <span className="text-[10px] font-black text-emerald-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
+           <span className="text-xs font-black text-emerald-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
         </div>
       </div>
     </CardShell>
   );
 }
 
-function DigitalTwinCommandCenterCard({ onOpenAssets }) {
+function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0 }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
 
@@ -590,9 +568,20 @@ function DigitalTwinCommandCenterCard({ onOpenAssets }) {
       <div className="flex flex-col lg:flex-row gap-5 lg:gap-10 relative z-10 w-full items-center">
         
         <div className="w-full lg:w-[45%] flex flex-col justify-center">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 text-[11px] font-black text-emerald-700 mb-3 w-max">
-            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            {isEn ? 'Digital Twin Engine' : 'محرك التوأم الرقمي'}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 text-[11px] font-black text-emerald-700 w-max">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              {isEn ? 'Digital Twin Engine' : 'محرك التوأم الرقمي'}
+            </div>
+            {alertsCount > 0 && (
+               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border bg-red-50 border-red-200 text-red-700 animate-pulse`}>
+                 <div className="relative flex items-center justify-center">
+                   <span className="text-sm">🔔</span>
+                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-600 rounded-full border border-white"></span>
+                 </div>
+                 <span className="text-[11px] font-black">{alertsCount} {isEn ? 'Alerts' : 'تنبيهات'}</span>
+               </div>
+            )}
           </div>
           <h3 className="text-2xl font-black tracking-tighter mb-2 text-gray-800 leading-tight">{isEn ? 'Digital Twin Command Center' : 'مركز قيادة التوأم الرقمي'}</h3>
           <p className="text-[13px] text-gray-400 font-semibold leading-relaxed">
@@ -627,7 +616,7 @@ function MinimalStat({ value, label }) {
   return (
     <div className="flex flex-col items-center justify-center py-1 px-3 min-w-[75px] rounded-xl bg-gray-50/50 border border-gray-100/50 group-hover/assets:border-emerald-100 transition-all">
       <div className="text-3xl font-black text-gray-900 leading-none mb-0.5">{value}</div>
-      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{label}</div>
+      <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{label}</div>
     </div>
   );
 }
@@ -652,10 +641,10 @@ function IoTSystemHealthCard({ isEn, seconds }) {
             </div>
             <div className="flex flex-col">
               <span className="text-[12px] font-black text-gray-800">{isEn ? 'Main IoT Gateway' : 'البوابة الرئيسية (Gateway)'}</span>
-              <span className="text-[10px] font-bold text-emerald-600">{isEn ? 'Connected & Stable' : 'متصل ومستقر'}</span>
+              <span className="text-xs font-bold text-emerald-600">{isEn ? 'Connected & Stable' : 'متصل ومستقر'}</span>
             </div>
           </div>
-          <div className="text-[10px] font-bold text-gray-400 bg-white px-2 py-1 rounded shadow-sm">
+          <div className="text-xs font-bold text-gray-400 bg-white px-2 py-1 rounded shadow-sm">
             Ping: 12ms
           </div>
         </div>
@@ -664,31 +653,67 @@ function IoTSystemHealthCard({ isEn, seconds }) {
         <div className="grid grid-cols-2 gap-3 mt-1">
           <div className="flex flex-col p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-gray-500">{isEn ? 'Climate Nodes' : 'عقد المناخ'}</span>
+              <span className="text-xs font-bold text-gray-500">{isEn ? 'Climate Nodes' : 'عقد المناخ'}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
             </div>
             <div className="text-xl font-black text-gray-800">100%</div>
-            <div className="text-[9px] text-gray-400 font-medium mt-0.5">{isEn ? 'Signal Strength' : 'قوة إشارة النقل'}</div>
+            <div className="text-xs text-gray-400 font-medium mt-0.5">{isEn ? 'Signal Strength' : 'قوة إشارة النقل'}</div>
           </div>
 
           <div className="flex flex-col p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] font-bold text-gray-500">{isEn ? 'Soil Probes' : 'مجسات التربة'}</span>
+              <span className="text-xs font-bold text-gray-500">{isEn ? 'Soil Probes' : 'مجسات التربة'}</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
             </div>
             <div className="text-xl font-black text-gray-800">96%</div>
-            <div className="text-[9px] text-gray-400 font-medium mt-0.5">{isEn ? 'Battery Level' : 'مستوى البطارية'}</div>
+            <div className="text-xs text-gray-400 font-medium mt-0.5">{isEn ? 'Battery Level' : 'مستوى البطارية'}</div>
           </div>
         </div>
 
       </div>
       <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-50">
-        <div className="text-[10px] font-bold text-gray-400 tracking-tighter">{isEn ? 'Last Sync Time' : 'آخر مزامنة للبيانات'}</div>
+        <div className="text-xs font-bold text-gray-400 tracking-tighter">{isEn ? 'Last Sync Time' : 'آخر مزامنة للبيانات'}</div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-           <span className="text-[10px] font-black text-blue-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
+           <span className="text-xs font-black text-blue-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
         </div>
       </div>
     </CardShell>
+  );
+}
+
+export function TopKPIStrip({ temp = 0, hum = 0, soil = 0, alertsCount = 0, globalAutoMode = true, isEn = true, T = {} }) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 w-full bg-white/60 backdrop-blur-sm p-2 rounded-2xl border border-gray-200/50 shadow-sm mb-5" dir={isEn ? 'ltr' : 'rtl'}>
+      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+        <span className="text-lg">🌡</span>
+        <span className="text-sm font-black text-gray-800">{(temp || 0).toFixed(1)}°C</span>
+      </div>
+      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+        <span className="text-lg">💧</span>
+        <span className="text-sm font-black text-gray-800">{(hum || 0).toFixed(0)}%</span>
+      </div>
+      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+        <span className="text-lg">🌱</span>
+        <span className="text-sm font-black text-gray-800">{(soil || 0).toFixed(0)}%</span>
+      </div>
+      <div className="flex-1"></div>
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-colors ${globalAutoMode ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
+        <span className={`w-2 h-2 rounded-full animate-pulse ${globalAutoMode ? 'bg-emerald-500' : 'bg-orange-500'}`}></span>
+        <span className="text-xs font-black uppercase tracking-tight">{globalAutoMode ? (isEn ? 'Auto Mode' : 'تشغيل ذكي') : (isEn ? 'Manual Mode' : 'تحكم يدوي')}</span>
+      </div>
+      <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all ${alertsCount > 0 ? 'bg-red-50 border-red-200 text-red-700 scale-[1.02]' : 'bg-gray-50 border-gray-100 text-gray-500'}`}>
+        <div className="relative flex items-center justify-center">
+          <span className="text-lg">🔔</span>
+          {alertsCount > 0 && (
+            <>
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping opacity-75"></span>
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></span>
+            </>
+          )}
+        </div>
+        <span className="text-xs font-black">{alertsCount} {isEn ? 'Alerts' : 'تنبيهات'}</span>
+      </div>
+    </div>
   );
 }

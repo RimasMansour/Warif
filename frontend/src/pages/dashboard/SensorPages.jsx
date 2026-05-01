@@ -115,7 +115,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
   ], [temp, hum, light]);
 
   return (
-    <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-6">
 
         <SensorTopBar
@@ -157,7 +157,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight flex items-center gap-2">
                   {T.recs} 
-                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.smartAnalysis}</span>
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.smartAnalysis}</span>
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.recsSub}</div>
               </div>
@@ -319,7 +319,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
   const soilRecs = useMemo(() => sensorBuildRecommendationsSoil(soilTemp, soilMoist), [soilTemp, soilMoist]);
 
   return (
-    <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
+    <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
       <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-6">
 
         <SensorTopBar
@@ -357,7 +357,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight flex items-center gap-2">
                   {T.soilRecs} 
-                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.smartAnalysis}</span>
+                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.smartAnalysis}</span>
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{isEn ? 'Suggested actions for root health.' : 'إجراءات مقترحة للحفاظ على صحة وسلامة الجذور.'}</div>
               </div>

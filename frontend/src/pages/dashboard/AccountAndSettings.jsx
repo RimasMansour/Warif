@@ -196,7 +196,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     <div className={isRtl ? 'text-right' : 'text-left'}>
                       <h2 className="text-xl font-black text-gray-800">{profile.fullName}</h2>
                       <p className="text-sm font-bold text-gray-400 mt-1">{profile.email}</p>
-                      <div className={`mt-2 text-[10px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 py-0.5 px-2 rounded-lg border border-emerald-100 w-max`}>{T.admin}</div>
+                      <div className={`mt-2 text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 py-0.5 px-2 rounded-lg border border-emerald-100 w-max`}>{T.admin}</div>
                     </div>
                   </div>
                 </Account_Card>
@@ -315,7 +315,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     </div>
                     <div>
                        <h2 className="text-xl font-black">{guides[lang].masterGuide.title}</h2>
-                       <p className="text-emerald-100 text-[11px] font-bold font-sans uppercase tracking-[0.15em]">{isEn ? 'Interactive Knowledge Hub' : 'مركز المعرفة التفاعلي لوارِف'}</p>
+                       <p className="text-emerald-100 text-xs font-bold font-sans uppercase tracking-[0.15em]">{isEn ? 'Interactive Knowledge Hub' : 'مركز المعرفة التفاعلي لوارِف'}</p>
                     </div>
                  </div>
               </div>
@@ -323,7 +323,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                  {guides[lang].masterGuide.sections.map((section, idx) => (
                    <div key={section.id} className="flex flex-col gap-1.5 group animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}>
                       <div className={`flex items-center gap-3 ${isEn ? 'flex-row' : ''}`}>
-                         <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-[11px] group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
+                         <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-black text-xs group-hover:bg-emerald-600 group-hover:text-white transition-all duration-300">
                             {idx + 1}
                          </div>
                          <h3 className={`text-[14.5px] font-black text-gray-800 ${isEn ? 'text-left' : 'text-right'}`}>{section.title}</h3>
@@ -344,7 +344,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     </div>
                     <div>
                        <div className="text-[13px] font-black text-emerald-900 mb-0.5">{isEn ? 'Digital Twin Verified' : 'تم التحقق بواسطة التوأم الرقمي'}</div>
-                       <div className="text-[11px] font-bold text-emerald-700/70">{isEn ? 'Your farm data is handled with maximum privacy and intelligence.' : 'يتم التعامل مع بيانات مزرعتك بأعلى مستويات الخصوصية والذكاء الإصطناعي.'}</div>
+                       <div className="text-xs font-bold text-emerald-700/70">{isEn ? 'Your farm data is handled with maximum privacy and intelligence.' : 'يتم التعامل مع بيانات مزرعتك بأعلى مستويات الخصوصية والذكاء الإصطناعي.'}</div>
                     </div>
                  </div>
               </div>

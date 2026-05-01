@@ -12,7 +12,7 @@ export function PlaceholderPage({ page, onBack }) {
   const title = titleMap[page] || "صفحة";
 
   return (
-    <div className="w-full h-full px-4 md:px-8 py-5 overflow-auto page-enter" dir="rtl">
+    <div className="w-full px-4 md:px-8 py-5 page-enter" dir="rtl">
       <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="text-right">

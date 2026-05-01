@@ -362,7 +362,7 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
     <div className="absolute top-14 left-0 w-80 bg-white/95 backdrop-blur-xl border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden" onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between p-4 border-b border-gray-50 bg-gray-50/50">
         <div className="font-black text-gray-800">{isEn ? 'System Alerts' : 'تنبيهات النظام'}</div>
-        <div className="text-[10px] font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
+        <div className="text-xs font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
           {alerts.length} {isEn ? 'Active' : 'نشط'}
         </div>
       </div>
@@ -380,7 +380,7 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
                   <div className={`text-[13px] font-black ${alert.severity === 'high' ? 'text-red-700' : alert.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'}`}>
                     {alert.title}
                   </div>
-                  <div className="text-[11px] text-gray-500 font-bold">{alert.sensor}: <span className="text-gray-800">{alert.value}</span></div>
+                  <div className="text-xs text-gray-500 font-bold">{alert.sensor}: <span className="text-gray-800">{alert.value}</span></div>
                   <div className="text-[10.5px] text-gray-600 mt-1 flex items-start gap-1 font-medium leading-relaxed">
                     <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-400 shrink-0"></div>
                     {alert.action}
@@ -391,7 +391,7 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
                     {alert.autoMode ? (
                       // Auto Mode: Feedback buttons
                       <>
-                        <span className="text-[9px] text-gray-400 font-bold me-auto">{isEn ? 'Was this helpful?' : 'هل كان هذا مفيداً؟'}</span>
+                        <span className="text-xs text-gray-400 font-bold me-auto">{isEn ? 'Was this helpful?' : 'هل كان هذا مفيداً؟'}</span>
                         <button 
                           onClick={() => onFeedback && onFeedback(alert.id, true)}
                           className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all"
@@ -410,13 +410,13 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
                       <>
                         <button 
                           onClick={() => onReject && onReject(alert.id)}
-                          className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-all"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-all"
                         >
                           {isEn ? 'Reject' : 'تجاهل'}
                         </button>
                         <button 
                           onClick={() => onAccept && onAccept(alert.id, alert.actionType)}
-                          className="px-3 py-1.5 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20"
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20"
                         >
                           {isEn ? 'Accept' : 'تأكيد الإجراء'}
                         </button>
@@ -425,7 +425,7 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
                   </div>
 
                 </div>
-                <div className="text-[9px] font-bold text-gray-400 shrink-0">{alert.timestamp}</div>
+                <div className="text-xs font-bold text-gray-400 shrink-0">{alert.timestamp}</div>
               </div>
             </div>
           ))

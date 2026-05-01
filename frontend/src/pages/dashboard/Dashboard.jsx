@@ -1,7 +1,9 @@
 import { useMemo, useState, useEffect } from "react";
 import { useLatestSensors, useAutoAlerts, triggerManualIrrigation, triggerManualCooling } from "../../hooks/useWarifData";
 import { translations } from "../../i18n";
-import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, PlaceholderPage, AccountAndSettingsPages } from "./DashboardSections";
+import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, AccountAndSettingsPages } from "./DashboardSections";
+import { Footer } from "./Footer";
+import { NotFoundPage } from "./NotFoundPage";
 import { WeatherIcon, Account_ModalShell, BellAlertIcon, AlertsPanel } from "./DashboardShared";
 
 const DeviceRow = ({ s, T, isEn, isRtl }) => (
@@ -49,7 +51,7 @@ const DeviceRow = ({ s, T, isEn, isRtl }) => (
            s.name === "وحدة التكييف" ? T.acUnitName : s.name}
         </div>
         <div className="flex items-center gap-1.5 mt-1">
-          <span className="text-[11px] font-bold text-gray-400 capitalize">
+          <span className="text-xs font-bold text-gray-400 capitalize">
             {s.type === "رطوبة التربة" ? T.soilHumLabel :
              s.type === "درجة الحرارة" ? T.tempLabel :
              s.type === "رطوبة الهواء" ? T.humLabel :
@@ -67,7 +69,7 @@ const DeviceRow = ({ s, T, isEn, isRtl }) => (
          s.value === "نشط" ? T.statusActive :
          s.value === "خامل" ? T.statusIdle : s.value}
       </div>
-      <div className="text-[9px] font-bold text-gray-300 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="text-xs font-bold text-gray-300 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {isEn ? 'Sync: 2m ago' : 'حدث قبل دقيقتين'}
       </div>
     </div>
@@ -423,36 +425,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
               </button>
 
               <div className="flex flex-col">
-                 <div className="text-[10px] font-bold text-emerald-700/60 mb-0.5 tracking-widest uppercase">{T.physicalGreenhouses} / {currentFarmName} /</div>
+                 <div className="text-xs font-bold text-emerald-700/60 mb-0.5 tracking-widest uppercase">{T.physicalGreenhouses} / {currentFarmName} /</div>
                  <div className="text-[14px] md:text-[15px] font-black text-gray-800 flex items-center gap-2 tracking-tight">
                    {page === "dashboard" ? T.dashboardHome : page === "microclimate" ? T.microclimateTitle : page === "soil" ? T.soilHealthTitle : page === "irrigation" ? T.irrigationTitle : page === "dss" ? T.recsTitle : T.settingsTitle}
                  </div>
               </div>
-            </div>
-
-            {/* Center: Master AI Switch */}
-            <div className="hidden sm:flex absolute left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-gray-50/80 border border-gray-200 rounded-2xl p-1 shadow-inner">
-              <button
-                onClick={() => setGlobalAutoMode(true)}
-                className={`px-3 md:px-5 py-1.5 text-[10px] md:text-[11px] font-black transition-all duration-300 flex items-center justify-center gap-1.5 rounded-xl uppercase tracking-tighter ${globalAutoMode
-                  ? "bg-gradient-to-r from-[#2E7D32] to-[#1B5E20] text-white shadow-md shadow-green-500/20"
-                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                  }`}
-              >
-                {globalAutoMode && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />} 
-                <span className="lg:hidden">{T.auto}</span>
-                <span className="hidden lg:inline">{T.smartAutoTitle}</span>
-              </button>
-              <button
-                onClick={() => setGlobalAutoMode(false)}
-                className={`px-3 md:px-5 py-1.5 text-[10px] md:text-[11px] font-black transition-all duration-300 flex items-center justify-center gap-1.5 rounded-xl uppercase tracking-tighter ${!globalAutoMode
-                  ? "bg-gray-800 text-white shadow-md shadow-gray-900/20"
-                  : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
-                  }`}
-              >
-                <span className="lg:hidden">{T.manual}</span>
-                <span className="hidden lg:inline">{T.manualControlTitle}</span>
-              </button>
             </div>
 
             {/* End (Left in RTL): Weather + Alerts + Lang + User */}
@@ -463,14 +440,14 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                  <span className="text-xl font-black text-gray-800" dir="ltr">{weatherData.temp}°C</span>
                  <div className={`${isRtl ? 'text-right' : 'text-left'} flex flex-col justify-center`}>
                    <div className="text-[12px] font-bold text-gray-600 leading-tight">{T[weatherData.conditionKey] || weatherData.condition}</div>
-                   <div className="text-[10px] font-bold text-gray-400 leading-tight mt-0.5">{T.humidityLabel} {weatherData.humidity}%</div>
+                   <div className="text-xs font-bold text-gray-400 leading-tight mt-0.5">{T.humidityLabel} {weatherData.humidity}%</div>
                  </div>
               </div>
 
               {/* Language toggle */}
               <button
                 onClick={() => handleLanguageChange(language === 'ar' ? 'en' : 'ar')}
-                className="flex items-center justify-center w-8 h-8 rounded-xl border border-gray-200 text-[11px] font-extrabold text-gray-500 hover:text-[#2E7D32] hover:border-[#2E7D32]/30 hover:bg-[#f0fdf4] transition-all duration-300"
+                className="flex items-center justify-center w-8 h-8 rounded-xl border border-gray-200 text-xs font-extrabold text-gray-500 hover:text-[#2E7D32] hover:border-[#2E7D32]/30 hover:bg-[#f0fdf4] transition-all duration-300"
               >
                 {language === 'ar' ? 'EN' : 'عربي'}
               </button>
@@ -521,7 +498,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
             data-sidebar
             className={`fixed inset-y-0 ${isRtl ? 'right-0' : 'left-0'} z-[60] transform lg:relative lg:translate-x-0 lg:z-0 transition-transform duration-300 ease-in-out ${showMobileSidebar ? 'translate-x-0' : (isRtl ? 'translate-x-full' : '-translate-x-full')} lg:translate-x-0`}
           >
-            <Sidebar currentPage={page} onGo={(p) => { go(p); setShowMobileSidebar(false); }} T={T} weatherData={weatherData} activeFarm={activeFarm} setActiveFarm={setActiveFarm} />
+            <Sidebar currentPage={page} onGo={(p) => { go(p); setShowMobileSidebar(false); }} T={T} weatherData={weatherData} activeFarm={activeFarm} setActiveFarm={setActiveFarm} globalAutoMode={globalAutoMode} setGlobalAutoMode={setGlobalAutoMode} />
           </div>
 
           {/* Overlay for mobile sidebar */}
@@ -533,7 +510,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           )}
 
           {/* Content Area */}
-          <div className="flex-1 min-h-0 overflow-auto w-full">
+          <div className="flex-1 min-h-0 overflow-auto w-full flex flex-col">
             {page === "dashboard" ? (
               <DashboardHome 
                 onGo={go} 
@@ -560,8 +537,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
             ) : page === "settings" ? (
               <AccountAndSettingsPages initialPage="settings" onBack={() => go("dashboard")} onLogout={onLogout} onNameUpdate={handleNameUpdate} language={language} onLanguageChange={handleLanguageChange} sensors={connectedSensors} onSensorsChange={handleSensorsChange} />
             ) : (
-              <PlaceholderPage page={page} onBack={() => go("dashboard")} />
+              <NotFoundPage onBack={() => go("dashboard")} isEn={isEn} />
             )}
+            
+            {/* Global Footer */}
+            <Footer isEn={isEn} />
           </div>
           </main>
 
@@ -603,7 +583,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                       <div className="max-w-[85%] mt-1">
                         <button
                           onClick={() => setOpenSourceIdx(openSourceIdx === i ? null : i)}
-                          className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#16a34a] transition-colors"
+                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-[#16a34a] transition-colors"
                         >
                           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                           {isEn ? `${msg.sources.length} source${msg.sources.length > 1 ? 's' : ''}` : `${msg.sources.length} مصدر`}
@@ -612,13 +592,13 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                         {openSourceIdx === i && (
                           <div className="mt-1 bg-white border border-gray-100 rounded-xl px-3 py-2 shadow-sm">
                             {msg.sensor_used && (
-                              <div className="flex items-center gap-1.5 text-[11px] text-[#16a34a] mb-1.5 pb-1.5 border-b border-gray-100">
+                              <div className="flex items-center gap-1.5 text-xs text-[#16a34a] mb-1.5 pb-1.5 border-b border-gray-100">
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
                                 {isEn ? 'Live sensor data used' : 'تم استخدام بيانات الحساسات'}
                               </div>
                             )}
                             {msg.sources.map((src, j) => (
-                              <div key={j} className="flex items-center gap-1.5 text-[11px] text-gray-500 py-0.5">
+                              <div key={j} className="flex items-center gap-1.5 text-xs text-gray-500 py-0.5">
                                 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                                 <span className="truncate">{src.replace(/^.*[/\\]/, '')}</span>
                               </div>
@@ -669,7 +649,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                     </div>
                   </div>
                   <h3 className="text-xl font-black text-gray-800 tracking-tight">{isEn ? 'Hardware Inventory' : 'سجل المعدات والأجهزة'}</h3>
-                  <p className="text-[11px] font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Connected Sensors & Controllers' : 'الحساسات ووحدات التحكم المتصلة'}</p>
+                  <p className="text-xs font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Connected Sensors & Controllers' : 'الحساسات ووحدات التحكم المتصلة'}</p>
                 </div>
 
                 {/* List Content Area */}
@@ -677,7 +657,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                   {/* Category: Monitoring Sensors */}
                   <div className="mb-6">
                     <div className={`flex items-center gap-2 px-2 mb-3 ${isRtl ? 'flex-row' : 'flex-row-reverse justify-end'}`}>
-                      <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Environmental Sensors' : 'حساسات البيئة والمراقبة'}</span>
+                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Environmental Sensors' : 'حساسات البيئة والمراقبة'}</span>
                       <div className="h-[1px] flex-1 bg-gray-100" />
                     </div>
                     <div className="space-y-2">
@@ -690,7 +670,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                   {/* Category: Control Actuators */}
                   <div className="mb-4">
                     <div className={`flex items-center gap-2 px-2 mb-3 ${isRtl ? 'flex-row' : 'flex-row-reverse justify-end'}`}>
-                      <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Control & Actuators' : 'معدات التحكّم والتشغيل'}</span>
+                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Control & Actuators' : 'معدات التحكّم والتشغيل'}</span>
                       <div className="h-[1px] flex-1 bg-gray-100" />
                     </div>
                     <div className="space-y-2">
@@ -730,7 +710,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                     </div>
                   </div>
                   <h3 className="text-xl font-black text-gray-800 tracking-tight">{T.manualSettings}</h3>
-                  <p className="text-[11px] font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Direct System Control' : 'التحكم المباشر بالنظام'}</p>
+                  <p className="text-xs font-bold text-gray-400 mt-0.5 uppercase tracking-[0.2em]">{isEn ? 'Direct System Control' : 'التحكم المباشر بالنظام'}</p>
                 </div>
 
                 {/* Content Area */}
@@ -766,7 +746,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                           onClick={() => setManualDuration(val)}
                           className={`py-3.5 rounded-2xl text-[15px] font-black transition-all border-2 ${manualDuration === val ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-600/20' : 'bg-white text-gray-500 border-gray-100 hover:border-emerald-200'}`}
                         >
-                          {val} <span className="text-[9px] block opacity-60 font-bold uppercase mt-0.5">{isRtl ? "دقيقة" : "min"}</span>
+                          {val} <span className="text-xs block opacity-60 font-bold uppercase mt-0.5">{isRtl ? "دقيقة" : "min"}</span>
                         </button>
                       ))}
                     </div>
