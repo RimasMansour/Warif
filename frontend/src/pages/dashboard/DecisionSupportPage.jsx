@@ -206,9 +206,9 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                       <div className={`flex flex-col items-center lg:items-end justify-center min-w-[160px] lg:border-r border-gray-100 ${isRtl ? 'lg:pr-6' : 'lg:pl-6'}`}>
                         {(item.mode === 'auto' || globalAutoMode) ? (
                           <div className="flex flex-col items-center gap-3">
-                            <div className="flex items-center gap-2 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100 font-black text-xs uppercase">
+                            <div className="flex items-center gap-2 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100 font-black text-[10px] uppercase tracking-wider">
                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><polyline points="20 6 9 17 4 12"/></svg>
-                               {T.executed}
+                               {globalAutoMode ? (isEn ? 'Accuracy' : 'دقة التحليل') : (isEn ? 'Executed' : 'تم التنفيذ')}
                             </div>
                             <div className="flex flex-col items-center gap-2">
                               <div className="flex items-center gap-2">
@@ -216,13 +216,13 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                                   onClick={() => handleFeedback(item.id, 'up')}
                                   className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${item.feedback === 'up' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-400 hover:text-emerald-600'}`}
                                 >
-                                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                                 </button>
                                 <button 
                                   onClick={() => handleFeedback(item.id, 'down')}
                                   className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${item.feedback === 'down' ? 'bg-red-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-400 hover:text-red-600'}`}
                                 >
-                                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
                                 </button>
                               </div>
 
@@ -230,26 +230,29 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                               {showThanksIds.includes(item.id) && (
                                 <div className="mt-2 flex items-center gap-1.5 text-[#10b981] animate-fade-in">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><polyline points="20 6 9 17 4 12"/></svg>
-                                  <span className="text-xs font-black uppercase tracking-tight">{T.thanks}</span>
+                                  <span className="text-[10px] font-black uppercase tracking-tight">{T.thanks}</span>
                                 </div>
                               )}
                             </div>
                           </div>
                         ) : (
                           <div className="flex flex-col gap-2 w-full">
+                            <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
+                               {isEn ? 'Authorize' : 'إذن التنفيذ'}
+                            </div>
                             {item.status === 'pending' ? (
                               <>
                                 <button 
                                   onClick={() => handleDecision(item.id, 'accepted')}
                                   className="w-full px-4 py-2 bg-emerald-600 text-white text-[12px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
                                 >
-                                  {T.accept}
+                                  {isEn ? 'Approve' : 'موافقة'}
                                 </button>
                                 <button 
                                   onClick={() => handleDecision(item.id, 'rejected')}
                                   className="w-full px-4 py-2 bg-white border border-gray-100 text-gray-500 text-[12px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-2"
                                 >
-                                  {T.reject}
+                                  {isEn ? 'Later' : 'لاحقاً'}
                                 </button>
                               </>
                             ) : (

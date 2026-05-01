@@ -216,8 +216,11 @@ export function HealthStyleBarChart({
   const n = data.length;
   const w = 1000; 
   
-  const gapBetweenGroups = 8;
-  const barW = Math.min(22, (w - pLeft - pRight - n * gapBetweenGroups) / (n * 2));
+  const gapBetweenGroups = 12;
+  const barW = Math.min(32, (w - pLeft - pRight - (n - 1) * gapBetweenGroups) / (n * 2));
+  const totalContentW = n * (barW * 2) + (n - 1) * gapBetweenGroups;
+  const startOffset = (w - pLeft - pRight - totalContentW) / 2;
+  const x = (i) => pLeft + startOffset + i * (barW * 2 + gapBetweenGroups);
 
   const ys = data.flatMap(d => [d.water || 0, d.power || 0, d.value || 0]);
   const yMax = Math.ceil(Math.max(...ys, 5) / 10) * 10 + 10; 
@@ -294,9 +297,10 @@ export function HealthStyleBarChart({
           })}
 
           {data.map((d, i) => {
-            const groupX = pLeft + i * (barW * 2 + 4 + gapBetweenGroups) + gapBetweenGroups / 2;
+            const groupX = pLeft + startOffset + i * (barW * 2 + gapBetweenGroups);
             const yy = yPos(d.value);
             const hh = barH(d.value);
+            const isHovered = hoveredIdx === i;
             
             let showLabel = false;
             let labelText = d.label;
@@ -308,18 +312,57 @@ export function HealthStyleBarChart({
             else if (range === 'Y' && i % 3 === 0) showLabel = true;
 
             return (
-              <g key={i} className="cursor-pointer">
+              <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
+                {/* Invisible interaction area to make hovering easier */}
                 <rect 
-                   x={groupX} y={yy} width={barW * 2} height={hh} rx="4" fill={color} 
-                   onMouseEnter={() => setHoveredIdx(i)}
-                   opacity={hoveredIdx === i ? 1 : hoveredIdx === null ? 1 : 0.3}
+                   x={groupX - gapBetweenGroups/2} y={padTop} width={barW * 2 + gapBetweenGroups} height={h-padTop-padBottom} 
+                   fill="transparent" className="cursor-pointer"
                 />
+                
+                {/* The Bar with scale-up effect */}
+                <rect
+                  x={groupX} y={yy} width={barW * 2} height={hh}
+                  fill={isHovered ? "url(#hoverGrad)" : color}
+                  rx="4" className="transition-all duration-300 ease-out"
+                  style={{ 
+                    opacity: hoveredIdx !== null && !isHovered ? 0.3 : 1,
+                    transform: isHovered ? 'scaleY(1.03)' : 'scaleY(1)',
+                    transformOrigin: 'bottom'
+                  }}
+                />
+                
                 {showLabel && (
-                  <text x={groupX + barW} y={h-padBottom+32} textAnchor="middle" fontSize="22" fill="#94A3B8" fontWeight="black">{labelText}</text>
+                  <text x={groupX + barW} y={h-padBottom+32} textAnchor="middle" fontSize="20" fill="#94A3B8" fontWeight="black" className="transition-opacity duration-300">
+                    {labelText}
+                  </text>
+                )}
+
+                {/* Professional Tooltip */}
+                {isHovered && (
+                  <g pointerEvents="none" className="animate-in fade-in zoom-in duration-200">
+                    <rect 
+                      x={groupX + barW - 45} y={yy - 60} width="90" height="40" 
+                      rx="12" fill="#111827" 
+                      filter="drop-shadow(0 10px 15px rgba(0,0,0,0.3))" 
+                    />
+                    <text 
+                      x={groupX + barW} y={yy - 34} 
+                      textAnchor="middle" fontSize="16" fontWeight="900" fill="white"
+                    >
+                      {d.value}{unit}
+                    </text>
+                    <path d={`M ${groupX+barW-6} ${yy-20} L ${groupX+barW} ${yy-10} L ${groupX+barW+6} ${yy-20} Z`} fill="#111827" />
+                  </g>
                 )}
               </g>
             );
           })}
+          <defs>
+            <linearGradient id="hoverGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#10b981" />
+              <stop offset="100%" stopColor="#3b82f6" />
+            </linearGradient>
+          </defs>
         </svg>
       </div>
     </CardShell>
@@ -472,6 +515,8 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
             else if (range === 'M' && i % 4 === 0) showLabel = true;
             else if (range === 'Y' && i % 2 === 0) showLabel = true;
 
+            const tooltipX = xx < w/2 ? xx + 15 : xx - 145;
+
             return (
               <g key={i}>
                 <rect x={xx - segmentW/2} y={pTop} width={segmentW} height={h-pTop-pBottom} fill="transparent" onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer" />
@@ -479,15 +524,16 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
                   <text x={xx} y={h - pBottom + 40} textAnchor="middle" fontSize="22" fill="#94A3B8" fontWeight="black">{labelText}</text>
                 )}
                 {isHovered && (
-                  <g pointerEvents="none">
+                  <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="2" strokeDasharray="4 4" />
-                    <circle cx={xx} cy={getY(d.water)} r="7" fill="#059669" stroke="white" strokeWidth="3" />
-                    <circle cx={xx} cy={getY(d.power)} r="7" fill="#34d399" stroke="white" strokeWidth="3" />
-                    <rect x={xx - 75} y={Math.min(getY(d.water), getY(d.power)) - 95} width="150" height="75" rx="16" fill="#111827" filter="drop-shadow(0 10px 20px rgba(0,0,0,0.5))" />
-                    <text x={xx} y={Math.min(getY(d.water), getY(d.power)) - 65} textAnchor="middle" fontSize="22" fontWeight="black" fill="white">
+                    <circle cx={xx} cy={getY(d.water)} r="7" fill="#3b82f6" stroke="white" strokeWidth="3" />
+                    <circle cx={xx} cy={getY(d.power)} r="7" fill="#EAB308" stroke="white" strokeWidth="3" />
+                    
+                    <rect x={tooltipX} y={Math.min(getY(d.water), getY(d.power)) - 95} width="160" height="85" rx="16" fill="#111827" filter="drop-shadow(0 15px 30px rgba(0,0,0,0.5))" />
+                    <text x={tooltipX + 15} y={Math.min(getY(d.water), getY(d.power)) - 60} fontSize="18" fontWeight="black" fill="white">
                       {T.waterLabel}: {(d.water).toFixed(1)}٪
                     </text>
-                    <text x={xx} y={Math.min(getY(d.water), getY(d.power)) - 35} textAnchor="middle" fontSize="22" fontWeight="black" fill="#EAB308">
+                    <text x={tooltipX + 15} y={Math.min(getY(d.water), getY(d.power)) - 30} fontSize="18" fontWeight="black" fill="#EAB308">
                       {T.powerLabel}: {(d.power).toFixed(1)}٪
                     </text>
                   </g>
@@ -555,94 +601,134 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
     }
     return points;
   }, [activeFarm]);
-  const h = compact ? 200 : 260;
-  const w = compact ? 400 : 1000;
-  const pLeft = compact ? 35 : 60;
-  const pRight = compact ? 20 : 60;
-  const pTop = compact ? 20 : 30;
-  const pBottom = compact ? 35 : 40;
+  const h = compact ? 220 : 400;
+  const w = 1000;
+  const pLeft = compact ? 30 : 40;
+  const pRight = compact ? 20 : 30;
+  const pTop = compact ? 25 : 40;
+  const pBottom = compact ? 45 : 70;
+  
   const segmentW = (w - pLeft - pRight) / (data.length - 1);
-  const getY = (v, max = 100) => h - pBottom - (v / max) * (h - pTop - pBottom);
+  
+  // Fixed 0-100 Y-axis like the reference
+  const yMin = 0;
+  const yMax = 100;
+  
+  const getY = (v) => h - pBottom - ((v - yMin) / (yMax - yMin)) * (h - pTop - pBottom);
   const getX = (i) => isRtl ? w - pRight - i * segmentW : pLeft + i * segmentW;
-  const getPath = (key, max) => {
+  
+  const getPath = (key) => {
     if (data.length < 2) return "";
-    let d = `M ${getX(0)} ${getY(data[0][key], max)}`;
+    let d = `M ${getX(0)} ${getY(data[0][key])}`;
     for (let i = 0; i < data.length - 1; i++) {
       const x1 = getX(i);
-      const y1 = getY(data[i][key], max);
+      const y1 = getY(data[i][key]);
       const x2 = getX(i + 1);
-      const y2 = getY(data[i + 1][key], max);
+      const y2 = getY(data[i + 1][key]);
       const midX = (x1 + x2) / 2;
       d += ` C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
     }
     return d;
   };
-  const getAreaPath = (key, max) => {
-    const p = getPath(key, max);
+
+  const getAreaPath = (key) => {
+    const p = getPath(key);
     if (!p) return "";
     return `${p} L ${getX(data.length - 1)} ${h - pBottom} L ${getX(0)} ${h - pBottom} Z`;
   };
+
   return (
-    <CardShell className={`${compact ? 'p-5' : 'p-6 md:p-8'} relative overflow-hidden group/trend bg-white/80 backdrop-blur-md border border-gray-100 shadow-sm transition-all hover:shadow-md`} dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="flex justify-center items-center gap-6 mb-6">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
-          <span className="text-[13px] font-black text-gray-500">{isEn ? "Moisture" : "المياه"}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" />
-          <span className="text-[13px] font-black text-gray-500">{isEn ? "Temp" : "الحرارة"}</span>
-        </div>
-      </div>
-      <div className="flex flex-col gap-0.5 mb-4">
-        <h3 className={`${compact ? 'text-[14px]' : 'text-xl'} font-black text-gray-800 tracking-tight`}>
+    <CardShell className={`${compact ? 'p-5' : 'p-6 md:p-8'} relative overflow-hidden group/trend bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md h-full`} dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className={`flex flex-col gap-1 mb-6 ${isRtl ? 'text-right' : 'text-left'}`}>
+        <h3 className="text-lg font-bold text-gray-800 tracking-tight leading-tight">
           {isEn ? "Soil Trend (12h)" : "اتجاه التربة (١٢ ساعة)"}
         </h3>
+        <div className="flex items-center gap-6 mt-1">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
+            <span className="text-[13px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Moisture" : "رطوبة التربة"}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" />
+            <span className="text-[13px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Temp" : "حرارة التربة"}</span>
+          </div>
+        </div>
       </div>
-      <div className={`w-full relative ${compact ? 'h-[200px]' : 'h-[260px]'}`}>
+      
+      <div className={`w-full relative ${compact ? 'h-[220px]' : 'h-[400px]'}`}>
         <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} className="overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
           <defs>
             <linearGradient id="soilTempGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
               <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="soilMoistGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.1" />
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
               <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
             </linearGradient>
           </defs>
-          {[0, 25, 50, 75, 100].map(v => (
-            <g key={v}>
-              <line x1={pLeft} y1={getY(v)} x2={w - pRight} y2={getY(v)} stroke="#F1F5F9" strokeWidth="1" strokeDasharray={v === 0 ? "0" : "5 5"} />
-              <text x={pLeft - 18} y={getY(v)} dominantBaseline="middle" textAnchor="end" fontSize="11" fill="#94A3B8" fontWeight="bold">{v}</text>
-            </g>
-          ))}
-          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="1.5" />
-          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="1.5" />
-          <path d={getAreaPath('moisture', 100)} fill="url(#soilMoistGrad)" />
-          <path d={getAreaPath('temp', 100)} fill="url(#soilTempGrad)" />
-          <path d={getPath('moisture', 100)} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" />
-          <path d={getPath('temp', 100)} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" />
+
+          {/* Grid lines (dashed) and Y Labels exactly like the reference */}
+          {[0, 25, 50, 75, 100].map(v => {
+            const yy = getY(v);
+            return (
+              <g key={v}>
+                <line x1={pLeft} y1={yy} x2={w - pRight} y2={yy} stroke="#F1F5F9" strokeWidth="2" strokeDasharray={v === 0 ? "0" : "6 6"} />
+                <text x={pLeft - 20} y={yy} dominantBaseline="middle" textAnchor="end" fontSize="16" fill="#94A3B8" fontWeight="800">{v}</text>
+              </g>
+            );
+          })}
+
+          {/* Solid Axis lines like the reference */}
+          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="2.5" />
+          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="2.5" />
+
+          <path d={getAreaPath('moisture')} fill="url(#soilMoistGrad)" />
+          <path d={getAreaPath('temp')} fill="url(#soilTempGrad)" />
+          <path d={getPath('moisture')} fill="none" stroke="#3b82f6" strokeWidth="6" strokeLinecap="round" />
+          <path d={getPath('temp')} fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" />
+
           {data.map((d, i) => {
             const xx = getX(i);
             const isHovered = hoveredIdx === i;
-            const topY = Math.min(getY(d.temp, 100), getY(d.moisture, 100));
-            const tooltipY = Math.max(10, topY - 85); 
+            
+            // Highlight the label if it's the latest data point (usually at index data.length - 1)
+            const shouldHighlight = i === data.length - 1;
+            
+            const topY = Math.min(getY(d.temp), getY(d.moisture));
+            const tooltipY = Math.max(10, topY - 100); 
+
             return (
               <g key={i}>
                 <rect x={xx - segmentW / 2} y={pTop} width={segmentW} height={h - pTop - pBottom} fill="transparent" onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer" />
+                
                 {(i % (compact ? 3 : 2) === 0) && (
-                  <text x={xx} y={h - pBottom + 25} textAnchor="middle" fontSize="11" fill="#94A3B8" fontWeight="bold">{d.time}</text>
+                  <g>
+                    {shouldHighlight && (
+                      <rect x={xx - 30} y={h - pBottom + 12} width="60" height="32" rx="6" fill="#10b981" fillOpacity="0.1" />
+                    )}
+                    <text 
+                      x={xx} 
+                      y={h - pBottom + 35} 
+                      textAnchor="middle" 
+                      fontSize="16" 
+                      fill={shouldHighlight ? "#10b981" : "#94A3B8"} 
+                      fontWeight="900"
+                    >
+                      {d.time}
+                    </text>
+                  </g>
                 )}
+
                 {isHovered && (
-                  <g pointerEvents="none">
-                    <line x1={xx} y1={pTop} x2={xx} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="1" strokeDasharray="4 4" />
-                    <rect x={xx - 75} y={tooltipY} width="150" height="75" rx="14" fill="#111827" filter="drop-shadow(0 10px 25px rgba(0,0,0,0.4))" />
-                    <text x={xx} y={tooltipY + 18} textAnchor="middle" fontSize="11" fontWeight="bold" fill="#94A3B8">{d.time}</text>
-                    <text x={xx} y={tooltipY + 40} textAnchor="middle" fontSize="13" fontWeight="black" fill="#fff">{isEn ? `Moisture: ${d.moisture.toFixed(1)}%` : `المياه: ${d.moisture.toFixed(1)}%`}</text>
-                    <text x={xx} y={tooltipY + 60} textAnchor="middle" fontSize="13" fontWeight="black" fill="#10b981">{isEn ? `Temp: ${d.temp.toFixed(1)}°` : `الحرارة: ${d.temp.toFixed(1)}°`}</text>
-                    <circle cx={xx} cy={getY(d.temp, 100)} r="5" fill="#10b981" stroke="white" strokeWidth="2.5" />
-                    <circle cx={xx} cy={getY(d.moisture, 100)} r="5" fill="#3b82f6" stroke="white" strokeWidth="2.5" />
+                  <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+                    <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="2" strokeDasharray="4 4" />
+                    <rect x={xx - 90} y={tooltipY} width="180" height="90" rx="18" fill="#111827" filter="drop-shadow(0 15px 30px rgba(0,0,0,0.5))" />
+                    <text x={xx} y={tooltipY + 22} textAnchor="middle" fontSize="13" fontWeight="bold" fill="#94A3B8">{d.time}</text>
+                    <text x={xx} y={tooltipY + 48} textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff">{isEn ? `Soil Moisture: ${d.moisture.toFixed(1)}%` : `رطوبة التربة: ${d.moisture.toFixed(1)}%`}</text>
+                    <text x={xx} y={tooltipY + 72} textAnchor="middle" fontSize="16" fontWeight="900" fill="#10b981">{isEn ? `Soil Temp: ${d.temp.toFixed(1)}°` : `حرارة التربة: ${d.temp.toFixed(1)}°`}</text>
+                    <circle cx={xx} cy={getY(d.temp)} r="7" fill="#10b981" stroke="white" strokeWidth="3" />
+                    <circle cx={xx} cy={getY(d.moisture)} r="7" fill="#3b82f6" stroke="white" strokeWidth="3" />
                   </g>
                 )}
               </g>
@@ -653,6 +739,7 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
     </CardShell>
   );
 }
+
 
 export function IrrigationActionButton({ children, active, onClick, icon, isRtl }) {
   return (

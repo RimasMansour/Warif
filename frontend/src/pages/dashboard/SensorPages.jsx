@@ -211,27 +211,28 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
           </div>
         </div>
 
-        <div className="animate-fade-in-up delay-4">
-          <CardShell className="p-6 card-interactive">
-            <div className={`mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-              <div className="text-lg font-bold text-gray-800 tracking-tight leading-tight">{T.climateLog}</div>
-              <div className="text-[12px] font-medium text-gray-400 mt-0.5">{T.climateLogSub}</div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <HealthStyleBarChart 
-                range={range} onRangeChange={setRange} data={tempSeries} 
-                unit="°C" metricName={T.tempChart} color="#10b981" 
-                yAxisTitle={T.tempY}
-                T={translations[lang]}
-                isRtl={isRtl}
-              />
-              <HealthStyleBarChart 
-                range={range} onRangeChange={setRange} data={humSeries} 
-                unit="٪" metricName={T.humChart} color="#10b981" 
-                yAxisTitle={T.humY}
-                T={translations[lang]}
-                isRtl={isRtl}
-              />
+        <div className="animate-fade-in-up delay-4 mt-2">
+          <div className={`mb-4 ${isRtl ? 'text-right' : 'text-left'}`}>
+            <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.climateLog}</div>
+            <div className="text-[12px] font-medium text-gray-400 mt-1">{T.climateLogSub}</div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <HealthStyleBarChart 
+              range={range} onRangeChange={setRange} data={tempSeries} 
+              unit="°C" metricName={T.tempChart} color="#10b981" 
+              yAxisTitle={T.tempY}
+              T={translations[lang]}
+              isRtl={isRtl}
+            />
+            <HealthStyleBarChart 
+              range={range} onRangeChange={setRange} data={humSeries} 
+              unit="٪" metricName={T.humChart} color="#10b981" 
+              yAxisTitle={T.humY}
+              T={translations[lang]}
+              isRtl={isRtl}
+            />
+            <div className="lg:col-span-2">
               <HealthStyleBarChart 
                 range={range} onRangeChange={setRange} data={lightSeries} 
                 unit=" Lux" metricName={T.lightChart} color="#f59e0b" 
@@ -240,7 +241,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
                 isRtl={isRtl}
               />
             </div>
-          </CardShell>
+          </div>
         </div>
       </div>
     </div>
@@ -379,29 +380,27 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
           </div>
         </div>
 
-        <div className="animate-fade-in-up delay-3">
-          <CardShell className="p-6 card-interactive">
-            <div className={`mb-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-              <div className="text-lg font-bold text-gray-800 tracking-tight leading-tight">{T.bioTitle}</div>
-              <div className="text-[12px] font-medium text-gray-400 mt-1">{T.bioSub}</div>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <HealthStyleBarChart 
-                range={range} onRangeChange={setRange} data={soilTempSeries} 
-                unit="°C" metricName={T.tempChart} color="#10b981" 
-                yAxisTitle={T.tempY}
-                T={translations[lang]}
-                isRtl={isRtl}
-              />
-              <HealthStyleBarChart 
-                range={range} onRangeChange={setRange} data={soilMoistSeries} 
-                unit="٪" metricName={T.moistChart} color="#10b981" 
-                yAxisTitle={T.moistY}
-                T={translations[lang]}
-                isRtl={isRtl}
-              />
-           </div>
-          </CardShell>
+        <div className="animate-fade-in-up delay-3 mt-2">
+          <div className={`mb-4 ${isRtl ? 'text-right' : 'text-left'}`}>
+            <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.bioTitle}</div>
+            <div className="text-[12px] font-medium text-gray-400 mt-1">{T.bioSub}</div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <HealthStyleBarChart 
+              range={range} onRangeChange={setRange} data={soilTempSeries} 
+              unit="°C" metricName={T.tempChart} color="#10b981" 
+              yAxisTitle={T.tempY}
+              T={translations[lang]}
+              isRtl={isRtl}
+            />
+            <HealthStyleBarChart 
+              range={range} onRangeChange={setRange} data={soilMoistSeries} 
+              unit="٪" metricName={T.moistChart} color="#10b981" 
+              yAxisTitle={T.moistY}
+              T={translations[lang]}
+              isRtl={isRtl}
+            />
+          </div>
         </div>
       </div>
     </div>

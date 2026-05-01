@@ -98,7 +98,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
     <>
       <style>{waveStyles}</style>
       <div className="w-full px-4 md:px-8 py-5 page-enter">
-      <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-5">
+      <div className="w-full max-w-[1380px] mx-auto flex flex-col gap-6">
 
         {/* Page Header */}
         <div className="flex items-center gap-3 animate-fade-in-down mb-1 mt-1">
@@ -122,32 +122,36 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
         </div>
 
 
-        {/* Middle Section Layout */}
-        <div className="flex flex-col lg:flex-row gap-5 items-stretch w-full">
-
-          {/* Main Grid: AI Modules Overview */}
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-5 min-w-0">
-            <div className="animate-fade-in-up delay-2 h-full"><MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} /></div>
-            <div className="animate-fade-in-up delay-3 h-full"><SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} /></div>
-            <div className="animate-fade-in-up delay-4 h-full"><IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} /></div>
-            <div className="animate-fade-in-up delay-5 h-full"><DSSGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} /></div>
+        {/* Perfectly Aligned 3-Column Layout: Uniform Row Heights & Custom Column Widths */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-6 items-stretch w-full">
+          
+          {/* Row 1: Top Aligned Cards */}
+          <div className="animate-fade-in-up delay-2">
+            <MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
           </div>
-
-          {/* Side Column: System Health & Alerts */}
-          <div className="w-full lg:w-[450px] shrink-0 animate-fade-in-up delay-6 flex flex-col gap-5 min-w-0">
-
+          <div className="animate-fade-in-up delay-3">
+            <SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
+          </div>
+          <div className="animate-fade-in-up delay-4 flex flex-col">
             <DashboardAlertsCard 
               alerts={alerts} 
               onAccept={onAlertAccept} 
               onReject={onAlertReject} 
               onFeedback={onAlertFeedback} 
               isEn={isEn} 
+              globalAutoMode={globalAutoMode}
             />
+          </div>
 
-            {/* Compact Trend Chart under Alerts */}
-            <div className="animate-fade-in-up delay-7">
-              <SoilTrendChart isRtl={!isEn} isEn={isEn} activeFarm={activeFarm} compact />
-            </div>
+          {/* Row 2: Bottom Aligned Cards */}
+          <div className="animate-fade-in-up delay-5">
+            <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} />
+          </div>
+          <div className="animate-fade-in-up delay-6">
+            <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} />
+          </div>
+          <div className="animate-fade-in-up delay-7">
+            <SoilTrendChart isRtl={!isEn} isEn={isEn} activeFarm={activeFarm} />
           </div>
 
         </div>
@@ -158,9 +162,9 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   );
 }
 
-function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
+function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
   return (
-    <CardShell className="flex-1 flex flex-col bg-white p-5">
+    <CardShell className="h-full flex flex-col bg-white p-5">
       <CardTopRow 
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
         iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
@@ -172,7 +176,7 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-2.5">
+      <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
         {alerts.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
@@ -180,7 +184,7 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
           </div>
         ) : (
           alerts.map((alert, i) => (
-            <div key={alert.id || i} className={`p-3 rounded-xl border flex flex-col gap-2 animate-fade-in ${alert.severity === 'high' ? 'bg-red-50/20 border-red-100/50' : 'bg-amber-50/20 border-amber-100/50'}`}>
+            <div key={alert.id || i} className={`p-4 rounded-xl border flex flex-col gap-3 animate-fade-in ${alert.severity === 'high' ? 'bg-red-50/20 border-red-100/50' : 'bg-amber-50/20 border-amber-100/50'}`}>
               <div className="flex justify-between items-start gap-2">
                 <div className="flex flex-col">
                   <h4 className={`text-[14px] font-black leading-tight ${alert.severity === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{alert.title}</h4>
@@ -194,16 +198,26 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn }) {
                 {alert.action || alert.desc}
               </div>
 
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Feedback' : 'تقييم الإجراء'}</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => onFeedback?.(alert.id, true)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-                  </button>
-                  <button onClick={() => onFeedback?.(alert.id, false)} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                  </button>
-                </div>
+              <div className="pt-2 border-t border-gray-100/60 flex items-center justify-between">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  {globalAutoMode ? (isEn ? 'Feedback' : 'تقييم الإجراء') : (isEn ? 'Action' : 'اتخاذ إجراء')}
+                </span>
+                
+                {globalAutoMode ? (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onFeedback?.(alert.id, true)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm active:scale-90">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                    </button>
+                    <button onClick={() => onFeedback?.(alert.id, false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm active:scale-90">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => onReject?.(alert.id)} className="px-3 py-1.5 rounded-lg text-[11px] font-black text-gray-400 hover:text-gray-600 transition-all uppercase">{isEn ? 'Ignore' : 'تجاهل'}</button>
+                    <button onClick={() => onAccept?.(alert.id)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-black shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Accept' : 'تأكيد'}</button>
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -502,15 +516,21 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
   );
 }
 
-function DSSGlanceCard({ onGo, seconds, activeFarm }) {
+function DSSGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
-  
+  const [interactedIds, setInteractedIds] = useState({}); // { index: 'approved' | 'later' | 'up' | 'down' }
+
   // Use shared recommendations logic
   const decisions = getAllCombinedRecommendations(activeFarm, isEn).slice(0, 2);
 
-  const T_Analysis = isEn ? "AI Analysis" : "تحليل ذكي";
   const T_Reason = isEn ? "Reason:" : "السبب:";
   const T_Subtitle = isEn ? "Suggested actions to maintain environmental stability" : "إجراءات مقترحة للحفاظ على استقرار المحيط";
+
+  const handleAction = (e, idx, type) => {
+    e.stopPropagation();
+    setInteractedIds(prev => ({ ...prev, [idx]: type }));
+    // In a real app, this would call an API
+  };
 
   return (
     <CardShell className="p-6 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("dss")}>
@@ -525,30 +545,83 @@ function DSSGlanceCard({ onGo, seconds, activeFarm }) {
         />
       </div>
 
-      <div className="flex-1 flex flex-col gap-6 mt-2">
-        {decisions.map((item, idx) => (
-          <div key={idx} className="flex gap-4">
-            {/* Green dot indicator */}
-            <div className="flex-shrink-0 mt-2">
-               <div className="w-2.5 h-2.5 rounded-full bg-[var(--status-success)] shadow-[0_0_8px_rgba(18,183,106,0.4)]" />
-            </div>
-
-            <div className="flex flex-col gap-1.5 flex-1">
-              <div className="text-[14.5px] font-black text-gray-800 leading-tight">
-                {item.title}
-              </div>
-              <div className="border-r-2 border-emerald-500/20 pr-3 py-1 flex flex-col gap-1">
-                <div className="text-[12px] text-gray-400 leading-relaxed font-bold">
-                   <span className="text-emerald-600 font-extrabold ml-1">{T_Reason}</span>
-                   {item.reasoning}
+      <div className="flex-1 flex flex-col gap-4 mt-4">
+        {(() => {
+          const visibleDecisions = decisions.filter((_, idx) => interactedIds[idx] !== 'later');
+          
+          if (visibleDecisions.length === 0) {
+            return (
+              <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 text-center animate-fade-in">
+                <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mb-4 border border-emerald-100/50">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+                <div className="text-[14px] font-black text-gray-700 mb-1">
+                  {isEn ? "No active recommendations" : "لا توجد توصيات نشطة حالياً"}
+                </div>
+                <div className="text-[11px] font-bold text-gray-400 leading-relaxed">
+                  {isEn ? "All deferred recommendations can be found in the dedicated DSS page." : "تم تأجيل كافة المقترحات، يمكنك مراجعتها في الصفحة الخاصة بالتوصيات."}
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
+            );
+          }
+
+          return decisions.map((item, idx) => {
+            const status = interactedIds[idx];
+            if (status === 'later') return null;
+            
+            return (
+              <div key={idx} className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-gray-100 bg-gray-50/30 animate-fade-in">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0 mt-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[var(--status-success)] shadow-[0_0_8px_rgba(18,183,106,0.4)]" />
+                  </div>
+                  <div className="flex flex-col gap-0.5 flex-1">
+                    <div className="text-[14px] font-black text-gray-800 leading-tight">{item.title}</div>
+                    <div className="text-[11px] text-gray-400 font-bold leading-relaxed">
+                       <span className="text-emerald-600 font-extrabold ml-1">{T_Reason}</span>
+                       {item.reasoning}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Unified Interactive Footer for Recommendations */}
+                <div className="pt-2 border-t border-gray-100 flex items-center justify-between mt-0.5">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                    {status 
+                      ? (isEn ? 'Acknowledged' : 'تم استلام الإجراء') 
+                      : (globalAutoMode ? (isEn ? 'Accuracy' : 'دقة التحليل') : (isEn ? 'Authorize' : 'إذن التنفيذ'))}
+                  </span>
+                  
+                  {status ? (
+                    <div className="flex items-center gap-1.5 text-emerald-600 animate-fade-in">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span className="text-[10px] font-black uppercase">{isEn ? 'Confirmed' : 'تم التأكيد'}</span>
+                    </div>
+                  ) : (
+                    globalAutoMode ? (
+                      <div className="flex items-center gap-2">
+                        <button onClick={(e) => handleAction(e, idx, 'up')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-300 hover:text-emerald-600 hover:border-emerald-200 transition-all active:scale-90">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                        </button>
+                        <button onClick={(e) => handleAction(e, idx, 'down')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-300 hover:text-red-600 hover:border-red-200 transition-all active:scale-90">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                         <button onClick={(e) => handleAction(e, idx, 'later')} className="px-2.5 py-1 rounded-lg text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase">{isEn ? 'Later' : 'لاحقاً'}</button>
+                         <button onClick={(e) => handleAction(e, idx, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-black shadow-lg shadow-emerald-600/10 hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Approve' : 'موافقة'}</button>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            );
+          });
+        })()}
       </div>
 
-      <div className="mt-5 pt-3 flex items-center justify-between border-t border-gray-50">
+      <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-50">
         <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'Infer Engine Active' : 'محرك الاستدلال نشط'}</div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
