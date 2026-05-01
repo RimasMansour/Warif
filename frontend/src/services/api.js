@@ -1,7 +1,7 @@
 // frontend/src/services/api.js
 // Central API service for Warif — all backend calls go here
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 const getToken = () => localStorage.getItem('warif_token')
 

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { CardShell } from './DashboardShared';
+import { useSensorHistory } from '../../hooks/useWarifData';
 
 const getDateRangeLabel = (range, isRtl) => {
   const now = new Date();
@@ -587,27 +588,44 @@ export function TrendSparkline({ currentValue, threshold = 30, color = "#3B82F6"
 
 export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
+  
+  // Fetch real data
+  const { data: rawTemp } = useSensorHistory('soil_temperature', 12);
+  const { data: rawMoist } = useSensorHistory('soil_moisture', 12);
+
   const data = useMemo(() => {
     const points = [];
-    const now = new Date();
-    for (let i = 11; i >= 0; i--) {
-      const h = new Date(now);
-      h.setHours(now.getHours() - i);
-      const timeStr = `${h.getHours()}:00`;
-      const seed = (activeFarm || 1) * 10;
-      const temp = 22 + Math.sin((i + seed) * 0.5) * 3 + Math.random() * 1;
-      const moisture = 65 + Math.cos((i + seed) * 0.3) * 10 + Math.random() * 2;
+    // If not enough data, pad with empty or default values
+    const maxLen = Math.max(rawTemp?.length || 0, rawMoist?.length || 0);
+    const len = Math.max(12, maxLen);
+    
+    for (let i = 0; i < len; i++) {
+      const tempItem = rawTemp?.[i];
+      const moistItem = rawMoist?.[i];
+      
+      let temp = tempItem?.value ?? 0;
+      let moisture = moistItem?.value ?? 0;
+      
+      let timeStr = "";
+      if (tempItem?.timestamp) {
+        const d = new Date(tempItem.timestamp);
+        timeStr = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } else {
+        const now = new Date();
+        now.setHours(now.getHours() - (len - i));
+        timeStr = `${now.getHours()}:00`;
+      }
+      
       points.push({ time: timeStr, temp, moisture });
     }
     return points;
-  }, [activeFarm]);
+  }, [rawTemp, rawMoist]);
   const h = compact ? 220 : 400;
   const w = 1000;
   const pLeft = compact ? 30 : 40;
   const pRight = compact ? 20 : 30;
   const pTop = compact ? 25 : 40;
   const pBottom = compact ? 45 : 70;
-  
   const segmentW = (w - pLeft - pRight) / (data.length - 1);
   
   // Fixed 0-100 Y-axis like the reference

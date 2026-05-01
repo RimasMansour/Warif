@@ -2,8 +2,9 @@ import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
 import { SensorTopBar, CardShell, IrrigationSmartIcon } from './DashboardShared';
 import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './DashboardCharts';
-import { generateDataForRange, formatLastUpdated, getLiveFarmData } from './dashboardUtils';
-import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction } from '../../hooks/useWarifData';
+import { formatLastUpdated } from './dashboardUtils';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory } from '../../hooks/useWarifData';
+import { stopIrrigation } from '../../services/api';
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
@@ -71,33 +72,50 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const [showSuccess, setShowSuccess] = useState(""); // "irrigate", "stop", "flush"
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const mockData = getLiveFarmData(activeFarm);
   const { data: localSensors } = useLatestSensors(10000);
   const livesensors = sharedSensors || localSensors;
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: irrigationData } = useIrrigationStatus(farmId);
   const { data: mlPrediction } = useIrrigationPrediction(farmId, livesensors);
-  const soilMoist = livesensors?.soil_moisture ?? mockData.soilMoist;
-  const currentFlow = irrigationData?.flow_rate ?? mockData.flowRate;
-  const waterUsage  = irrigationData?.water_usage ?? mockData.waterUsage;
-  const powerUsage  = irrigationData?.power_usage ?? mockData.powerUsage;
+  
+  // Real data only (defaulting to 0 if API hasn't loaded yet)
+  const soilMoist = livesensors?.soil_moisture ?? 0;
+  const currentFlow = irrigationData?.flow_rate ?? 0;
+  const waterUsage  = irrigationData?.water_usage ?? 0;
+  const powerUsage  = irrigationData?.power_usage ?? 0;
+
+  // Fetch historical data for charts
+  const { data: rawWater } = useSensorHistory('water_usage', 12);
+  const { data: rawPower } = useSensorHistory('power_usage', 12);
 
   const dualSeries = useMemo(() => {
-    const raw = generateDataForRange(range, { 
-      base: 55, 
-      amp: 18, 
-      noise: 14, 
-      min: 10, 
-      max: 95, 
-      seed: 42 + range.length,
-      farmIndex: activeFarm
-    });
-    return raw.map((pt, i) => ({
-      ...pt,
-      water: pt.value,
-      power: Math.max(10, Math.min(95, pt.value * (0.8 + Math.sin(i)*0.2)))
-    }));
-  }, [range, activeFarm]);
+    const points = [];
+    const maxLen = Math.max(rawWater?.length || 0, rawPower?.length || 0);
+    const len = Math.max(12, maxLen);
+    
+    for (let i = 0; i < len; i++) {
+      const wItem = rawWater?.[i];
+      const pItem = rawPower?.[i];
+      
+      let water = wItem?.value ?? 0;
+      // Power comes as kWh, let's normalize it to a 0-100 percentage for the chart visual if needed, 
+      // or keep the raw value. The chart scales dynamically, so raw is fine.
+      let power = pItem?.value ?? 0;
+      
+      let label = "";
+      if (wItem?.timestamp) {
+        const d = new Date(wItem.timestamp);
+        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } else {
+        const now = new Date();
+        now.setHours(now.getHours() - (len - i));
+        label = `${now.getHours()}:00`;
+      }
+      
+      points.push({ label, water, power, value: water }); // value is kept for single-metric calculations
+    }
+    return points;
+  }, [rawWater, rawPower, range]);
 
 
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
@@ -265,15 +283,20 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                 
                 <IrrigationActionButton 
                   active={activeAction === "stop"} 
-                  onClick={() => {
+                  onClick={async () => {
                     setActiveAction("stop");
                     setIsProcessing(true);
                     setActiveProcessing("stop");
-                    setTimeout(() => {
+                    try {
+                      const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+                      await stopIrrigation(`valve_farm_${farmId}_01`);
                       setIsProcessing(false);
                       setShowSuccess("stop");
                       setTimeout(() => setShowSuccess(""), 3000);
-                    }, 1000);
+                    } catch (e) {
+                      setIsProcessing(false);
+                      console.error("Stop irrigation failed", e);
+                    }
                   }}
                   icon={isProcessing && activeProcessing === "stop" ? (
                     <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>

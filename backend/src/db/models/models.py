@@ -96,6 +96,9 @@ class Farm(Base):
     name       = Column(String(128), nullable=False)
     farm_type  = Column(SAEnum(FarmType), default=FarmType.greenhouse)
     crop_type  = Column(String(64))
+    current_water_level = Column(Float, default=1000.0)  # لتر
+    water_tank_capacity = Column(Float, default=1000.0)  # لتر
+    total_energy_kwh    = Column(Float, default=0.0)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user    = relationship("User", back_populates="farms")
@@ -146,6 +149,7 @@ class Actuator(Base):
     device_id     = Column(String(64), ForeignKey("devices.device_id"), nullable=False)
     actuator_type = Column(String(32))   # irrigation_valve | fan | heater
     state         = Column(String(16), default="off")
+    power_rating_kw = Column(Float, default=0.0)  # مثل 1.1 كيلو واط للمروحة
 
     device   = relationship("Device", back_populates="actuator")
     commands = relationship("IrrigationCommand", back_populates="actuator")
@@ -161,6 +165,7 @@ class IrrigationCommand(Base):
     actuator_id  = Column(Integer, ForeignKey("actuators.id"), nullable=False)
     mode         = Column(SAEnum(IrrigationMode), nullable=False)
     duration_min = Column(Integer)
+    target_volume = Column(Float) # الري بالسعة (اللترات)
     start_time   = Column(DateTime(timezone=True), nullable=True)
     created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

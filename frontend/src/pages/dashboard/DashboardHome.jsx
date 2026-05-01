@@ -18,11 +18,9 @@ import {
 } from './DashboardCharts';
 import { 
   formatLastUpdated, 
-  getLiveFarmData, 
-  generateDataForRange,
-  getAllCombinedRecommendations 
+  generateDataForRange
 } from './dashboardUtils';
-import { useLatestSensors, useDashboard } from '../../hooks/useWarifData';
+import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
 
 // Liquid Wave Animation Styles
 const waveStyles = `
@@ -66,16 +64,35 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
     return () => clearInterval(interval);
   }, [activeFarm]);
 
+  const { data: rawWater } = useSensorHistory('water_usage', 12);
+  const { data: rawPower } = useSensorHistory('power_usage', 12);
+
   const resourceData = useMemo(() => {
-    const raw = generateDataForRange(resourceRange, { 
-      base: 45, amp: 15, noise: 10, min: 10, max: 90, seed: 88, farmIndex: activeFarm
-    });
-    return raw.map((pt, i) => ({
-      ...pt,
-      water: pt.value,
-      power: Math.max(10, Math.min(95, pt.value * (0.85 + Math.sin(i * 0.5) * 0.1)))
-    }));
-  }, [resourceRange, activeFarm]);
+    const points = [];
+    const maxLen = Math.max(rawWater?.length || 0, rawPower?.length || 0);
+    const len = Math.max(12, maxLen);
+    
+    for (let i = 0; i < len; i++) {
+      const wItem = rawWater?.[i];
+      const pItem = rawPower?.[i];
+      
+      let water = wItem?.value ?? 0;
+      let power = pItem?.value ?? 0;
+      
+      let label = "";
+      if (wItem?.timestamp) {
+        const d = new Date(wItem.timestamp);
+        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+      } else {
+        const now = new Date();
+        now.setHours(now.getHours() - (len - i));
+        label = `${now.getHours()}:00`;
+      }
+      
+      points.push({ label, water, power, value: water }); 
+    }
+    return points;
+  }, [rawWater, rawPower, resourceRange]);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
@@ -128,7 +145,6 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           {/* Row 1: Top Aligned Cards */}
           <div className="animate-fade-in-up delay-2">
             <MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
-          </div>
           <div className="animate-fade-in-up delay-3">
             <SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
           </div>
@@ -318,10 +334,9 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
 }
 
 function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, apiLight, coolingActive }) {
-  const mockData = getLiveFarmData(activeFarm);
-  const temp = apiTemp ?? mockData.temp;
-  const hum  = apiHum  ?? mockData.hum;
-  const light = apiLight ?? mockData.light_intensity;
+  const temp = apiTemp ?? 0;
+  const hum  = apiHum  ?? 0;
+  const light = apiLight ?? 0;
   const isOptimal = temp < 32 && hum < 65 && light < 100000;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
@@ -375,9 +390,8 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, ap
 }
 
 function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, apiSoilTemp }) {
-  const mockData = getLiveFarmData(activeFarm);
-  const soilMoist = apiSoilMoist ?? mockData.soilMoist;
-  const soilTemp  = apiSoilTemp  ?? mockData.soilTemp;
+  const soilMoist = apiSoilMoist ?? 0;
+  const soilTemp  = apiSoilTemp  ?? 0;
   const isHealthy = soilMoist > 30 && soilMoist < 55;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
@@ -426,9 +440,14 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, api
   );
 }
 
-function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
-  const data = getLiveFarmData(activeFarm);
+function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashboardData }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
+  
+  // Get real data from dashboard API
+  const waterPercent = dashboardData?.water_tank_percentage || 0;
+  const energyKwh = dashboardData?.total_energy_kwh || 0;
+  // Calculate a fake visual percentage for energy (max 50 kWh daily goal)
+  const energyPercent = Math.min(100, (energyKwh / 50) * 100);
   return (
     <CardShell className="p-6 h-full cursor-pointer card-interactive group relative overflow-hidden flex flex-col justify-between" onClick={() => onGo("irrigation")}>
       <div className="animate-fade-in delay-3">
@@ -443,10 +462,10 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
 
         <div className="mt-5 flex items-end justify-between gap-2">
           <div className="flex flex-col gap-3">
-            <div className={`text-xs font-black px-2.5 py-1 rounded-lg w-max mb-3 shadow-sm flex items-center gap-1.5 border ${data.flowRate > 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100/50' : 'text-gray-500 bg-gray-50 border-gray-100'}`}>
+            <div className={`text-xs font-black px-2.5 py-1 rounded-lg w-max mb-3 shadow-sm flex items-center gap-1.5 border ${dashboardData?.irrigation_status === "active" ? 'text-emerald-700 bg-emerald-50 border-emerald-100/50' : 'text-gray-500 bg-gray-50 border-gray-100'}`}>
               <span className="relative flex h-1.5 w-1.5 ">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${data.flowRate > 0 ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
-                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${data.flowRate > 0 ? 'bg-emerald-600' : 'bg-gray-600'}`}></span>
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dashboardData?.irrigation_status === "active" ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${dashboardData?.irrigation_status === "active" ? 'bg-emerald-600' : 'bg-gray-600'}`}></span>
               </span>
               {isEn ? 'System Active' : 'النظام نشط'}
             </div>
@@ -454,7 +473,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
             <div className="flex flex-col">
               <div className="text-xs text-gray-400 font-bold uppercase mb-0.5 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
               <div className="text-3xl font-black text-gray-800 tracking-tight">
-                {data.waterUsage} <span className="text-[13px] font-bold text-gray-400 mx-1 tracking-normal">{isEn ? 'L' : 'لتر'}</span>
+                {Math.round(dashboardData?.water_usage || 0)} <span className="text-[13px] font-bold text-gray-400 mx-1 tracking-normal">{isEn ? 'L' : 'لتر'}</span>
               </div>
             </div>
           </div>
@@ -464,41 +483,46 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
               <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
                 <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="7" fill="transparent" className="text-gray-100/50" />
                 <circle
-                  cx="50" cy="50" r="42" stroke={`url(#glanceFlowGrad-${Math.round(data.flowRate)})`} strokeWidth="7"
-                  strokeDasharray={264} strokeDashoffset={264 - (264 * Math.round(data.flowRate)) / 100}
+                  cx="50" cy="50" r="42" stroke={`url(#glanceFlowGrad-${dashboardData?.irrigation_status === "active" ? 100 : 0})`} strokeWidth="7"
+                  strokeDasharray={264} strokeDashoffset={264 - (264 * (dashboardData?.irrigation_status === "active" ? 100 : 0)) / 100}
                   strokeLinecap="round" fill="transparent" className="transition-all duration-1000 ease-out"
                 />
                 <defs>
-                  <linearGradient id={`glanceFlowGrad-${Math.round(data.flowRate)}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor={data.flowRate >= 80 ? "#10b981" : data.flowRate >= 40 ? "#f59e0b" : "#ef4444"} />
-                    <stop offset="100%" stopColor={data.flowRate >= 80 ? "#3b82f6" : data.flowRate >= 40 ? "#fbbf24" : "#f87171"} />
+                  <linearGradient id={`glanceFlowGrad-${dashboardData?.irrigation_status === "active" ? 100 : 0}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor={dashboardData?.irrigation_status === "active" ? "#10b981" : "#ef4444"} />
+                    <stop offset="100%" stopColor={dashboardData?.irrigation_status === "active" ? "#3b82f6" : "#f87171"} />
                   </linearGradient>
                 </defs>
               </svg>
               <div className="absolute flex flex-col items-center">
-                <span className={`text-[18px] font-black tracking-tighter ${data.flowRate >= 80 ? 'text-emerald-600' : data.flowRate >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {Math.round(data.flowRate)}%
+                <span className={`text-[18px] font-black tracking-tighter ${dashboardData?.irrigation_status === "active" ? 'text-emerald-600' : 'text-gray-400'}`}>
+                  {dashboardData?.irrigation_status === "active" ? "ON" : "OFF"}
                 </span>
                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{isEn ? "Flow" : "تدفق"}</span>
               </div>
             </div>
 
-            {/* Restored Resource Bars with Premium Styling */}
-            <div className="flex flex-col gap-2 w-full min-w-[110px] bg-gray-50/50 p-2 rounded-xl border border-gray-100/50">
-               <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-md bg-blue-50 text-blue-500 flex items-center justify-center border border-blue-100/50">
+            <div className="flex flex-col gap-2 w-full min-w-[110px] bg-gray-50/50 p-2 rounded-xl border border-gray-100/50 relative group/tooltip">
+               <div className="flex items-center gap-2 relative">
+                  <div className="w-4 h-4 rounded-md bg-blue-50 text-blue-500 flex items-center justify-center border border-blue-100/50 shrink-0">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
                   </div>
-                  <div className="flex-1 h-1 bg-gray-200/30 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: '70%' }} />
+                  <div className="flex-1 h-2 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
+                    <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${waterPercent}%` }} />
+                  </div>
+                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                    {isEn ? 'Water Tank:' : 'خزان الماء:'} {waterPercent.toFixed(0)}%
                   </div>
                </div>
-               <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-md bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-100/50">
+               <div className="flex items-center gap-2 relative">
+                  <div className="w-4 h-4 rounded-md bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-100/50 shrink-0">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   </div>
-                  <div className="flex-1 h-1 bg-gray-200/30 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: '45%' }} />
+                  <div className="flex-1 h-2 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
+                    <div className="h-full bg-amber-500 rounded-full transition-all duration-1000" style={{ width: `${energyPercent}%` }} />
+                  </div>
+                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                    {energyKwh.toFixed(2)} kWh
                   </div>
                </div>
             </div>
@@ -519,9 +543,17 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
 function DSSGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const [interactedIds, setInteractedIds] = useState({}); // { index: 'approved' | 'later' | 'up' | 'down' }
-
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const { data: apiRecs } = useRecommendations(farmId);
+  
   // Use shared recommendations logic
-  const decisions = getAllCombinedRecommendations(activeFarm, isEn).slice(0, 2);
+  const decisions = (apiRecs && apiRecs.length > 0) ? apiRecs.map(r => ({
+    mode: 'auto',
+    title: r.message?.slice(0, 50) || 'توصية',
+    desc: r.message || '',
+    reasoning: '',
+    time: isEn ? 'Just now' : 'الآن',
+  })).slice(0, 2) : [];
 
   const T_Reason = isEn ? "Reason:" : "السبب:";
   const T_Subtitle = isEn ? "Suggested actions to maintain environmental stability" : "إجراءات مقترحة للحفاظ على استقرار المحيط";
