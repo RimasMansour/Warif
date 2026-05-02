@@ -247,6 +247,42 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     # Update farm resource counters in DB
     if water_consumed > 0:
         farm.current_water_level = max(0.0, farm.current_water_level - water_consumed)
+        
+        # Tank monitoring logic
+        if farm.water_tank_capacity > 0:
+            pct = (farm.current_water_level / farm.water_tank_capacity) * 100
+            from src.db.models.models import Alert, AlertSeverity, AlertStatus
+            from datetime import timezone
+
+            if pct <= 5.0:
+                # Auto-Refill
+                farm.current_water_level = farm.water_tank_capacity
+                print(f"[AUTO-REFILL] Farm {fid} | Water tank refilled to {farm.water_tank_capacity}L")
+                
+                # Resolve low water alerts
+                alerts = await db.execute(
+                    select(Alert)
+                    .where(Alert.farm_id == fid, Alert.status == AlertStatus.open, Alert.sensor_type == "water_tank")
+                )
+                for a in alerts.scalars().all():
+                    a.status = AlertStatus.resolved
+                    a.resolved_at = datetime.now(timezone.utc)
+
+            elif pct <= 20.0:
+                # Generate Low Water Alert if none exists
+                alert_exists = await db.execute(
+                    select(Alert)
+                    .where(Alert.farm_id == fid, Alert.status == AlertStatus.open, Alert.sensor_type == "water_tank")
+                )
+                if not alert_exists.scalar_one_or_none():
+                    db.add(Alert(
+                        farm_id=fid,
+                        sensor_type="water_tank",
+                        severity=AlertSeverity.warning,
+                        status=AlertStatus.open,
+                        message=f"تنبيه: مستوى خزان المياه منخفض جداً ({pct:.1f}%). يرجى إعادة التعبئة."
+                    ))
+
     if energy_consumed > 0:
         farm.total_energy_kwh += energy_consumed
 

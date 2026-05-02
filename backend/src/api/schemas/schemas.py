@@ -118,6 +118,7 @@ class DashboardOut(BaseModel):
     air_temperature: Optional[float]
     air_humidity:    Optional[float]
     water_tank_level: Optional[float] # نسبة مئوية
+    water_usage:     Optional[float] = None # الاستهلاك اليومي للمياه
     energy_kwh:      Optional[float]
     light_intensity: Optional[float]
     irrigation_status: Optional[str]

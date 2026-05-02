@@ -184,70 +184,76 @@ export function useSensorHistory(sensor_type, limit = 100) {
 
 export function useAutoAlerts(sensors, globalAutoMode) {
   const [alerts, setAlerts] = useState([]);
-  const [dismissedAlerts, setDismissedAlerts] = useState(new Set());
+  const [loading, setLoading] = useState(true);
 
-  // Function to dismiss alerts
-  const dismissAlert = useCallback((id) => {
-    setDismissedAlerts(prev => new Set(prev).add(id));
-  }, []);
+  const fetchAlerts = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('warif_token');
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${API_BASE}/api/v1/alerts?status=open`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error("Failed to fetch alerts");
+      const json = await res.json();
+      
+      const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
+      
+      const mappedAlerts = json.map(backendAlert => {
+        let frontendSeverity = "medium";
+        if (backendAlert.severity === "critical") frontendSeverity = "high";
+        else if (backendAlert.severity === "info") frontendSeverity = "low";
+        
+        const sensorNameAr = backendAlert.sensor_type === "water_tank" ? "خزان المياه" 
+                           : backendAlert.sensor_type === "air_temperature" ? "حرارة الجو"
+                           : backendAlert.sensor_type === "soil_moisture" ? "رطوبة التربة"
+                           : "النظام";
+                           
+        const sensorNameEn = backendAlert.sensor_type === "water_tank" ? "Water Tank"
+                           : backendAlert.sensor_type === "air_temperature" ? "Air Temp"
+                           : backendAlert.sensor_type === "soil_moisture" ? "Soil Moist"
+                           : "System";
+
+        const shortTitle = backendAlert.message ? backendAlert.message.split('.')[0] : (isEn ? "System Alert" : "تنبيه النظام");
+
+        return {
+          id: backendAlert.id,
+          autoMode: globalAutoMode,
+          title: shortTitle,
+          severity: frontendSeverity,
+          sensor: isEn ? sensorNameEn : sensorNameAr,
+          value: backendAlert.actual_value !== null ? backendAlert.actual_value.toString() : "",
+          action: backendAlert.message,
+          actionType: "system",
+          timestamp: new Date(backendAlert.created_at).toLocaleTimeString()
+        };
+      });
+      setAlerts(mappedAlerts);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [globalAutoMode]);
+
+  const dismissAlert = useCallback(async (id) => {
+    try {
+      const token = localStorage.getItem('warif_token');
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      await fetch(`${API_BASE}/api/v1/alerts/${id}/ack`, {
+        method: 'POST',
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      fetchAlerts();
+    } catch (err) {
+      console.error("Failed to dismiss alert", err);
+    }
+  }, [fetchAlerts]);
 
   useEffect(() => {
-    if (!sensors) return;
-    
-    const newAlerts = [];
-    const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
-    
-    // Mode-aware alert builder
-    const addAlert = (id, title, titleAr, severity, sensor, val, actionAuto, actionAutoAr, actionManual, actionManualAr, actionType) => {
-      if (dismissedAlerts.has(id)) return; // Don't show if dismissed
-
-      newAlerts.push({
-        id,
-        autoMode: globalAutoMode,
-        title: isEn ? title : titleAr,
-        severity, 
-        sensor: isEn ? sensor : (sensor === 'Air Temp' ? 'حرارة الجو' : sensor === 'Soil Moist' ? 'رطوبة التربة' : sensor === 'Light' ? 'الإضاءة' : 'النظام'),
-        value: val,
-        action: globalAutoMode ? (isEn ? actionAuto : actionAutoAr) : (isEn ? actionManual : actionManualAr),
-        actionType,
-        timestamp: new Date().toLocaleTimeString()
-      });
-    };
-
-    // Thresholds & Anomalies Check
-    if (sensors.anomaly === "cooling_failure") {
-      addAlert("a-1", 
-        "Cooling System Failure", "عطل في نظام التبريد", "high", "System", "Error", 
-        "Cooling restarted via backup system.", "تمت محاولة إعادة تشغيل التبريد عبر النظام الاحتياطي.", 
-        "Suggested action: Inspect cooling fans immediately", "الإجراء المقترح: افحص مراوح التبريد فوراً، هل تريد تفعيل المروحة الاحتياطية؟", "cool");
-    }
-    if (sensors.anomaly === "irrigation_failure") {
-      addAlert("a-2", 
-        "Irrigation Interruption", "انقطاع شبكة الري", "high", "System", "Error", 
-        "Emergency pump activated automatically.", "تم تشغيل مضخة الطوارئ تلقائياً.", 
-        "Suggested action: Check water pump and main valve", "الإجراء المقترح: تحقق من المضخة والمحبس الرئيسي، هل تريد تشغيل الطوارئ؟", "irrigate");
-    }
-    if (sensors.air_temperature > 35 && sensors.anomaly !== "cooling_failure") {
-      addAlert("t-1", 
-        "High Air Temperature", "ارتفاع حرارة الجو", "medium", "Air Temp", `${sensors.air_temperature.toFixed(1)}°C`, 
-        "Emergency ventilation activated automatically.", "تم تفعيل التهوية القصوى تلقائياً لخفض الحرارة.", 
-        "Suggested action: Activate emergency ventilation", "الإجراء المقترح: تفعيل التهوية القصوى لخفض الحرارة. هل تريد تفعيلها الآن؟", "cool");
-    }
-    if (sensors.soil_moisture < 25 && sensors.anomaly !== "irrigation_failure") {
-      addAlert("sm-1", 
-        "Low Soil Moisture", "جفاف التربة", "high", "Soil Moist", `${sensors.soil_moisture.toFixed(0)}%`, 
-        "Irrigation started automatically.", "تم بدء الري تلقائياً لتعويض نقص الرطوبة.", 
-        "Suggested action: Start irrigation immediately", "الإجراء المقترح: بدء الري فوراً لتعويض النقص. هل توافق؟", "irrigate");
-    }
-    if (sensors.light_intensity > 100000) {
-      addAlert("l-1", 
-        "High Light Intensity", "إضاءة ساطعة جداً", "medium", "Light", `${Math.round(sensors.light_intensity)} Lux`, 
-        "Shading nets deployed automatically.", "تم تفعيل شبك التظليل تلقائياً لحماية المحصول.", 
-        "Suggested action: Deploy shading nets", "الإجراء المقترح: تفعيل شبك التظليل لحماية المحصول. تأكيد؟", "shade");
-    }
-
-    setAlerts(newAlerts);
-  }, [sensors, globalAutoMode, dismissedAlerts]);
+    fetchAlerts();
+    const id = setInterval(fetchAlerts, 10000);
+    return () => clearInterval(id);
+  }, [fetchAlerts]);
 
   return { alerts, dismissAlert };
 }

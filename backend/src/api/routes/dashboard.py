@@ -50,12 +50,28 @@ async def get_dashboard(
     if farm.water_tank_capacity > 0:
         water_tank_level = (farm.current_water_level / farm.water_tank_capacity) * 100
 
+    # ── Daily Water Consumption ─────────────────────────────────────────
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    water_result = await db.execute(
+        select(func.sum(SensorReading.value))
+        .join(Device, SensorReading.device_id == Device.device_id)
+        .where(
+            Device.farm_id == farm_id,
+            SensorReading.sensor_type == "water_usage",
+            SensorReading.timestamp >= today
+        )
+    )
+    daily_water_usage = water_result.scalar_one_or_none() or 0.0
+
     return DashboardOut(
         soil_moisture=sensor_map.get("soil_moisture"),
         soil_temperature=sensor_map.get("soil_temperature"),
         air_temperature=sensor_map.get("air_temperature"),
         air_humidity=sensor_map.get("air_humidity"),
         water_tank_level=water_tank_level,
+        water_usage=daily_water_usage,
         energy_kwh=farm.total_energy_kwh,
         light_intensity=sensor_map.get("light_intensity"),
         irrigation_status=irrigation_status,
