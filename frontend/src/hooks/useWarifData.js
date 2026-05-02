@@ -213,16 +213,31 @@ export function useAutoAlerts(sensors, globalAutoMode) {
                            : backendAlert.sensor_type === "soil_moisture" ? "Soil Moist"
                            : "System";
 
-        const shortTitle = backendAlert.message ? backendAlert.message.split('.')[0] : (isEn ? "System Alert" : "تنبيه النظام");
+        const msg = backendAlert.message || (isEn ? "System Alert" : "تنبيه النظام");
+
+        // Extract headline: "انحراف حرج في رطوبة التربة" from full message
+        let shortTitle = msg;
+        let fullDetails = msg;
+
+        if (!isEn && msg.includes('-')) {
+          // Arabic: split on first dash to get headline
+          const parts = msg.split('-');
+          shortTitle = parts[0].trim();
+          fullDetails = msg;
+        } else if (isEn && msg.includes('-')) {
+          const parts = msg.split('-');
+          shortTitle = parts[0].trim();
+          fullDetails = msg;
+        }
 
         return {
           id: backendAlert.id,
           autoMode: globalAutoMode,
-          title: shortTitle,
+          title: shortTitle, // Short headline for display
           severity: frontendSeverity,
           sensor: isEn ? sensorNameEn : sensorNameAr,
           value: backendAlert.actual_value !== null ? backendAlert.actual_value.toString() : "",
-          action: backendAlert.message,
+          message: fullDetails, // Full professional message
           actionType: "system",
           timestamp: new Date(backendAlert.created_at).toLocaleTimeString()
         };

@@ -111,9 +111,10 @@ async def ingest_sensor_reading(
             severity = AlertSeverity.critical if status == "critical" else AlertSeverity.warning
             label = SENSOR_LABELS.get(sensor_type, sensor_type)
             if status == "critical":
-                message = f"{label} خارج النطاق الآمن: {value:.1f} {reading.unit}"
+                # Professional format: [نوع المشكلة] + [القيمة] + [الحد] + [الإجراء]
+                message = f"انحراف حرج في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تجاوزت الحد الأمثل ({threshold.max_value or threshold.min_value} {reading.unit}). الإجراء: مراجعة النظام فوراً."
             else:
-                message = f"{label} تحتاج انتباه: {value:.1f} {reading.unit}"
+                message = f"انحراف طفيف في {label} - القيمة الحالية ({value:.1f} {reading.unit}) قريبة من الحد المتوقع ({threshold.warning_max or threshold.warning_min} {reading.unit}). التوصية: مراقبة التطور."
 
             db.add(Alert(
                 sensor_type=sensor_type,
@@ -172,11 +173,13 @@ async def ingest_sensor_reading(
             rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
             anomaly_severity = AlertSeverity.critical if confidence >= 0.8 else AlertSeverity.warning
             label = SENSOR_LABELS.get(sensor_type, sensor_type)
-            anomaly_msg = (
-                f"شذوذ حرج: {label} = {value:.1f} {reading.unit} | {rule_violated}"
-                if rule_violated
-                else f"قراءة غير طبيعية في {label}: {value:.1f} {reading.unit}"
-            )
+
+            # Professional format for anomaly alerts
+            if rule_violated:
+                anomaly_msg = f"انحراف غير طبيعي في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تنحرف عن النمط الطبيعي ({rule_violated}). الثقة: {confidence*100:.0f}%. الإجراء: فحص الحساس والنظام."
+            else:
+                anomaly_msg = f"قراءة استثنائية في {label} - القيمة ({value:.1f} {reading.unit}) غير طبيعية بناءً على البيانات التاريخية. الثقة: {confidence*100:.0f}%. التوصية: تحقق من حالة الحساس."
+
             db.add(Alert(
                 sensor_type=sensor_type,
                 message=anomaly_msg,

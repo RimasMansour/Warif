@@ -151,34 +151,33 @@ class SmartDecisionEngine:
 
             if score > 0.5:
                 severity = "urgent" if score > 0.75 else "warning"
-                message = "يُنصح بالري الفوري" if score > 0.75 else "يُنصح بالري قريباً"
+                if score > 0.75:
+                    message = "تحسين إدارة الري"
+                    rec_text = f"رطوبة التربة الحالية ({soil_moisture:.0f}%) انخفضت عن الحد الأدنى المتوقع (40%). الإجراء: تفعيل الري الفوري لتجنب إجهاد النبات."
+                else:
+                    message = "زيادة فترات الري"
+                    rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض نحو الحد الحرج. التوصية: زيادة تكرار الري تدريجياً للحفاظ على الإنتاجية."
+
                 # Confidence based on score and ML model
                 base_conf = min(score + 0.15, 0.95)
                 if ml_result:
                     base_conf = max(base_conf, ml_result.get("confidence", 0.5) * 0.8)
                 recommendations.append(SmartRecommendation(
                     message=message,
-                    reasoning=reasoning,
+                    reasoning=rec_text,
                     category="irrigation",
                     severity=severity,
                     confidence=max(0.6, min(0.95, base_conf)),
                 ))
             elif score < -0.2:
                 recommendations.append(SmartRecommendation(
-                    message="لا حاجة للري حالياً — التربة مكتفية",
-                    reasoning=reasoning,
+                    message="تقليل فترات الري",
+                    reasoning=f"رطوبة التربة الحالية ({soil_moisture:.0f}%) فوق المستوى المثالي (60%). التوصية: تقليل عدد فترات الري لتوفير المياه وتجنب أمراض الجذور.",
                     category="irrigation",
                     severity="normal",
                     confidence=max(0.7, min(0.9, abs(score) + 0.3)),
                 ))
-            else:
-                recommendations.append(SmartRecommendation(
-                    message="معدل الري ضمن النطاق المثالي",
-                    reasoning=reasoning,
-                    category="irrigation",
-                    severity="normal",
-                    confidence=0.75,
-                ))
+            # لا نضيف توصية إذا كانت الحالة مثالية - لا داعي لإرباك المستخدم
 
         # ─── TEMPERATURE DECISION ─────────────────────────────────────────
         if air_temperature is not None:
@@ -196,8 +195,8 @@ class SmartDecisionEngine:
 
             if combined_temp > 38 and cloudcover < 20:
                 recommendations.append(SmartRecommendation(
-                    message="حرارة خطرة — فعّل التبريد الطارئ فوراً",
-                    reasoning=reasoning,
+                    message="تفعيل نظام التبريد الطارئ",
+                    reasoning=f"درجة الحرارة الحالية ({combined_temp:.0f}°C) تجاوزت الحد الحرج (38°C) وسماء صافية تزيد الضغط الحراري. الإجراء: تشغيل أنظمة التبريد فوراً وفتح جميع فتحات التهوية.",
                     category="temperature",
                     severity="urgent",
                     confidence=0.93,
@@ -205,29 +204,23 @@ class SmartDecisionEngine:
             elif combined_temp > 33:
                 # Higher confidence if outdoor temp is also high
                 conf = 0.82 if ext_temp and ext_temp > 30 else 0.75
+                rec_text = f"درجة الحرارة الحالية ({combined_temp:.0f}°C) مرتفعة عن الحد المثالي (28°C). التوصية: زيادة التهوية والتأكد من سريان الهواء لتجنب إجهاد النبات."
                 recommendations.append(SmartRecommendation(
-                    message="حرارة الهواء مرتفعة — راقب التهوية",
-                    reasoning=reasoning,
+                    message="تحسين التهوية والتبريد",
+                    reasoning=rec_text,
                     category="temperature",
                     severity="warning",
                     confidence=conf,
                 ))
             elif combined_temp < 12:
                 recommendations.append(SmartRecommendation(
-                    message="حرارة الهواء منخفضة — فعّل التدفئة",
-                    reasoning=reasoning,
+                    message="تفعيل نظام التدفئة",
+                    reasoning=f"درجة الحرارة الحالية ({combined_temp:.0f}°C) انخفضت عن الحد الأدنى (15°C). الإجراء: تشغيل التدفئة تدريجياً لتجنب صدمة حرارية للنبات.",
                     category="temperature",
                     severity="warning",
                     confidence=0.84,
                 ))
-            else:
-                recommendations.append(SmartRecommendation(
-                    message="درجة حرارة الهواء ضمن النطاق المثالي",
-                    reasoning=reasoning,
-                    category="temperature",
-                    severity="normal",
-                    confidence=0.88,
-                ))
+            # لا نضيف توصية إذا كانت درجة الحرارة مثالية
 
         # ─── HUMIDITY DECISION ────────────────────────────────────────────
         if air_humidity is not None:
@@ -239,46 +232,44 @@ class SmartDecisionEngine:
 
             if air_humidity > 85:
                 severity = "urgent" if (ext_humidity or 0) > 80 else "warning"
-                msg = "رطوبة داخلية وخارجية مرتفعة — زد التهوية فوراً" if severity == "urgent" else "رطوبة الهواء مرتفعة — زد التهوية"
+                if severity == "urgent":
+                    msg = "تحسين التهوية الطارئ"
+                    rec_text = f"رطوبة الهواء الحالية ({air_humidity:.0f}%) والخارجية ({ext_humidity or 0:.0f}%) مرتفعة جداً. الإجراء: فتح جميع فتحات التهوية فوراً لتجنب الأمراض الفطرية."
+                else:
+                    msg = "زيادة التهوية"
+                    rec_text = f"رطوبة الهواء الحالية ({air_humidity:.0f}%) مرتفعة عن الحد المثالي (60-70%). التوصية: تحسين التهوية لتقليل مخاطر الإصابة بالأمراض."
                 conf = 0.91 if severity == "urgent" else 0.86
                 recommendations.append(SmartRecommendation(
                     message=msg,
-                    reasoning=reasoning,
+                    reasoning=rec_text,
                     category="humidity",
                     severity=severity,
                     confidence=conf,
                 ))
             elif air_humidity < 30:
                 recommendations.append(SmartRecommendation(
-                    message="رطوبة الهواء منخفضة — فعّل الترطيب",
-                    reasoning=reasoning,
+                    message="تفعيل نظام الترطيب",
+                    reasoning=f"رطوبة الهواء الحالية ({air_humidity:.0f}%) منخفضة جداً عن الحد الأدنى (40%). التوصية: تفعيل نظام الرش لزيادة الرطوبة وتجنب الإجهاد المائي للنبات.",
                     category="humidity",
                     severity="warning",
                     confidence=0.80,
                 ))
-            else:
-                recommendations.append(SmartRecommendation(
-                    message="رطوبة الهواء ضمن النطاق المثالي",
-                    reasoning=reasoning,
-                    category="humidity",
-                    severity="normal",
-                    confidence=0.85,
-                ))
+            # لا نضيف توصية إذا كانت الرطوبة مثالية
 
         # ─── SOIL TEMPERATURE ────────────────────────────────────────────
         if soil_temperature is not None:
             if soil_temperature > 35:
                 recommendations.append(SmartRecommendation(
-                    message="حرارة التربة مرتفعة — تأمل التظليل",
-                    reasoning=f"حرارة التربة {soil_temperature:.1f}°C تعيق امتصاص الجذور للعناصر الغذائية",
+                    message="تحسين حماية التربة من الحرارة",
+                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) مرتفعة جداً وتعيق امتصاص الجذور للعناصر الغذائية. الإجراء: استخدام الظلل أو تغطية التربة لتقليل درجة الحرارة.",
                     category="soil",
                     severity="warning",
                     confidence=0.82,
                 ))
             elif soil_temperature < 10:
                 recommendations.append(SmartRecommendation(
-                    message="حرارة التربة منخفضة — قلل الري مؤقتاً",
-                    reasoning=f"حرارة التربة {soil_temperature:.1f}°C تبطئ نشاط الكائنات الدقيقة والتمثيل الغذائي",
+                    message="تقليل الري في فترة البرودة",
+                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) منخفضة جداً وتبطئ نشاط الكائنات الدقيقة. التوصية: تقليل عدد فترات الري لتجنب تعفن الجذور.",
                     category="soil",
                     severity="warning",
                     confidence=0.79,

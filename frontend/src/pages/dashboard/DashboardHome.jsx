@@ -196,36 +196,41 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
           alerts.map((alert, i) => (
             <div key={alert.id || i} className={`p-4 rounded-xl border flex flex-col gap-3 animate-fade-in ${alert.severity === 'high' ? 'bg-red-50/20 border-red-100/50' : 'bg-amber-50/20 border-amber-100/50'}`}>
               <div className="flex justify-between items-start gap-2">
-                <div className="flex flex-col">
-                  <h4 className={`text-[14px] font-black leading-tight ${alert.severity === 'high' ? 'text-red-700' : 'text-amber-700'}`}>{alert.title}</h4>
-                  <div className="text-[11px] font-bold text-gray-400 mt-0.5">{alert.sensor}: <span className="text-gray-700">{alert.value}</span></div>
+                <div className="flex flex-col flex-1">
+                  <h4 className={`text-[15px] font-black leading-tight mb-2 ${alert.severity === 'high' ? 'text-red-700' : 'text-amber-700'}`}>
+                    {alert.title}
+                  </h4>
+                  <div className="text-[11px] font-bold text-gray-500">{alert.sensor} {alert.value ? `: ${alert.value}` : ''}</div>
                 </div>
-                <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.time}</span>
+                <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.timestamp}</span>
               </div>
-              
-              <div className="text-[12px] text-gray-600 font-medium leading-relaxed bg-white/60 p-2 rounded-lg border border-gray-100/50 flex items-start gap-1.5">
-                <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-300 shrink-0" />
-                {alert.action || alert.desc}
-              </div>
+
+              {alert.message && (
+                <div className={`rounded-2xl p-3 border ${alert.severity === 'high' ? 'bg-red-50/30 border-red-100/30' : 'bg-amber-50/30 border-amber-100/30'}`}>
+                  <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
+                    {alert.message}
+                  </div>
+                </div>
+              )}
 
               <div className="pt-2 border-t border-gray-100/60 flex items-center justify-between">
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  {globalAutoMode ? (isEn ? 'Feedback' : 'تقييم الإجراء') : (isEn ? 'Action' : 'اتخاذ إجراء')}
+                  {globalAutoMode ? (isEn ? 'System Feedback' : 'تقييم النظام') : (isEn ? 'Your Action' : 'إجراؤك')}
                 </span>
-                
+
                 {globalAutoMode ? (
                   <div className="flex items-center gap-2">
                     <button onClick={() => onFeedback?.(alert.id, true)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm active:scale-90">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                     </button>
                     <button onClick={() => onFeedback?.(alert.id, false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm active:scale-90">
-                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
                     </button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
-                    <button onClick={() => onReject?.(alert.id)} className="px-3 py-1.5 rounded-lg text-[11px] font-black text-gray-400 hover:text-gray-600 transition-all uppercase">{isEn ? 'Ignore' : 'تجاهل'}</button>
-                    <button onClick={() => onAccept?.(alert.id)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-black shadow-lg shadow-emerald-600/20 hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Accept' : 'تأكيد'}</button>
+                    <button onClick={() => onReject?.(alert.id)} className="px-3 py-1.5 rounded-lg text-[11px] font-black text-gray-500 hover:bg-gray-100 transition-all uppercase">{isEn ? 'Dismiss' : 'تجاهل'}</button>
+                    <button onClick={() => onAccept?.(alert.id)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-black shadow-md hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Execute' : 'نفذ'}</button>
                   </div>
                 )}
               </div>
