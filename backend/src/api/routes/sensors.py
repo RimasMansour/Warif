@@ -202,18 +202,6 @@ async def ingest_sensor_reading(
 
             for sr in smart_recs:
                 if sr.severity != "normal" or sr.category == "irrigation":
-<<<<<<< HEAD
-                    db.add(Recommendation(
-                        farm_id=device_obj.farm_id,
-                        message=sr.message,
-                        reasoning=sr.reasoning,
-                        category=cat_map.get(sr.category, RecommendationCategory.irrigation),
-                        severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
-                        is_read=False,
-                    ))
-        except Exception as rec_err:
-            logger.warning(f"Smart recommendation generation failed: {rec_err}")
-=======
                     # Check if this exact recommendation was recently created
                     recent_rec_result = await db.execute(
                         select(Recommendation)
@@ -246,9 +234,8 @@ async def ingest_sensor_reading(
                         )
                         db.add(rec)
 
-    except Exception as rec_err:
-        logger.warning(f"Smart recommendation generation failed: {rec_err}")
->>>>>>> 48befe07f0d95dc24fcbe2cd12d4ebc11d23fc8a
+        except Exception as rec_err:
+            logger.warning(f"Smart recommendation generation failed: {rec_err}")
     # ── End Smart Recommendation Generation ──────────────────────────
 
     await db.commit()
