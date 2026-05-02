@@ -27,6 +27,7 @@ async def get_irrigation_status(
 ):
     """Get current irrigation status for a farm."""
 
+    from sqlalchemy.orm import selectinload
     # Get latest irrigation event
     result = await db.execute(
         select(IrrigationEvent)
@@ -34,6 +35,7 @@ async def get_irrigation_status(
         .join(Actuator)
         .join(Device)
         .where(Device.farm_id == farm_id)
+        .options(selectinload(IrrigationEvent.command))
         .order_by(desc(IrrigationEvent.timestamp))
         .limit(1)
     )
