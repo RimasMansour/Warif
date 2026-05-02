@@ -174,6 +174,22 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     if evt and evt.status.value == "active":
         pump_on = True
 
+        # Auto-stop: soil saturated (FAO Paper 56)
+        from src.db.models.models import IrrigationStatus
+        if state.get("soil_moisture", 0) >= profile["optimal_soil_max"]:
+            evt.status = IrrigationStatus.completed
+            await db.flush()
+            pump_on = False
+            print(f"[AUTO-STOP] Farm {fid} | Soil saturated {state.get('soil_moisture',0):.1f}% >= {profile['optimal_soil_max']}% → stopped")
+
+        # Auto-stop: water tank empty
+        elif farm.current_water_level <= 0:
+            evt.status = IrrigationStatus.completed
+            await db.flush()
+            pump_on = False
+            farm.current_water_level = 0.0
+            print(f"[AUTO-STOP] Farm {fid} | Water tank empty → stopped")
+
     # --- Physics Calculations ---
 
     # Solar heating through greenhouse glass
