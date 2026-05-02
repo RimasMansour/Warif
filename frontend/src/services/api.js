@@ -131,12 +131,48 @@ export const stopIrrigation = async (device_id) => {
   return res.json()
 }
 
+export const triggerAutoIrrigation = async (farm_id, duration_min = 15) => {
+  const res = await fetch(`${API_BASE}/api/v1/irrigation/auto/${farm_id}?duration_min=${duration_min}`, {
+    method: "POST",
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error("Failed to trigger auto irrigation")
+  return res.json()
+}
+
+export const stopFarmIrrigation = async (farm_id) => {
+  const res = await fetch(`${API_BASE}/api/v1/irrigation/stop-farm/${farm_id}`, {
+    method: "POST",
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error("Failed to stop farm irrigation")
+  return res.json()
+}
+
 export const getIrrigationHistory = async (farm_id, limit = 20) => {
   const res = await fetch(
     `${API_BASE}/api/v1/irrigation/history/${farm_id}?limit=${limit}`,
     { headers: authHeaders() }
   )
   if (!res.ok) throw new Error("Failed to fetch irrigation history")
+  return res.json()
+}
+
+export const getIrrigationResources = async (farm_id) => {
+  const res = await fetch(`${API_BASE}/api/v1/irrigation/resources/${farm_id}`, {
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error("Failed to fetch irrigation resources")
+  return res.json()
+}
+
+export const triggerFanControl = async (farm_id, action = "start") => {
+  // Fan is controlled by the physics simulator automatically
+  // This endpoint logs the user's manual override preference
+  const res = await fetch(`${API_BASE}/api/v1/irrigation/resources/${farm_id}`, {
+    headers: authHeaders()
+  })
+  if (!res.ok) throw new Error("Failed to fetch fan status")
   return res.json()
 }
 
