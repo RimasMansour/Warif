@@ -28,8 +28,10 @@ export function triggerManualIrrigation() {
   setTimeout(() => { simState.irrigationActive = false; }, 30000); // Auto off after 30s
 }
 export function triggerManualCooling() {
-  simState.coolingActive = true;
-  setTimeout(() => { simState.coolingActive = false; }, 30000); 
+  // Fan is thermostat-controlled by physics simulator
+  // This is a UI feedback function only
+  console.log('[Warif] Manual cooling requested - simulator handles fan automatically at 33°C')
+  return Promise.resolve({ status: 'acknowledged' })
 }
 
 export function useLatestSensors(intervalMs = 10000) {
@@ -380,4 +382,37 @@ export function useIrrigationPrediction(farm_id, sensors) {
   }, [fetch_data])
 
   return { data, loading, error, refetch: fetch_data }
+}
+
+export function useIrrigationResources(farmId, intervalMs = 15000) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  const fetch_data = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('warif_token');
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${API_BASE}/api/v1/irrigation/resources/${farmId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
+      if (!res.ok) throw new Error('Failed')
+      const json = await res.json()
+      setData(json)
+    } catch (err) {
+      // silently fail
+    } finally {
+      setLoading(false)
+    }
+  }, [farmId])
+
+  useEffect(() => {
+    if (!farmId) return
+    fetch_data()
+    const id = setInterval(fetch_data, intervalMs)
+    return () => clearInterval(id)
+  }, [fetch_data, intervalMs, farmId])
+
+  return { data, loading }
 }

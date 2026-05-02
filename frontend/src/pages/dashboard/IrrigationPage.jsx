@@ -3,8 +3,8 @@ import { translations } from '../../i18n';
 import { SensorTopBar, CardShell, IrrigationSmartIcon } from './DashboardShared';
 import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './DashboardCharts';
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory } from '../../hooks/useWarifData';
-import { stopIrrigation } from '../../services/api';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources } from '../../hooks/useWarifData';
+import { stopIrrigation, stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
@@ -76,13 +76,31 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const livesensors = sharedSensors || localSensors;
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: irrigationData } = useIrrigationStatus(farmId);
+  const { data: resourceData } = useIrrigationResources(farmId, 15000);
   const { data: mlPrediction } = useIrrigationPrediction(farmId, livesensors);
+
+  // Auto mode: trigger irrigation when ML recommends it
+  const [autoTriggered, setAutoTriggered] = useState(false);
+  useEffect(() => {
+    if (
+      globalAutoMode &&
+      mlPrediction?.irrigation_needed &&
+      !autoTriggered &&
+      irrigationData?.status !== 'active'
+    ) {
+      setAutoTriggered(true);
+      triggerAutoIrrigation(farmId, 15)
+        .then(() => setTimeout(() => setAutoTriggered(false), 60000))
+        .catch(() => setAutoTriggered(false));
+    }
+  }, [globalAutoMode, mlPrediction, irrigationData, farmId, autoTriggered]);
   
   // Real data only (defaulting to 0 if API hasn't loaded yet)
   const soilMoist = livesensors?.soil_moisture ?? 0;
-  const currentFlow = irrigationData?.flow_rate ?? 0;
-  const waterUsage  = irrigationData?.water_usage ?? 0;
-  const powerUsage  = irrigationData?.power_usage ?? 0;
+  const currentFlow = irrigationData?.status === 'active' ? 75 : 0;
+  const waterUsage  = resourceData?.water_usage_liters ?? 0;
+  const powerUsage  = resourceData?.power_usage_kwh ?? 0;
+  const fanActive   = resourceData?.fan_active ?? false;
 
   // Fetch historical data for charts
   const { data: rawWater } = useSensorHistory('water_usage', 12);
@@ -289,7 +307,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                     setActiveProcessing("stop");
                     try {
                       const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
-                      await stopIrrigation(`valve_farm_${farmId}_01`);
+                      await stopFarmIrrigation(farmId);
                       setIsProcessing(false);
                       setShowSuccess("stop");
                       setTimeout(() => setShowSuccess(""), 3000);

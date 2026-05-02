@@ -77,6 +77,70 @@ async def start_manual_irrigation(
     return command
 
 
+@router.post("/auto/{farm_id}", response_model=IrrigationCommandOut, status_code=status.HTTP_201_CREATED)
+async def trigger_auto_irrigation(
+    farm_id: int,
+    duration_min: int = 15,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Trigger automatic irrigation based on ML/AI decision.
+    Called by the frontend when auto mode is ON and ML recommends irrigation.
+    """
+    # Get the sensor device for this farm
+    device_result = await db.execute(
+        select(Device).where(Device.farm_id == farm_id, Device.type == "sensor").limit(1)
+    )
+    device = device_result.scalar_one_or_none()
+
+    if not device:
+        # Auto-create device if not exists
+        device = Device(
+            farm_id=farm_id,
+            device_id=f"valve_farm_{farm_id}_auto",
+            name="Auto Irrigation Valve",
+            type="actuator",
+        )
+        db.add(device)
+        await db.flush()
+
+    device_id = f"valve_farm_{farm_id}_auto"
+    actuator = await _get_or_create_actuator(device_id, db)
+
+    # Stop any existing active irrigation first
+    existing = await db.execute(
+        select(IrrigationEvent)
+        .join(IrrigationCommand)
+        .join(Actuator)
+        .where(
+            Actuator.device_id == device_id,
+            IrrigationEvent.status == IrrigationStatus.active,
+        )
+        .limit(1)
+    )
+    existing_event = existing.scalar_one_or_none()
+    if existing_event:
+        existing_event.status = IrrigationStatus.completed
+        await db.flush()
+
+    command = IrrigationCommand(
+        actuator_id=actuator.id,
+        mode=IrrigationMode.manual,
+        duration_min=duration_min,
+    )
+    db.add(command)
+    await db.flush()
+
+    event = IrrigationEvent(
+        command_id=command.id,
+        status=IrrigationStatus.active,
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(command)
+    return command
+
+
 @router.post("/schedule", response_model=IrrigationCommandOut, status_code=status.HTTP_201_CREATED)
 async def schedule_irrigation(
     body: IrrigationScheduleIn,
@@ -131,6 +195,88 @@ async def stop_irrigation(
     await db.commit()
     await db.refresh(event)
     return event
+
+
+@router.post("/stop-farm/{farm_id}", response_model=dict)
+async def stop_farm_irrigation(
+    farm_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Stop all active irrigation for a farm by farm_id."""
+    result = await db.execute(
+        select(IrrigationEvent)
+        .join(IrrigationCommand)
+        .join(Actuator)
+        .join(Device)
+        .where(
+            Device.farm_id == farm_id,
+            IrrigationEvent.status == IrrigationStatus.active,
+        )
+    )
+    events = result.scalars().all()
+
+    stopped = 0
+    for event in events:
+        event.status = IrrigationStatus.completed
+        stopped += 1
+
+    await db.commit()
+    return {"stopped": stopped, "farm_id": farm_id}
+
+
+@router.get("/resources/{farm_id}", response_model=dict)
+async def get_irrigation_resources(
+    farm_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get water and power usage from sensor readings for a farm."""
+    from sqlalchemy import func
+    from src.db.models.models import SensorReading, Device
+
+    # Get today's total water usage
+    water_result = await db.execute(
+        select(func.sum(SensorReading.value))
+        .join(Device, SensorReading.device_id == Device.device_id)
+        .where(
+            Device.farm_id == farm_id,
+            SensorReading.sensor_type == "water_usage",
+            SensorReading.timestamp >= func.date_trunc('day', func.now())
+        )
+    )
+    water_total = water_result.scalar() or 0.0
+
+    # Get today's total power usage (in Wh → convert to kWh)
+    power_result = await db.execute(
+        select(func.sum(SensorReading.value))
+        .join(Device, SensorReading.device_id == Device.device_id)
+        .where(
+            Device.farm_id == farm_id,
+            SensorReading.sensor_type == "power_usage",
+            SensorReading.timestamp >= func.date_trunc('day', func.now())
+        )
+    )
+    power_total_wh = power_result.scalar() or 0.0
+
+    # Get fan status from latest air_temperature reading context
+    fan_result = await db.execute(
+        select(SensorReading.value)
+        .join(Device, SensorReading.device_id == Device.device_id)
+        .where(
+            Device.farm_id == farm_id,
+            SensorReading.sensor_type == "air_temperature",
+        )
+        .order_by(SensorReading.timestamp.desc())
+        .limit(1)
+    )
+    latest_temp = fan_result.scalar() or 0.0
+    fan_active = latest_temp >= 30.0
+
+    return {
+        "water_usage_liters": round(water_total, 2),
+        "power_usage_kwh": round(power_total_wh / 1000, 3),
+        "fan_active": fan_active,
+        "farm_id": farm_id,
+    }
 
 
 @router.get("/history/{farm_id}", response_model=List[IrrigationEventOut])
