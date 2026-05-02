@@ -6,6 +6,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from src.core.security import get_current_user
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.db.session import get_db
+
 
 router = APIRouter()
 
@@ -64,11 +67,13 @@ async def get_irrigation_prediction(
     air_temp: float = 30.0,
     humidity: float = 60.0,
     soil_temp: float = 25.0,
+    db: AsyncSession = Depends(get_db),
 ):
     ensemble = get_ensemble()
 
+
     if ensemble is None:
-        return IrrigationPredictionOut(
+        pred_out = IrrigationPredictionOut(
             farm_id=farm_id,
             irrigation_needed=soil_moisture < 40,
             confidence=0.75,
@@ -76,6 +81,9 @@ async def get_irrigation_prediction(
             reason="Rule-based fallback: soil moisture threshold.",
             model="rule_based_fallback",
         )
+        await _save_prediction(db, farm_id, pred_out)
+        return pred_out
+
 
     try:
         features = {
@@ -93,7 +101,7 @@ async def get_irrigation_prediction(
         result = ensemble.predict(features)
         needed = bool(result['ensemble_pred'] == 1)
 
-        return IrrigationPredictionOut(
+        pred_out = IrrigationPredictionOut(
             farm_id=farm_id,
             irrigation_needed=needed,
             confidence=result['confidence'],
@@ -104,11 +112,31 @@ async def get_irrigation_prediction(
             xgb_pred=result.get('xgb_pred'),
             lstm_pred=result.get('lstm_pred'),
         )
+        await _save_prediction(db, farm_id, pred_out)
+        return pred_out
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+async def _save_prediction(db: AsyncSession, farm_id: int, pred: IrrigationPredictionOut):
+    """Save ML prediction to DB for history tracking."""
+    try:
+        from src.db.models.models import Prediction
+        prediction = Prediction(
+            farm_id=farm_id,
+            predicted_need=pred.irrigation_needed,
+            confidence=pred.confidence,
+            duration_min=pred.duration_min,
+        )
+        db.add(prediction)
+        await db.commit()
+    except Exception as e:
+        print(f"[ML] Failed to save prediction: {e}")
+
+
 @router.get("/model-metrics", response_model=dict)
+
 async def get_model_metrics(
     current_user: dict = Depends(get_current_user),
 ):
