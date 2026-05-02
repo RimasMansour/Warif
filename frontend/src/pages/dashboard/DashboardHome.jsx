@@ -155,7 +155,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
           {/* Row 2: Bottom Aligned Cards */}
           <div className="animate-fade-in-up delay-5">
-            <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} />
+            <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} resourceData={resourceData} dashboardData={dashboardData} />
           </div>
           <div className="animate-fade-in-up delay-6">
             <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} />
@@ -434,12 +434,12 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, api
   );
 }
 
-function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashboardData }) {
+function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashboardData, resourceData }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   
   // Get real data from dashboard API
-  const waterPercent = dashboardData?.water_tank_percentage || 0;
-  const energyKwh = dashboardData?.total_energy_kwh || 0;
+  const waterPercent = dashboardData?.water_tank_level || 0;
+  const energyKwh = dashboardData?.energy_kwh || 0;
   // Calculate a fake visual percentage for energy (max 50 kWh daily goal)
   const energyPercent = Math.min(100, (energyKwh / 50) * 100);
   return (
@@ -467,7 +467,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashb
             <div className="flex flex-col">
               <div className="text-xs text-gray-400 font-bold uppercase mb-0.5 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
               <div className="text-3xl font-black text-gray-800 tracking-tight">
-                {Math.round(dashboardData?.water_usage || 0)} <span className="text-[13px] font-bold text-gray-400 mx-1 tracking-normal">{isEn ? 'L' : 'لتر'}</span>
+                {Math.round(resourceData?.water ?? 0)} <span className="text-[13px] font-bold text-gray-400 mx-1 tracking-normal">{isEn ? 'L' : 'لتر'}</span>
               </div>
             </div>
           </div>
