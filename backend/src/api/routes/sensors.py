@@ -1,6 +1,7 @@
 # backend/src/api/routes/sensors.py
 import logging
 from typing import Optional, List
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -201,6 +202,7 @@ async def ingest_sensor_reading(
 
             for sr in smart_recs:
                 if sr.severity != "normal" or sr.category == "irrigation":
+<<<<<<< HEAD
                     db.add(Recommendation(
                         farm_id=device_obj.farm_id,
                         message=sr.message,
@@ -211,6 +213,42 @@ async def ingest_sensor_reading(
                     ))
         except Exception as rec_err:
             logger.warning(f"Smart recommendation generation failed: {rec_err}")
+=======
+                    # Check if this exact recommendation was recently created
+                    recent_rec_result = await db.execute(
+                        select(Recommendation)
+                        .where(
+                            Recommendation.farm_id == device_obj.farm_id,
+                            Recommendation.category == cat_map.get(sr.category),
+                            Recommendation.severity == sev_map.get(sr.severity),
+                            Recommendation.message == sr.message
+                        )
+                        .order_by(desc(Recommendation.created_at))
+                        .limit(1)
+                    )
+                    recent_rec = recent_rec_result.scalar_one_or_none()
+
+                    # Only save if no identical recommendation exists or if older than 5 minutes
+                    should_save = True
+                    if recent_rec:
+                        time_diff = datetime.now(timezone.utc) - recent_rec.created_at.replace(tzinfo=timezone.utc)
+                        if time_diff < timedelta(minutes=5):
+                            should_save = False
+
+                    if should_save:
+                        rec = Recommendation(
+                            farm_id=device_obj.farm_id,
+                            message=sr.message,
+                            reasoning=sr.reasoning,
+                            category=cat_map.get(sr.category, RecommendationCategory.irrigation),
+                            severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
+                            is_read=False,
+                        )
+                        db.add(rec)
+
+    except Exception as rec_err:
+        logger.warning(f"Smart recommendation generation failed: {rec_err}")
+>>>>>>> 48befe07f0d95dc24fcbe2cd12d4ebc11d23fc8a
     # ── End Smart Recommendation Generation ──────────────────────────
 
     await db.commit()

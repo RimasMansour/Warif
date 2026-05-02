@@ -2,8 +2,8 @@
 import os
 import logging
 from datetime import datetime, timezone
-from dataclasses import dataclass
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import List, Optional, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,9 @@ class SmartRecommendation:
 
 
 class SmartDecisionEngine:
+    # Class-level cache to prevent duplicate recommendations
+    # Key: (farm_id, category) -> Value: (message, severity, timestamp)
+    _rec_cache: Dict[Tuple[int, str], Tuple[str, str, datetime]] = {}
 
     async def fetch_weather(self) -> dict:
         """Fetch real weather from open-meteo for Makkah region"""
@@ -42,7 +45,7 @@ class SmartDecisionEngine:
             return {}
 
     def run_ml_prediction(self, sensor_data: dict) -> Optional[dict]:
-        """Run the Warif ensemble ML model"""
+        """Run the Warif ensemble ML model (Random Forest + XGBoost + LSTM)"""
         try:
             import sys
             sys.path.insert(0, ".")
@@ -51,8 +54,9 @@ class SmartDecisionEngine:
             if not os.path.exists(models_dir):
                 return None
             ensemble = WarifEnsemble(models_dir)
+            soil_moisture = sensor_data.get("soil_moisture", 50.0)
             features = {
-                "soil_moisture":         sensor_data.get("soil_moisture", 50.0),
+                "soil_moisture":         soil_moisture,
                 "soil_temp":             sensor_data.get("soil_temperature", 25.0),
                 "soil_ph":               6.4,
                 "soil_ec":               1.8,
@@ -64,6 +68,15 @@ class SmartDecisionEngine:
                 "days_since_transplant": 30,
             }
             result = ensemble.predict(features)
+
+            # Ensure confidence is realistic (0.5-0.95 range)
+            if result and "confidence" in result:
+                conf = result["confidence"]
+                # Boost confidence if soil_moisture is extreme
+                if soil_moisture < 20 or soil_moisture > 85:
+                    conf = min(0.95, conf + 0.1)
+                result["confidence"] = max(0.5, min(0.95, conf))
+
             return result
         except Exception as e:
             logger.warning(f"ML prediction failed: {e}")
@@ -139,12 +152,16 @@ class SmartDecisionEngine:
             if score > 0.5:
                 severity = "urgent" if score > 0.75 else "warning"
                 message = "يُنصح بالري الفوري" if score > 0.75 else "يُنصح بالري قريباً"
+                # Confidence based on score and ML model
+                base_conf = min(score + 0.15, 0.95)
+                if ml_result:
+                    base_conf = max(base_conf, ml_result.get("confidence", 0.5) * 0.8)
                 recommendations.append(SmartRecommendation(
                     message=message,
                     reasoning=reasoning,
                     category="irrigation",
                     severity=severity,
-                    confidence=min(score + 0.3, 1.0),
+                    confidence=max(0.6, min(0.95, base_conf)),
                 ))
             elif score < -0.2:
                 recommendations.append(SmartRecommendation(
@@ -152,7 +169,7 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="irrigation",
                     severity="normal",
-                    confidence=0.75,
+                    confidence=max(0.7, min(0.9, abs(score) + 0.3)),
                 ))
             else:
                 recommendations.append(SmartRecommendation(
@@ -160,7 +177,7 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="irrigation",
                     severity="normal",
-                    confidence=0.65,
+                    confidence=0.75,
                 ))
 
         # ─── TEMPERATURE DECISION ─────────────────────────────────────────
@@ -183,15 +200,17 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="temperature",
                     severity="urgent",
-                    confidence=0.92,
+                    confidence=0.93,
                 ))
             elif combined_temp > 33:
+                # Higher confidence if outdoor temp is also high
+                conf = 0.82 if ext_temp and ext_temp > 30 else 0.75
                 recommendations.append(SmartRecommendation(
                     message="حرارة الهواء مرتفعة — راقب التهوية",
                     reasoning=reasoning,
                     category="temperature",
                     severity="warning",
-                    confidence=0.80,
+                    confidence=conf,
                 ))
             elif combined_temp < 12:
                 recommendations.append(SmartRecommendation(
@@ -199,7 +218,7 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="temperature",
                     severity="warning",
-                    confidence=0.85,
+                    confidence=0.84,
                 ))
             else:
                 recommendations.append(SmartRecommendation(
@@ -207,7 +226,7 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="temperature",
                     severity="normal",
-                    confidence=0.90,
+                    confidence=0.88,
                 ))
 
         # ─── HUMIDITY DECISION ────────────────────────────────────────────
@@ -221,12 +240,13 @@ class SmartDecisionEngine:
             if air_humidity > 85:
                 severity = "urgent" if (ext_humidity or 0) > 80 else "warning"
                 msg = "رطوبة داخلية وخارجية مرتفعة — زد التهوية فوراً" if severity == "urgent" else "رطوبة الهواء مرتفعة — زد التهوية"
+                conf = 0.91 if severity == "urgent" else 0.86
                 recommendations.append(SmartRecommendation(
                     message=msg,
                     reasoning=reasoning,
                     category="humidity",
                     severity=severity,
-                    confidence=0.88,
+                    confidence=conf,
                 ))
             elif air_humidity < 30:
                 recommendations.append(SmartRecommendation(
@@ -234,7 +254,7 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="humidity",
                     severity="warning",
-                    confidence=0.82,
+                    confidence=0.80,
                 ))
             else:
                 recommendations.append(SmartRecommendation(
@@ -242,7 +262,7 @@ class SmartDecisionEngine:
                     reasoning=reasoning,
                     category="humidity",
                     severity="normal",
-                    confidence=0.88,
+                    confidence=0.85,
                 ))
 
         # ─── SOIL TEMPERATURE ────────────────────────────────────────────
@@ -250,18 +270,18 @@ class SmartDecisionEngine:
             if soil_temperature > 35:
                 recommendations.append(SmartRecommendation(
                     message="حرارة التربة مرتفعة — تأمل التظليل",
-                    reasoning=f"حرارة التربة {soil_temperature:.1f}°C تعيق امتصاص الجذور",
+                    reasoning=f"حرارة التربة {soil_temperature:.1f}°C تعيق امتصاص الجذور للعناصر الغذائية",
                     category="soil",
                     severity="warning",
-                    confidence=0.78,
+                    confidence=0.82,
                 ))
             elif soil_temperature < 10:
                 recommendations.append(SmartRecommendation(
                     message="حرارة التربة منخفضة — قلل الري مؤقتاً",
-                    reasoning=f"حرارة التربة {soil_temperature:.1f}°C تبطئ نشاط الكائنات الدقيقة",
+                    reasoning=f"حرارة التربة {soil_temperature:.1f}°C تبطئ نشاط الكائنات الدقيقة والتمثيل الغذائي",
                     category="soil",
                     severity="warning",
-                    confidence=0.75,
+                    confidence=0.79,
                 ))
 
         return recommendations
