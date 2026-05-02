@@ -189,6 +189,7 @@ async def ingest_sensor_reading(
                     rec = Recommendation(
                         farm_id=device_obj.farm_id,
                         message=sr.message,
+                        reasoning=sr.reasoning,
                         category=cat_map.get(sr.category, RecommendationCategory.irrigation),
                         severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
                         is_read=False,

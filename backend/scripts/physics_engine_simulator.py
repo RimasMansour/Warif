@@ -131,7 +131,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     # Ensure farm has devices to log sensors
     devices_result = await db.execute(select(Device).where(Device.farm_id == fid))
     devices = devices_result.scalars().all()
-    
+
     if not devices:
         print(f"Farm {fid} has no devices. Auto-registering default devices...")
         dev_sensors = Device(farm_id=fid, device_id=f"sensor_fw_{fid}", name="Main Sensors", type="sensor")
@@ -139,12 +139,13 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         db.add(dev_sensors)
         db.add(dev_pump)
         await db.flush()
+        await db.commit()  # Commit so HTTP endpoint can find the devices
         devices = [dev_sensors, dev_pump]
 
     sensor_device = next((d for d in devices if d.type == "sensor"), devices[0])
-    
-    # Insert sensor readings
-    sensors_to_insert = [
+
+    # Send sensor readings via HTTP API (triggers Decision Engine)
+    sensors_to_send = [
         ("air_temperature", state["internal_temp"], "C"),
         ("air_humidity", state["internal_hum"], "%"),
         ("soil_temperature", state["soil_temp"], "C"),
@@ -153,16 +154,19 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         ("water_usage", round(water_consumed, 3), "L"),
         ("power_usage", round(energy_consumed * 1000, 3), "Wh"),
     ]
-    
-    for stype, val, unit in sensors_to_insert:
-        reading = SensorReading(
-            device_id=sensor_device.device_id,
-            sensor_type=stype,
-            value=round(val, 2),
-            unit=unit
-        )
-        db.add(reading)
-        
+
+    for stype, val, unit in sensors_to_send:
+        try:
+            payload = {
+                "device_id": sensor_device.device_id,
+                "sensor_type": stype,
+                "value": round(val, 2),
+                "unit": unit
+            }
+            requests.post("http://localhost:8000/api/v1/sensors", json=payload, timeout=2)
+        except Exception as e:
+            pass  # Ignore network errors
+
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Farm {fid} | EXT: {ext_temp:.1f}C | INT: {state['internal_temp']:.1f}C | SOIL: {state['soil_moisture']:.1f}% | PUMP: {'ON' if pump_on else 'OFF'}")
 
 async def engine_loop():
