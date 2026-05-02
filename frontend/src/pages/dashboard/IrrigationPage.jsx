@@ -1,9 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon } from './DashboardShared';
+import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState } from './DashboardShared';
 import { IrrigationActionButton, IrrigationDonut, SustainabilityLineChart } from './DashboardCharts';
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources } from '../../hooks/useWarifData';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations } from '../../hooks/useWarifData';
+import { getLabelForRange } from './dashboardUtils';
 import { stopIrrigation, stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
@@ -45,10 +46,14 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
     powerLabel: isEn ? "Power Consumption" : "استهلاك الكهرباء",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
+    noRecsTitle: isEn ? "Irrigation Under Control" : "عمليات الري تحت السيطرة.",
+    noRecsSub: isEn ? "No smart recommendations required at this time." : "لا توجد توصيات ذكية مطلوبة في الوقت الحالي.",
     manualSettings: isEn ? "Irrigation Settings" : "إعدادات الري",
     quantity: isEn ? "Quantity (Liters)" : "كمية الري (لتر)",
     durationLabel: isEn ? "Duration (Minutes)" : "مدة الري (بالدقائق)",
     confirmAction: isEn ? "Confirm & Start" : "تأكيد وبدء التشغيل",
+    autoActiveTitle: isEn ? "System Managed Automatically" : "النظام يدار تلقائياً الآن.",
+    autoActiveSub: isEn ? "All manual control buttons are locked to maintain greenhouse stability." : "جميع أزرار التحكم اليدوي مقفلة لحفظ استقرار المحمية.",
   };
 
   useEffect(() => {
@@ -103,37 +108,39 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
   const fanActive   = resourceData?.fan_active ?? false;
 
   // Fetch historical data for charts
-  const { data: rawWater } = useSensorHistory('water_usage', 12);
-  const { data: rawPower } = useSensorHistory('power_usage', 12);
+  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const { data: rawWater } = useSensorHistory('water_usage', historyLimit);
+  const { data: rawPower } = useSensorHistory('power_usage', historyLimit);
+
+  const { data: apiRecs } = useRecommendations(farmId);
+  const recommendations = useMemo(() => {
+    if (!apiRecs) return [];
+    return apiRecs
+      .filter(r => r.category === 'irrigation')
+      .map(r => ({
+        text: r.message,
+        reasoning: r.reasoning || r.message
+      }));
+  }, [apiRecs]);
 
   const dualSeries = useMemo(() => {
     const points = [];
     const maxLen = Math.max(rawWater?.length || 0, rawPower?.length || 0);
-    const len = Math.max(12, maxLen);
+    const len = Math.max(range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12, maxLen);
     
     for (let i = 0; i < len; i++) {
       const wItem = rawWater?.[i];
       const pItem = rawPower?.[i];
       
       let water = wItem?.value ?? 0;
-      // Power comes as kWh, let's normalize it to a 0-100 percentage for the chart visual if needed, 
-      // or keep the raw value. The chart scales dynamically, so raw is fine.
       let power = pItem?.value ?? 0;
       
-      let label = "";
-      if (wItem?.timestamp) {
-        const d = new Date(wItem.timestamp);
-        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } else {
-        const now = new Date();
-        now.setHours(now.getHours() - (len - i));
-        label = `${now.getHours()}:00`;
-      }
+      let label = getLabelForRange(range, i, wItem?.timestamp || pItem?.timestamp, isEn);
       
-      points.push({ label, water, power, value: water }); // value is kept for single-metric calculations
+      points.push({ label, water, power, value: water }); 
     }
     return points;
-  }, [rawWater, rawPower, range]);
+  }, [rawWater, rawPower, range, isEn]);
 
 
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
@@ -254,25 +261,26 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                 </div>
               </div>
             )}
-            <ul className="mt-6 flex flex-col gap-5">
-              <li className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
-                 <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                 <div className="flex flex-col gap-1.5">
-                    <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{T.rec1Title}</div>
-                    <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
-                       <span className="font-black text-emerald-600 mx-1">{T.why}</span> {T.rec1Desc}
-                    </div>
-                 </div>
-              </li>
-              <li className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
-                 <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                 <div className="flex flex-col gap-1.5">
-                    <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{T.rec2Title}</div>
-                    <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
-                       <span className="font-black text-emerald-600 mx-1">{T.why}</span> {T.rec2Desc}
-                    </div>
-                 </div>
-              </li>
+            <ul className="mt-6 flex flex-col gap-5 flex-1">
+              {recommendations.length > 0 ? (
+                recommendations.slice(0, 2).map((rec, i) => (
+                  <li key={i} className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
+                     <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                     <div className="flex flex-col gap-1.5">
+                        <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{rec.text}</div>
+                        <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
+                           <span className="font-black text-emerald-600 mx-1">{T.why}</span> {rec.reasoning}
+                        </div>
+                     </div>
+                  </li>
+                ))
+              ) : (
+                <EmptyState 
+                  compact={true}
+                  title={T.noRecsTitle}
+                  subtitle={T.noRecsSub}
+                />
+              )}
             </ul>
           </CardShell>
           </div>
@@ -285,9 +293,13 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
             </div>
 
             {globalAutoMode ? (
-              <div className="mt-6 bg-emerald-50/50 border border-emerald-100/50 rounded-2xl p-6 text-center shadow-inner h-full flex items-center justify-center">
-                <div className="text-emerald-800 font-black text-[12px] leading-relaxed">{T.autoActive}</div>
-              </div>
+              <EmptyState 
+                compact={true}
+                variant="success"
+                title={T.autoActiveTitle}
+                subtitle={T.autoActiveSub}
+                icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+              />
             ) : (
               <div className="mt-6 flex flex-col gap-3">
                 <IrrigationActionButton 
@@ -383,10 +395,14 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                  <div className={`text-4xl font-black text-blue-600 tracking-tight`}>
                    {waterUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.liters}</span>
                  </div>
-                 <div className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-12% ${T.fromYesterday}` : `-١٢٪ ${T.fromYesterday}`}</div>
+                                  <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.water_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
+                   {resourceData?.water_diff_percent !== undefined ? `${resourceData.water_diff_percent > 0 ? '+' : ''}${resourceData.water_diff_percent}%` : '-12%'} {T.fromYesterday}
+                 </div>
               </div>
-              <div className="mt-6 h-2 w-full bg-blue-50 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: '70%' }} />
+              <div className="mt-6 flex flex-col gap-2">
+                <div className="h-2 w-full bg-blue-50 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (waterUsage / 500) * 100)}%` }} />
+                </div>
               </div>
             </CardShell>
           </div>
@@ -406,10 +422,14 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
                <div className={`text-4xl font-black text-yellow-600 tracking-tight`}>
                  {powerUsage} <span className="text-sm font-bold text-gray-400 tracking-normal">{T.kwh}</span>
                </div>
-               <div className="text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 shadow-sm">{isEn ? `-5% ${T.fromYesterday}` : `-٥٪ ${T.fromYesterday}`}</div>
+               <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.power_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
+                 {resourceData?.power_diff_percent !== undefined ? `${resourceData.power_diff_percent > 0 ? '+' : ''}${resourceData.power_diff_percent}%` : '-5%'} {T.fromYesterday}
+               </div>
             </div>
-            <div className="mt-6 h-2 w-full bg-yellow-50 rounded-full overflow-hidden">
-               <div className="h-full bg-yellow-500 rounded-full w-[60%]" />
+            <div className="mt-6 flex flex-col gap-2">
+              <div className="h-2 w-full bg-yellow-50 rounded-full overflow-hidden">
+                <div className="h-full bg-yellow-500 rounded-full transition-all duration-1000" style={{ width: `${Math.min(100, (powerUsage / 50) * 100)}%` }} />
+              </div>
             </div>
           </CardShell>
         </div>

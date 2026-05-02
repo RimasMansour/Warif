@@ -10,7 +10,8 @@ import {
   WaterValveIcon, 
   ListIcon,
   WindSharedIcon,
-  IrrigationSmartIcon
+  IrrigationSmartIcon,
+  EmptyState
 } from './DashboardShared';
 import { 
   Donut,
@@ -18,7 +19,8 @@ import {
 } from './DashboardCharts';
 import { 
   formatLastUpdated, 
-  generateDataForRange
+  generateDataForRange,
+  getLabelForRange
 } from './dashboardUtils';
 import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
 
@@ -38,6 +40,8 @@ const waveStyles = `
 `;
 
 export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback }) {
+  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
+  const isEn = lang === 'en';
 
   // ── Live data from Backend API ─────────────────────────────
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
@@ -79,23 +83,12 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
       let water = wItem?.value ?? 0;
       let power = pItem?.value ?? 0;
       
-      let label = "";
-      if (wItem?.timestamp) {
-        const d = new Date(wItem.timestamp);
-        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } else {
-        const now = new Date();
-        now.setHours(now.getHours() - (len - i));
-        label = `${now.getHours()}:00`;
-      }
+      let label = getLabelForRange(resourceRange, i, wItem?.timestamp || pItem?.timestamp, isEn);
       
       points.push({ label, water, power, value: water }); 
     }
     return points;
-  }, [rawWater, rawPower, resourceRange]);
-
-  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
-  const isEn = lang === 'en';
+  }, [rawWater, rawPower, resourceRange, isEn]);
 
   const T = {
     title: isEn ? "Monitoring & Control Center" : "لوحة التحكم والمراقبة",
@@ -503,28 +496,24 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashb
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 w-full min-w-[110px] bg-gray-50/50 p-2 rounded-xl border border-gray-100/50 relative group/tooltip">
-               <div className="flex items-center gap-2 relative">
+            <div className="flex flex-col gap-2 w-full min-w-[110px] bg-gray-50/50 p-2 rounded-xl border border-gray-100/50">
+               <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-md bg-blue-50 text-blue-500 flex items-center justify-center border border-blue-100/50 shrink-0">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
                   </div>
                   <div className="flex-1 h-2 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
                     <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${waterPercent}%` }} />
                   </div>
-                  <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                    {isEn ? 'Water Tank:' : 'خزان الماء:'} {waterPercent.toFixed(0)}%
-                  </div>
+                  <div className="text-[10px] font-black text-blue-600 shrink-0 min-w-[28px]">{waterPercent.toFixed(0)}%</div>
                </div>
-               <div className="flex items-center gap-2 relative">
+               <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-md bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-100/50 shrink-0">
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                   </div>
                   <div className="flex-1 h-2 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
                     <div className="h-full bg-amber-500 rounded-full transition-all duration-1000" style={{ width: `${energyPercent}%` }} />
                   </div>
-                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
-                    {energyKwh.toFixed(2)} kWh
-                  </div>
+                  <div className="text-[10px] font-black text-amber-600 shrink-0 min-w-[28px]">{energyKwh.toFixed(1)}</div>
                </div>
             </div>
           </div>
@@ -584,17 +573,11 @@ function DSSGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
           
           if (visibleDecisions.length === 0) {
             return (
-              <div className="flex-1 flex flex-col items-center justify-center py-8 px-4 text-center animate-fade-in">
-                <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mb-4 border border-emerald-100/50">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                </div>
-                <div className="text-[14px] font-black text-gray-700 mb-1">
-                  {isEn ? "No active recommendations" : "لا توجد توصيات نشطة حالياً"}
-                </div>
-                <div className="text-[11px] font-bold text-gray-400 leading-relaxed">
-                  {isEn ? "All deferred recommendations can be found in the dedicated DSS page." : "تم تأجيل كافة المقترحات، يمكنك مراجعتها في الصفحة الخاصة بالتوصيات."}
-                </div>
-              </div>
+              <EmptyState 
+                compact={true}
+                title={isEn ? "No active recommendations" : "لا توجد توصيات نشطة حالياً"}
+                subtitle={isEn ? "All deferred recommendations can be found in the dedicated DSS page." : "تم تأجيل كافة المقترحات، يمكنك مراجعتها في الصفحة الخاصة بالتوصيات."}
+              />
             );
           }
 

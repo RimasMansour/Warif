@@ -4,7 +4,8 @@ import {
   SensorTopBar, 
   CardShell, 
   PlantSoilIcon,
-  WindSharedIcon
+  WindSharedIcon,
+  EmptyState
 } from './DashboardShared';
 import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
 
@@ -13,6 +14,7 @@ import {
   formatLastUpdated
 } from './dashboardUtils';
 import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
+import { getLabelForRange } from './dashboardUtils';
 
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
@@ -37,7 +39,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
     reason: isEn ? "Reason:" : "السبب:",
     control: isEn ? "Climate Control" : "التحكم في مناخ المزرعة",
     autoSub: isEn ? "Based on central automation status" : "يعتمد على حالة الأتمتة المركزية",
-    autoActive: isEn ? "System is managed automatically. Manual controls are locked for stability." : "النظام يدار تلقائياً الآن. جميع أزرار التحكم اليدوي مقفلة لحفظ استقرار المحمية.",
+    autoActiveTitle: isEn ? "System Managed Automatically" : "النظام يدار تلقائياً الآن.",
+    autoActiveSub: isEn ? "All manual control buttons are locked to maintain greenhouse stability." : "جميع أزرار التحكم اليدوي مقفلة لحفظ استقرار المحمية.",
     startCooling: isEn ? "Start Manual Cooling" : "بدء التبريد اليدوي",
     stopFans: isEn ? "Stop Fans" : "إيقاف المراوح",
     trendTitle: isEn ? "Climate Trend Analysis" : "تحليل الميول المناخية",
@@ -52,6 +55,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
     lightY: isEn ? "Lux" : "لوكس",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
+    noRecsTitle: isEn ? "All Systems Stable" : "كافة الأنظمة مستقرة.",
+    noRecsSub: isEn ? "No specific recommendations at the moment." : "لا توجد توصيات محددة حالياً.",
   };
 
   const handleExport = () => {
@@ -75,33 +80,26 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
   const coolingActive = livesensors?.coolingActive ?? false;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const { data: rawTemp } = useSensorHistory('air_temperature', 12);
-  const { data: rawHum } = useSensorHistory('air_humidity', 12);
-  const { data: rawLight } = useSensorHistory('light_intensity', 12);
+  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit);
+  const { data: rawHum } = useSensorHistory('air_humidity', historyLimit);
+  const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);
 
   const formatPoints = (rawData) => {
     const points = [];
-    const len = Math.max(12, rawData?.length || 0);
+    const len = Math.max(range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12, rawData?.length || 0);
     for (let i = 0; i < len; i++) {
       const item = rawData?.[i];
       let val = item?.value ?? 0;
-      let label = "";
-      if (item?.timestamp) {
-        const d = new Date(item.timestamp);
-        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } else {
-        const now = new Date();
-        now.setHours(now.getHours() - (len - i));
-        label = `${now.getHours()}:00`;
-      }
+      let label = getLabelForRange(range, i, item?.timestamp, isEn);
       points.push({ label, value: val });
     }
     return points;
   };
 
-  const tempSeries = useMemo(() => formatPoints(rawTemp), [rawTemp, range]);
-  const humSeries = useMemo(() => formatPoints(rawHum), [rawHum, range]);
-  const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range]);
+  const tempSeries = useMemo(() => formatPoints(rawTemp), [rawTemp, range, isEn]);
+  const humSeries = useMemo(() => formatPoints(rawHum), [rawHum, range, isEn]);
+  const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range, isEn]);
 
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: apiRecs } = useRecommendations(farmId);
@@ -160,19 +158,27 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.recsSub}</div>
               </div>
-              <ul className="flex flex-col gap-5">
-                {recommendations.slice(0, 2).map((rec, i) => (
-                  <li key={i} className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                    <div className="flex flex-col gap-1.5">
-                      <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{rec.text}</div>
-                      <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
-                        <span className="font-black text-emerald-600 mx-1">{T.reason}</span>
-                        {rec.reasoning}
+              <ul className="flex flex-col gap-5 flex-1">
+                {recommendations.length > 0 ? (
+                  recommendations.slice(0, 2).map((rec, i) => (
+                    <li key={i} className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                      <div className="flex flex-col gap-1.5">
+                        <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{rec.text}</div>
+                        <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
+                          <span className="font-black text-emerald-600 mx-1">{T.reason}</span>
+                          {rec.reasoning}
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  ))
+                ) : (
+                  <EmptyState 
+                    compact={true}
+                    title={T.noRecsTitle}
+                    subtitle={T.noRecsSub}
+                  />
+                )}
               </ul>
             </CardShell>
           </div>
@@ -184,9 +190,13 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.autoSub}</div>
               </div>
               {globalAutoMode ? (
-                <div className="bg-emerald-50/40 rounded-2xl p-4 text-center border border-emerald-100/30 flex items-center justify-center flex-1">
-                  <div className="text-emerald-800 font-black text-[12px] leading-relaxed">{T.autoActive}</div>
-                </div>
+                <EmptyState 
+                  compact={true}
+                  variant="success"
+                  title={T.autoActiveTitle}
+                  subtitle={T.autoActiveSub}
+                  icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+                />
               ) : (
                 <div className="flex flex-col gap-2">
                   <span className="sr-only">Climate Control Actions</span>
@@ -275,6 +285,10 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
     moistY: isEn ? "Soil Moisture (%)" : "رطوبة التربة (٪)",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
+    noRecsTitle: isEn ? "Soil Conditions Optimal" : "ظروف التربة مثالية.",
+    noRecsSub: isEn ? "No recommendations needed right now." : "لا توجد توصيات مطلوبة حالياً.",
+    autoActiveTitle: isEn ? "System Managed Automatically" : "النظام يدار تلقائياً الآن.",
+    autoActiveSub: isEn ? "All manual control buttons are locked to maintain greenhouse stability." : "جميع أزرار التحكم اليدوي مقفلة لحفظ استقرار المحمية.",
   };
 
   const handleExport = () => {
@@ -296,31 +310,24 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
   const soilMoist = livesensors2?.soil_moisture    ?? 0;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', 12);
-  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', 12);
+  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit);
+  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit);
 
   const formatPoints = (rawData) => {
     const points = [];
-    const len = Math.max(12, rawData?.length || 0);
+    const len = Math.max(range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12, rawData?.length || 0);
     for (let i = 0; i < len; i++) {
       const item = rawData?.[i];
       let val = item?.value ?? 0;
-      let label = "";
-      if (item?.timestamp) {
-        const d = new Date(item.timestamp);
-        label = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } else {
-        const now = new Date();
-        now.setHours(now.getHours() - (len - i));
-        label = `${now.getHours()}:00`;
-      }
+      let label = getLabelForRange(range, i, item?.timestamp, isEn);
       points.push({ label, value: val });
     }
     return points;
   };
 
-  const soilTempSeries = useMemo(() => formatPoints(rawSoilTemp), [rawSoilTemp, range]);
-  const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range]);
+  const soilTempSeries = useMemo(() => formatPoints(rawSoilTemp), [rawSoilTemp, range, isEn]);
+  const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range, isEn]);
 
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: apiRecs } = useRecommendations(farmId);
@@ -375,19 +382,27 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{isEn ? 'Suggested actions for root health.' : 'إجراءات مقترحة للحفاظ على صحة وسلامة الجذور.'}</div>
               </div>
-              <ul className="flex flex-col gap-5">
-                {soilRecs.slice(0, 2).map((rec, i) => (
-                  <li key={i} className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                    <div className="flex flex-col gap-1.5">
-                      <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{rec.text}</div>
-                      <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
-                        <span className="font-black text-emerald-600 mx-1">{T.reason}</span>
-                        {rec.reasoning}
+              <ul className="flex flex-col gap-5 flex-1">
+                {soilRecs.length > 0 ? (
+                  soilRecs.slice(0, 2).map((rec, i) => (
+                    <li key={i} className={`flex gap-3 group/rec ${isRtl ? 'text-right' : 'text-left'}`}>
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 shrink-0 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                      <div className="flex flex-col gap-1.5">
+                        <div className="text-[14px] font-black text-gray-800 leading-tight group-hover/rec:text-emerald-700 transition-colors uppercase tracking-tight">{rec.text}</div>
+                        <div className={`text-[12px] font-medium text-gray-500 leading-relaxed ${isRtl ? 'border-r-2 pr-3 border-emerald-500/20' : 'border-l-2 pl-3 border-emerald-500/20'}`}>
+                          <span className="font-black text-emerald-600 mx-1">{T.reason}</span>
+                          {rec.reasoning}
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  ))
+                ) : (
+                  <EmptyState 
+                    compact={true}
+                    title={T.noRecsTitle}
+                    subtitle={T.noRecsSub}
+                  />
+                )}
               </ul>
             </CardShell>
           </div>

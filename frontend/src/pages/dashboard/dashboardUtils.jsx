@@ -219,6 +219,23 @@ export function sensorBuildRecommendationsLight(current) {
 
 // Removed mock data generators: getLiveFarmData, getStrategicRecommendations, getAllCombinedRecommendations
 
+export function getLabelForRange(range, index, timestamp = null, isEn = false) {
+  const labels = L(isEn);
+  if (timestamp) {
+    const d = new Date(timestamp);
+    if (range === 'D') return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (range === 'W') return isEn ? labels.daysEn[d.getDay()] : labels.daysAr[d.getDay()];
+    if (range === 'M') return `${d.getDate()}`;
+    if (range === 'Y') return isEn ? labels.monthsEn[d.getMonth()] : labels.monthsAr[d.getMonth()];
+  }
+  // Fallback to index-based if no timestamp
+  if (range === 'D') return `${index}:00`;
+  if (range === 'W') return isEn ? labels.daysEn[index % 7] : labels.daysAr[index % 7];
+  if (range === 'M') return `${index + 1}`;
+  if (range === 'Y') return isEn ? labels.monthsEn[index % 12] : labels.monthsAr[index % 12];
+  return `${index}`;
+}
+
 export {
   irrigationClamp,
   irrigationDaysInMonth,

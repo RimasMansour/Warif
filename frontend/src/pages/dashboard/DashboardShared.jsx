@@ -353,6 +353,20 @@ function IrrigationSmartIcon(props) {
   );
 }
 
+export function EmptyState({ title, subtitle, icon, compact = false, variant = "default" }) {
+  const isSuccess = variant === "success";
+  
+  return (
+    <div className={`flex flex-col items-center justify-center text-center animate-fade-in-up bg-white/50 backdrop-blur-sm rounded-[24px] border border-dashed w-full ${isSuccess ? 'border-emerald-200' : 'border-gray-200'} ${compact ? 'p-6 flex-1' : 'py-16 px-8'}`}>
+      <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-4 border shrink-0 ${isSuccess ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+         {icon || <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
+      </div>
+      <div className={`text-[15px] font-black mb-1 leading-tight ${isSuccess ? 'text-emerald-700' : 'text-gray-800'}`}>{title}</div>
+      {subtitle && <div className={`text-[12px] font-medium max-w-[350px] leading-relaxed ${isSuccess ? 'text-emerald-600/80' : 'text-gray-400'}`}>{subtitle}</div>}
+    </div>
+  );
+}
+
 export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, onFeedback }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   
@@ -369,9 +383,10 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
       
       <div className="max-h-[400px] overflow-y-auto p-2 flex flex-col gap-2">
         {alerts.length === 0 ? (
-          <div className="p-6 text-center text-gray-400 text-sm font-semibold">
-            {isEn ? 'No active alerts' : 'لا توجد تنبيهات حالية'}
-          </div>
+          <EmptyState 
+            compact={true}
+            title={isEn ? 'No active alerts' : 'لا توجد تنبيهات حالية'}
+          />
         ) : (
           alerts.map((alert, i) => (
             <div key={alert.id || i} className={`p-3 rounded-xl border ${alert.severity === 'high' ? 'bg-red-50/50 border-red-100' : alert.severity === 'medium' ? 'bg-amber-50/50 border-amber-100' : 'bg-blue-50/50 border-blue-100'}`}>

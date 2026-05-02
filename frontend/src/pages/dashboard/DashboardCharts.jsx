@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { CardShell } from './DashboardShared';
 import { useSensorHistory } from '../../hooks/useWarifData';
+import { getLabelForRange } from './dashboardUtils';
 
 const getDateRangeLabel = (range, isRtl) => {
   const now = new Date();
@@ -209,13 +210,13 @@ export function HealthStyleBarChart({
   ];
 
   const h = 240; 
-  const pLeft = 85; 
-  const pRight = 45;
+  const pLeft = 95; 
+  const pRight = 95;
   const padTop = 15; 
   const padBottom = 35; 
   
   const n = data.length;
-  const w = 1000; 
+  const w = 900; 
   
   const gapBetweenGroups = 12;
   const barW = Math.min(32, (w - pLeft - pRight - (n - 1) * gapBetweenGroups) / (n * 2));
@@ -272,7 +273,7 @@ export function HealthStyleBarChart({
         <svg 
           width="100%" 
           height={195} 
-          viewBox="-80 0 1080 330"
+          viewBox="-100 0 1000 330"
           preserveAspectRatio="xMidYMid meet"
           className="block overflow-visible" 
           onMouseLeave={() => setHoveredIdx(null)}
@@ -305,10 +306,8 @@ export function HealthStyleBarChart({
             
             let showLabel = false;
             let labelText = d.label;
-            if (range === 'D' && [0,6,12,18].includes(i)) {
-                showLabel = true;
-                labelText = i === 0 ? `12am` : i === 6 ? `6am` : i === 12 ? `12pm` : `6pm`;
-            } else if (range === 'W') showLabel = true;
+            if (range === 'D' && i % 6 === 0) showLabel = true;
+            else if (range === 'W') showLabel = true;
             else if (range === 'M' && i % 4 === 0) showLabel = true;
             else if (range === 'Y' && i % 3 === 0) showLabel = true;
 
@@ -333,7 +332,7 @@ export function HealthStyleBarChart({
                 />
                 
                 {showLabel && (
-                  <text x={groupX + barW} y={h-padBottom+32} textAnchor="middle" fontSize="20" fill="#94A3B8" fontWeight="black" className="transition-opacity duration-300">
+                  <text x={groupX + barW} y={h-padBottom+28} textAnchor="middle" fontSize="20" fill="#94A3B8" fontWeight="black" className="transition-opacity duration-300">
                     {labelText}
                   </text>
                 )}
@@ -387,7 +386,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   const pBottom = 20; 
   
   const n = data.length;
-  const w = 1000; 
+  const w = 900; 
   const segmentW = (w - pLeft - pRight) / (n - 1 || 1);
 
   const allValues = data.flatMap(d => [d.water || 0, d.power || 0]);
@@ -467,7 +466,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
       </div>
 
       <div className="w-full h-full relative min-h-[180px] mt-2">
-        <svg width="100%" height={205} viewBox="-80 0 1100 340" preserveAspectRatio="xMidYMid meet" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
+        <svg width="100%" height={190} viewBox="-100 0 1000 310" preserveAspectRatio="xMidYMid meet" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
           <defs>
             <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.2" />
@@ -509,12 +508,10 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
             
             let showLabel = false;
             let labelText = d.label;
-            if (range === 'D' && [0,6,12,18, 23].includes(i)) {
-                showLabel = true;
-                labelText = i === 0 ? `12${T.am}` : i === 6 ? `6${T.am}` : i === 12 ? `12${T.pm}` : i === 18 ? `6${T.pm}` : `11${T.pm}`;
-            } else if (range === 'W') showLabel = true;
+            if (range === 'D' && i % 6 === 0) showLabel = true;
+            else if (range === 'W') showLabel = true;
             else if (range === 'M' && i % 4 === 0) showLabel = true;
-            else if (range === 'Y' && i % 2 === 0) showLabel = true;
+            else if (range === 'Y' && i % 3 === 0) showLabel = true;
 
             const tooltipX = xx < w/2 ? xx + 15 : xx - 145;
 
@@ -522,7 +519,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
               <g key={i}>
                 <rect x={xx - segmentW/2} y={pTop} width={segmentW} height={h-pTop-pBottom} fill="transparent" onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer" />
                 {showLabel && (
-                  <text x={xx} y={h - pBottom + 40} textAnchor="middle" fontSize="22" fill="#94A3B8" fontWeight="black">{labelText}</text>
+                  <text x={xx} y={h - pBottom + 32} textAnchor="middle" fontSize="22" fill="#94A3B8" fontWeight="black">{labelText}</text>
                 )}
                 {isHovered && (
                   <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -542,7 +539,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
               </g>
             );
           })}
-          <text x={pLeft + (w - pLeft - pRight)/2} y={h+90} textAnchor="middle" fontSize="26" fontWeight="1000" fill="#2E7D32" opacity="0.5">{xAxisTitle || T.periodLabel}</text>
+          <text x={pLeft + (w - pLeft - pRight)/2} y={h+65} textAnchor="middle" fontSize="26" fontWeight="1000" fill="#2E7D32" opacity="0.5">{xAxisTitle || T.periodLabel}</text>
         </svg>
       </div>
     </CardShell>
@@ -606,26 +603,18 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
       let temp = tempItem?.value ?? 0;
       let moisture = moistItem?.value ?? 0;
       
-      let timeStr = "";
-      if (tempItem?.timestamp) {
-        const d = new Date(tempItem.timestamp);
-        timeStr = `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
-      } else {
-        const now = new Date();
-        now.setHours(now.getHours() - (len - i));
-        timeStr = `${now.getHours()}:00`;
-      }
+      let timeStr = getLabelForRange('D', i, tempItem?.timestamp || moistItem?.timestamp, isEn);
       
       points.push({ time: timeStr, temp, moisture });
     }
     return points;
-  }, [rawTemp, rawMoist]);
-  const h = compact ? 220 : 400;
-  const w = 1000;
-  const pLeft = compact ? 30 : 40;
-  const pRight = compact ? 20 : 30;
-  const pTop = compact ? 25 : 40;
-  const pBottom = compact ? 45 : 70;
+  }, [rawTemp, rawMoist, isEn]);
+  const h = compact ? 220 : 600;
+  const w = 900;
+  const pLeft = compact ? 30 : 25;
+  const pRight = compact ? 20 : 25;
+  const pTop = compact ? 25 : 5;
+  const pBottom = compact ? 45 : 50;
   const segmentW = (w - pLeft - pRight) / (data.length - 1);
   
   // Fixed 0-100 Y-axis like the reference
@@ -656,25 +645,25 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
   };
 
   return (
-    <CardShell className={`${compact ? 'p-5' : 'p-6 md:p-8'} relative overflow-hidden group/trend bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md h-full`} dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className={`flex flex-col gap-1 mb-6 ${isRtl ? 'text-right' : 'text-left'}`}>
+    <CardShell className={`${compact ? 'p-3' : 'p-2 md:p-4'} relative overflow-hidden group/trend bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md h-full flex flex-col`} dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className={`flex flex-col gap-1 mb-1 px-4 pt-4 ${isRtl ? 'text-right' : 'text-left'}`}>
         <h3 className="text-lg font-bold text-gray-800 tracking-tight leading-tight">
           {isEn ? "Soil Trend (12h)" : "اتجاه التربة (١٢ ساعة)"}
         </h3>
         <div className="flex items-center gap-6 mt-1">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
-            <span className="text-[13px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Moisture" : "رطوبة التربة"}</span>
+            <span className="text-[15px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Moisture" : "رطوبة التربة"}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" />
-            <span className="text-[13px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Temp" : "حرارة التربة"}</span>
+            <span className="text-[15px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Temp" : "حرارة التربة"}</span>
           </div>
         </div>
       </div>
       
-      <div className={`w-full relative ${compact ? 'h-[220px]' : 'h-[400px]'}`}>
-        <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} className="overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
+      <div className="w-full flex-1 relative min-h-0">
+        <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
           <defs>
             <linearGradient id="soilTempGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
@@ -691,20 +680,20 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
             const yy = getY(v);
             return (
               <g key={v}>
-                <line x1={pLeft} y1={yy} x2={w - pRight} y2={yy} stroke="#F1F5F9" strokeWidth="2" strokeDasharray={v === 0 ? "0" : "6 6"} />
-                <text x={pLeft - 20} y={yy} dominantBaseline="middle" textAnchor="end" fontSize="16" fill="#94A3B8" fontWeight="800">{v}</text>
+                <line x1={pLeft} y1={yy} x2={w - pRight} y2={yy} stroke="#F1F5F9" strokeWidth="3" strokeDasharray={v === 0 ? "0" : "6 6"} />
+                <text x={pLeft - 10} y={yy} dominantBaseline="middle" textAnchor="end" fontSize="28" fill="#94A3B8" fontWeight="900">{v}</text>
               </g>
             );
           })}
 
           {/* Solid Axis lines like the reference */}
-          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="2.5" />
-          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="2.5" />
+          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
+          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
 
           <path d={getAreaPath('moisture')} fill="url(#soilMoistGrad)" />
           <path d={getAreaPath('temp')} fill="url(#soilTempGrad)" />
-          <path d={getPath('moisture')} fill="none" stroke="#3b82f6" strokeWidth="6" strokeLinecap="round" />
-          <path d={getPath('temp')} fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" />
+          <path d={getPath('moisture')} fill="none" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" />
+          <path d={getPath('temp')} fill="none" stroke="#10b981" strokeWidth="12" strokeLinecap="round" />
 
           {data.map((d, i) => {
             const xx = getX(i);
@@ -714,7 +703,7 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
             const shouldHighlight = i === data.length - 1;
             
             const topY = Math.min(getY(d.temp), getY(d.moisture));
-            const tooltipY = Math.max(10, topY - 100); 
+            const tooltipY = Math.max(5, topY - 160); 
 
             return (
               <g key={i}>
@@ -723,13 +712,13 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
                 {(i % (compact ? 3 : 2) === 0) && (
                   <g>
                     {shouldHighlight && (
-                      <rect x={xx - 30} y={h - pBottom + 12} width="60" height="32" rx="6" fill="#10b981" fillOpacity="0.1" />
+                      <rect x={xx - 45} y={h - pBottom + 5} width="90" height="42" rx="10" fill="#10b981" fillOpacity="0.15" />
                     )}
                     <text 
                       x={xx} 
-                      y={h - pBottom + 35} 
+                      y={h - pBottom + 38} 
                       textAnchor="middle" 
-                      fontSize="16" 
+                      fontSize="28" 
                       fill={shouldHighlight ? "#10b981" : "#94A3B8"} 
                       fontWeight="900"
                     >
@@ -740,13 +729,13 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
 
                 {isHovered && (
                   <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-                    <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="2" strokeDasharray="4 4" />
-                    <rect x={xx - 90} y={tooltipY} width="180" height="90" rx="18" fill="#111827" filter="drop-shadow(0 15px 30px rgba(0,0,0,0.5))" />
-                    <text x={xx} y={tooltipY + 22} textAnchor="middle" fontSize="13" fontWeight="bold" fill="#94A3B8">{d.time}</text>
-                    <text x={xx} y={tooltipY + 48} textAnchor="middle" fontSize="16" fontWeight="900" fill="#fff">{isEn ? `Soil Moisture: ${d.moisture.toFixed(1)}%` : `رطوبة التربة: ${d.moisture.toFixed(1)}%`}</text>
-                    <text x={xx} y={tooltipY + 72} textAnchor="middle" fontSize="16" fontWeight="900" fill="#10b981">{isEn ? `Soil Temp: ${d.temp.toFixed(1)}°` : `حرارة التربة: ${d.temp.toFixed(1)}°`}</text>
-                    <circle cx={xx} cy={getY(d.temp)} r="7" fill="#10b981" stroke="white" strokeWidth="3" />
-                    <circle cx={xx} cy={getY(d.moisture)} r="7" fill="#3b82f6" stroke="white" strokeWidth="3" />
+                    <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="3" strokeDasharray="4 4" />
+                    <rect x={xx - 130} y={tooltipY} width="260" height="135" rx="24" fill="#111827" filter="drop-shadow(0 15px 30px rgba(0,0,0,0.5))" />
+                    <text x={xx} y={tooltipY + 35} textAnchor="middle" fontSize="20" fontWeight="bold" fill="#94A3B8">{d.time}</text>
+                    <text x={xx} y={tooltipY + 75} textAnchor="middle" fontSize="26" fontWeight="900" fill="#fff">{isEn ? `Moisture: ${d.moisture.toFixed(1)}%` : `رطوبة: ${d.moisture.toFixed(1)}%`}</text>
+                    <text x={xx} y={tooltipY + 110} textAnchor="middle" fontSize="26" fontWeight="900" fill="#10b981">{isEn ? `Temp: ${d.temp.toFixed(1)}°` : `حرارة: ${d.temp.toFixed(1)}°`}</text>
+                    <circle cx={xx} cy={getY(d.temp)} r="12" fill="#10b981" stroke="white" strokeWidth="4" />
+                    <circle cx={xx} cy={getY(d.moisture)} r="12" fill="#3b82f6" stroke="white" strokeWidth="4" />
                   </g>
                 )}
               </g>
