@@ -196,6 +196,7 @@ class Recommendation(Base):
     id         = Column(Integer, primary_key=True, index=True)
     farm_id    = Column(Integer, ForeignKey("farms.id"), nullable=False)
     message    = Column(Text, nullable=False)
+    reasoning  = Column(Text, nullable=True)
     category   = Column(SAEnum(RecommendationCategory), default=RecommendationCategory.general)
     severity   = Column(SAEnum(RecommendationSeverity), default=RecommendationSeverity.normal)
     is_read    = Column(Boolean, default=False)

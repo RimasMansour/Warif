@@ -305,6 +305,8 @@ export function useRecommendations(farm_id) {
 
   useEffect(() => {
     fetch_data()
+    const id = setInterval(fetch_data, 10000)
+    return () => clearInterval(id)
   }, [fetch_data])
 
   return { data, loading, error, refetch: fetch_data }
