@@ -76,10 +76,17 @@ async def ingest_sensor_reading(
     db: AsyncSession = Depends(get_db),
 ):
     """Ingest a single sensor reading and auto-generate alerts if thresholds exceeded."""
-    from src.db.models.models import SensorReading, Alert, AlertSeverity, AlertStatus
+    from src.db.models.models import SensorReading, Alert, AlertSeverity, AlertStatus, Device
 
     sensor_type = payload.get("sensor_type")
     value       = float(payload.get("value", 0))
+
+    SENSOR_LABELS = {
+        "soil_moisture":    "رطوبة التربة",
+        "soil_temperature": "حرارة التربة",
+        "air_temperature":  "درجة الحرارة",
+        "air_humidity":     "رطوبة الهواء",
+    }
 
     # 1. Save the reading
     reading = SensorReading(
@@ -99,105 +106,111 @@ async def ingest_sensor_reading(
 
     if threshold:
         status = _compute_status(value, threshold)
-
         if status in ("warning", "critical"):
             severity = AlertSeverity.critical if status == "critical" else AlertSeverity.warning
-
-            SENSOR_LABELS = {
-                "soil_moisture":    "رطوبة التربة",
-                "soil_temperature": "حرارة التربة",
-                "air_temperature":  "درجة الحرارة",
-                "air_humidity":     "رطوبة الهواء",
-            }
             label = SENSOR_LABELS.get(sensor_type, sensor_type)
-
             if status == "critical":
                 message = f"{label} خارج النطاق الآمن: {value:.1f} {reading.unit}"
             else:
                 message = f"{label} تحتاج انتباه: {value:.1f} {reading.unit}"
 
-            alert = Alert(
+            db.add(Alert(
                 sensor_type=sensor_type,
                 message=message,
                 severity=severity,
                 status=AlertStatus.open,
-            )
-            db.add(alert)
+            ))
 
-    # ── Smart Recommendation Generation ──────────────────────────────
+    # ── Data Gathering for ML (Anomaly + Recommendations) ──────────
+    full_sensor_data = {}
+    device_obj = None
     try:
-        # Get farm_id from device
         device_result = await db.execute(
             select(Device).where(Device.device_id == payload.get("device_id", "unknown"))
         )
         device_obj = device_result.scalar_one_or_none()
 
         if device_obj and device_obj.farm_id:
-            # Gather all recent sensor readings for this farm (last 10 per type)
             from sqlalchemy import func
             sub = (
-                select(
-                    SensorReading.sensor_type,
-                    func.max(SensorReading.timestamp).label("max_ts"),
-                )
+                select(SensorReading.sensor_type, func.max(SensorReading.timestamp).label("max_ts"))
                 .join(Device, SensorReading.device_id == Device.device_id)
                 .where(Device.farm_id == device_obj.farm_id)
                 .group_by(SensorReading.sensor_type)
                 .subquery()
             )
             recent_result = await db.execute(
-                select(SensorReading).join(
-                    sub,
-                    (SensorReading.sensor_type == sub.c.sensor_type)
-                    & (SensorReading.timestamp == sub.c.max_ts),
-                )
+                select(SensorReading).join(sub, (SensorReading.sensor_type == sub.c.sensor_type) & (SensorReading.timestamp == sub.c.max_ts))
             )
-            recent_readings = recent_result.scalars().all()
-
-            # Build complete sensor_data dict
-            full_sensor_data = {}
-            for r in recent_readings:
+            for r in recent_result.scalars().all():
                 full_sensor_data[r.sensor_type] = r.value
-
-            # Also include current reading
             full_sensor_data[sensor_type] = value
+    except Exception as data_err:
+        logger.warning(f"Data gathering failed: {data_err}")
 
-            # Run smart decision engine
-            from src.services.decision_engine import SmartDecisionEngine
-            from src.db.models.models import (
-                Recommendation, RecommendationCategory, RecommendationSeverity
+    # ── Anomaly Detection (k-NN + Isolation Forest) ───────────────────────────────
+    # Ref: Warif System Design Section 4.2.1.3
+    try:
+        import sys, os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
+        anomaly_features = {
+            "air_temperature":  full_sensor_data.get("air_temperature", 25.0),
+            "air_humidity":     full_sensor_data.get("air_humidity", 50.0),
+            "soil_moisture":    full_sensor_data.get("soil_moisture", 50.0),
+            "soil_temperature": full_sensor_data.get("soil_temperature", 25.0),
+            "co2":              650.0,
+            "cum_irr":          2.0,
+        }
+        from src.ml.anomaly_knn import predict as knn_predict
+        from src.ml.anomaly_svm import predict as svm_predict
+        knn_result = knn_predict(anomaly_features)
+        svm_result = svm_predict(anomaly_features)
+        is_anomaly = knn_result.get("is_anomaly", False) or svm_result.get("is_anomaly", False)
+        if is_anomaly:
+            confidence = max(knn_result.get("confidence", 0), svm_result.get("confidence", 0))
+            rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
+            anomaly_severity = AlertSeverity.critical if confidence >= 0.8 else AlertSeverity.warning
+            label = SENSOR_LABELS.get(sensor_type, sensor_type)
+            anomaly_msg = (
+                f"شذوذ حرج: {label} = {value:.1f} {reading.unit} | {rule_violated}"
+                if rule_violated
+                else f"قراءة غير طبيعية في {label}: {value:.1f} {reading.unit}"
             )
+            db.add(Alert(
+                sensor_type=sensor_type,
+                message=anomaly_msg,
+                severity=anomaly_severity,
+                status=AlertStatus.open,
+            ))
+            logger.info(f"[ANOMALY DETECTED] {sensor_type}={value} | kNN={knn_result['is_anomaly']} | SVM={svm_result['is_anomaly']}")
+    except Exception as anomaly_err:
+        logger.warning(f"Anomaly detection skipped: {anomaly_err}")
+    # ── End Anomaly Detection ──────────────────────────────────────────────────────
+
+    # ── Smart Recommendation Generation ──────────────────────────────
+    if device_obj and device_obj.farm_id:
+        try:
+            from src.services.decision_engine import SmartDecisionEngine
+            from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity
 
             engine = SmartDecisionEngine()
             smart_recs = await engine.analyze(full_sensor_data)
 
-            cat_map = {
-                "irrigation":  RecommendationCategory.irrigation,
-                "temperature": RecommendationCategory.temperature,
-                "humidity":    RecommendationCategory.humidity,
-                "soil":        RecommendationCategory.soil,
-            }
-            sev_map = {
-                "normal":  RecommendationSeverity.normal,
-                "warning": RecommendationSeverity.warning,
-                "urgent":  RecommendationSeverity.urgent,
-            }
+            cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
+            sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
 
             for sr in smart_recs:
-                # Only save non-normal OR irrigation recommendations
                 if sr.severity != "normal" or sr.category == "irrigation":
-                    rec = Recommendation(
+                    db.add(Recommendation(
                         farm_id=device_obj.farm_id,
                         message=sr.message,
                         reasoning=sr.reasoning,
                         category=cat_map.get(sr.category, RecommendationCategory.irrigation),
                         severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
                         is_read=False,
-                    )
-                    db.add(rec)
-
-    except Exception as rec_err:
-        logger.warning(f"Smart recommendation generation failed: {rec_err}")
+                    ))
+        except Exception as rec_err:
+            logger.warning(f"Smart recommendation generation failed: {rec_err}")
     # ── End Smart Recommendation Generation ──────────────────────────
 
     await db.commit()
