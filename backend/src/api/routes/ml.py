@@ -1,6 +1,7 @@
 # backend/src/api/routes/ml.py
 import os
 import sys
+import logging
 import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,11 +10,23 @@ from src.core.security import get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.session import get_db
 
-
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # ── Load ML Models ─────────────────────────────────────────────
-ML_DIR = os.path.join(os.path.dirname(__file__), "../../../src/ml")
+def _get_models_directory():
+    models_dir = os.getenv("WARIF_MODELS_DIR")
+    if models_dir and os.path.isdir(models_dir):
+        return models_dir
+
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    default_models_dir = os.path.join(project_root, "src", "ml", "saved_models")
+
+    if os.path.isdir(default_models_dir):
+        return default_models_dir
+
+    logger.warning(f"Models directory not found at {default_models_dir}. ML model loading will fail.")
+    return None
 
 _ensemble = None
 
@@ -21,13 +34,20 @@ def get_ensemble():
     global _ensemble
     if _ensemble is None:
         try:
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
+            models_dir = _get_models_directory()
+            if not models_dir:
+                logger.error("Cannot load ensemble: models directory not configured")
+                return None
+
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
             from src.ml.continual_learning import WarifEnsemble
-            models_dir = os.path.join(ML_DIR, "saved_models")
             _ensemble = WarifEnsemble(models_dir)
-            print(f"[ML] Ensemble loaded from: {models_dir}")
+            logger.info(f"Ensemble loaded successfully from: {models_dir}")
+        except ImportError as e:
+            logger.error(f"Failed to import WarifEnsemble: {e}")
+            _ensemble = None
         except Exception as e:
-            print(f"[ML] Could not load ensemble: {e}")
+            logger.error(f"Failed to load ensemble: {e}")
             _ensemble = None
     return _ensemble
 
@@ -70,20 +90,12 @@ async def get_irrigation_prediction(
     db: AsyncSession = Depends(get_db),
 ):
     ensemble = get_ensemble()
-
-
     if ensemble is None:
-        pred_out = IrrigationPredictionOut(
-            farm_id=farm_id,
-            irrigation_needed=soil_moisture < 40,
-            confidence=0.75,
-            duration_min=15 if soil_moisture < 40 else None,
-            reason="Rule-based fallback: soil moisture threshold.",
-            model="rule_based_fallback",
+        logger.warning("ML ensemble not available, returning 503 Service Unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="ML model service temporarily unavailable. Models not loaded."
         )
-        await _save_prediction(db, farm_id, pred_out)
-        return pred_out
-
 
     try:
         features = {
@@ -115,7 +127,11 @@ async def get_irrigation_prediction(
         await _save_prediction(db, farm_id, pred_out)
         return pred_out
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error during irrigation prediction: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to compute irrigation prediction"
+        )
 
 
 

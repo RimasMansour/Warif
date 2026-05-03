@@ -1,16 +1,7 @@
-// frontend/src/hooks/useWarifData.js
 // Fetches real sensor data from Warif Backend API
 
 import { useState, useEffect, useCallback } from 'react'
-
-const API_BASE = import.meta.env.VITE_API_URL || ''
-
-const getToken = () => localStorage.getItem('warif_token')
-
-const authHeaders = () => ({
-  'Content-Type': 'application/json',
-  'Authorization': `Bearer ${getToken()}`
-})
+import { fetchWithRetry, getAuthHeaders, apiConfig, ApiError } from '../config/api'
 
 // Global Simulation State (frontend-only mock logic)
 let simState = {
@@ -34,7 +25,7 @@ export function triggerManualCooling() {
   return Promise.resolve({ status: 'acknowledged' })
 }
 
-export function useLatestSensors(intervalMs = 10000) {
+export function useLatestSensors(intervalMs = parseInt(import.meta.env.VITE_SENSORS_INTERVAL || '10000', 10)) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -43,18 +34,22 @@ export function useLatestSensors(intervalMs = 10000) {
     try {
       let mapped = {}
       try {
-        const res = await fetch(`${API_BASE}/api/v1/sensors/latest`, {
-          headers: authHeaders()
+        const json = await fetchWithRetry(`${apiConfig.baseURL}/api/v1/sensors/latest`, {
+          headers: getAuthHeaders()
         })
-        
-        if (res.ok) {
-          const json = await res.json()
+
+        if (Array.isArray(json)) {
           json.forEach(r => { mapped[r.sensor_type] = r.value })
-        } else {
-          throw new Error("Backend not ok")
+        } else if (json && typeof json === 'object') {
+          mapped = json
         }
       } catch (fetchErr) {
-        // Fallback to base mock values if backend is down or throws error
+        if (fetchErr instanceof ApiError) {
+          setError(`Failed to fetch sensors: ${fetchErr.message}`)
+        } else {
+          setError(`Network error: ${fetchErr.message}`)
+        }
+        // Use fallback mock values when backend is unavailable
         mapped = {
           air_temperature: 31,
           air_humidity: 45,
@@ -155,19 +150,22 @@ export function useLatestSensors(intervalMs = 10000) {
 export function useSensorHistory(sensor_type, limit = 100) {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
     if (!sensor_type) return
+    setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&limit=${limit}`, {
-        headers: authHeaders()
-      })
-      if (res.ok) {
-        const json = await res.json()
-        setData(json.reverse()) // Reverse so oldest is first for chart plotting
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/sensors?sensor_type=${sensor_type}&limit=${limit}`,
+        { headers: getAuthHeaders() }
+      )
+      if (Array.isArray(json)) {
+        setData(json.reverse())
       }
+      setError(null)
     } catch (err) {
-      console.error("History fetch failed:", err)
+      setError(`Failed to load sensor history: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -179,22 +177,20 @@ export function useSensorHistory(sensor_type, limit = 100) {
     return () => clearInterval(id)
   }, [fetch_data])
 
-  return { data, loading, refetch: fetch_data }
+  return { data, loading, error, refetch: fetch_data }
 }
 
 export function useAutoAlerts(sensors, globalAutoMode) {
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchAlerts = useCallback(async () => {
     try {
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${API_BASE}/api/v1/alerts?status=open`, {
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error("Failed to fetch alerts");
-      const json = await res.json();
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/alerts?status=open`,
+        { headers: getAuthHeaders() }
+      );
       
       const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
       
@@ -243,8 +239,9 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         };
       });
       setAlerts(mappedAlerts);
+      setError(null);
     } catch (err) {
-      console.error(err);
+      setError(`Failed to fetch alerts: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -252,25 +249,26 @@ export function useAutoAlerts(sensors, globalAutoMode) {
 
   const dismissAlert = useCallback(async (id) => {
     try {
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-      await fetch(`${API_BASE}/api/v1/alerts/${id}/ack`, {
-        method: 'POST',
-        headers: { "Authorization": `Bearer ${token}` }
-      });
+      await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/alerts/${id}/ack`,
+        {
+          method: 'POST',
+          headers: getAuthHeaders()
+        }
+      );
       fetchAlerts();
     } catch (err) {
-      console.error("Failed to dismiss alert", err);
+      setError(`Failed to dismiss alert: ${err.message}`);
     }
   }, [fetchAlerts]);
 
   useEffect(() => {
     fetchAlerts();
-    const id = setInterval(fetchAlerts, 10000);
+    const id = setInterval(fetchAlerts, parseInt(import.meta.env.VITE_ALERTS_INTERVAL || '10000', 10));
     return () => clearInterval(id);
   }, [fetchAlerts]);
 
-  return { alerts, dismissAlert };
+  return { alerts, dismissAlert, loading, error };
 }
 
 export function useDashboard(farm_id) {
@@ -281,15 +279,14 @@ export function useDashboard(farm_id) {
   const fetch_data = useCallback(async () => {
     if (!farm_id) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/dashboard/${farm_id}`, {
-        headers: authHeaders()
-      })
-      if (!res.ok) throw new Error('Failed to fetch dashboard')
-      const json = await res.json()
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/dashboard/${farm_id}`,
+        { headers: getAuthHeaders() }
+      )
       setData(json)
       setError(null)
     } catch (err) {
-      setError(err.message)
+      setError(`Failed to fetch dashboard: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -312,15 +309,14 @@ export function useRecommendations(farm_id) {
   const fetch_data = useCallback(async () => {
     if (!farm_id) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/recommendations/${farm_id}`, {
-        headers: authHeaders()
-      })
-      if (!res.ok) throw new Error('Failed to fetch recommendations')
-      const json = await res.json()
-      setData(json)
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/recommendations/${farm_id}`,
+        { headers: getAuthHeaders() }
+      )
+      setData(Array.isArray(json) ? json : [])
       setError(null)
     } catch (err) {
-      setError(err.message)
+      setError(`Failed to fetch recommendations: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -328,7 +324,8 @@ export function useRecommendations(farm_id) {
 
   useEffect(() => {
     fetch_data()
-    const id = setInterval(fetch_data, 10000)
+    const interval = parseInt(import.meta.env.VITE_RECOMMENDATIONS_INTERVAL || '10000', 10)
+    const id = setInterval(fetch_data, interval)
     return () => clearInterval(id)
   }, [fetch_data])
 
@@ -343,15 +340,14 @@ export function useIrrigationStatus(farm_id) {
   const fetch_data = useCallback(async () => {
     if (!farm_id) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/irrigation/status/${farm_id}`, {
-        headers: authHeaders()
-      })
-      if (!res.ok) throw new Error('Failed to fetch irrigation status')
-      const json = await res.json()
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/irrigation/status/${farm_id}`,
+        { headers: getAuthHeaders() }
+      )
       setData(json)
       setError(null)
     } catch (err) {
-      setError(err.message)
+      setError(`Failed to fetch irrigation status: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -359,7 +355,8 @@ export function useIrrigationStatus(farm_id) {
 
   useEffect(() => {
     fetch_data()
-    const id = setInterval(fetch_data, 10000)
+    const interval = parseInt(import.meta.env.VITE_SENSORS_INTERVAL || '10000', 10)
+    const id = setInterval(fetch_data, interval)
     return () => clearInterval(id)
   }, [fetch_data])
 
@@ -381,16 +378,14 @@ export function useIrrigationPrediction(farm_id, sensors) {
         humidity: sensors.air_humidity ?? 60,
         soil_temp: sensors.soil_temperature ?? 25,
       })
-      const res = await fetch(
-        `${API_BASE}/api/v1/ml/predictions/irrigation/${farm_id}?${params}`,
-        { headers: authHeaders() }
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/ml/predictions/irrigation/${farm_id}?${params}`,
+        { headers: getAuthHeaders() }
       )
-      if (!res.ok) throw new Error('Failed to fetch ML prediction')
-      const json = await res.json()
       setData(json)
       setError(null)
     } catch (err) {
-      setError(err.message)
+      setError(`Failed to fetch irrigation prediction: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -408,21 +403,18 @@ export function useIrrigationPrediction(farm_id, sensors) {
 export function useIrrigationResources(farmId, intervalMs = 15000) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
     try {
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${API_BASE}/api/v1/irrigation/resources/${farmId}`, {
-        headers: {
-          "Authorization": `Bearer ${token}`
-        }
-      })
-      if (!res.ok) throw new Error('Failed')
-      const json = await res.json()
+      const json = await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/irrigation/resources/${farmId}`,
+        { headers: getAuthHeaders() }
+      )
       setData(json)
+      setError(null)
     } catch (err) {
-      // silently fail
+      setError(`Failed to fetch irrigation resources: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -435,5 +427,5 @@ export function useIrrigationResources(farmId, intervalMs = 15000) {
     return () => clearInterval(id)
   }, [fetch_data, intervalMs, farmId])
 
-  return { data, loading }
+  return { data, loading, error }
 }

@@ -44,15 +44,30 @@ class SmartDecisionEngine:
             logger.warning(f"Weather fetch failed: {e}")
             return {}
 
+    def _get_models_directory(self) -> Optional[str]:
+        models_dir = os.getenv("WARIF_MODELS_DIR")
+        if models_dir and os.path.isdir(models_dir):
+            return models_dir
+
+        default_models_dir = os.path.join(os.getcwd(), "src", "ml", "saved_models")
+        if os.path.isdir(default_models_dir):
+            return default_models_dir
+
+        logger.warning(f"Models directory not found. Checked: {default_models_dir}")
+        return None
+
     def run_ml_prediction(self, sensor_data: dict) -> Optional[dict]:
         """Run the Warif ensemble ML model (Random Forest + XGBoost + LSTM)"""
         try:
-            import sys
-            sys.path.insert(0, ".")
-            from src.ml.continual_learning import WarifEnsemble
-            models_dir = "src/ml/saved_models"
-            if not os.path.exists(models_dir):
+            models_dir = self._get_models_directory()
+            if not models_dir:
+                logger.warning("ML models directory not available")
                 return None
+
+            import sys
+            if "." not in sys.path:
+                sys.path.insert(0, ".")
+            from src.ml.continual_learning import WarifEnsemble
             ensemble = WarifEnsemble(models_dir)
             soil_moisture = sensor_data.get("soil_moisture", 50.0)
             features = {
@@ -69,15 +84,10 @@ class SmartDecisionEngine:
             }
             result = ensemble.predict(features)
 
-            # Ensure confidence is realistic (0.5-0.95 range)
-            if result and "confidence" in result:
-                conf = result["confidence"]
-                # Boost confidence if soil_moisture is extreme
-                if soil_moisture < 20 or soil_moisture > 85:
-                    conf = min(0.95, conf + 0.1)
-                result["confidence"] = max(0.5, min(0.95, conf))
-
             return result
+        except ImportError as e:
+            logger.error(f"Failed to import WarifEnsemble: {e}")
+            return None
         except Exception as e:
             logger.warning(f"ML prediction failed: {e}")
             return None
@@ -158,16 +168,17 @@ class SmartDecisionEngine:
                     message = "زيادة فترات الري"
                     rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض نحو الحد الحرج. التوصية: زيادة تكرار الري تدريجياً للحفاظ على الإنتاجية."
 
-                # Confidence based on score and ML model
-                base_conf = min(score + 0.15, 0.95)
                 if ml_result:
-                    base_conf = max(base_conf, ml_result.get("confidence", 0.5) * 0.8)
+                    recommendation_conf = ml_result.get("confidence", 0.65)
+                else:
+                    recommendation_conf = min(abs(score) + 0.15, 0.85)
+
                 recommendations.append(SmartRecommendation(
                     message=message,
                     reasoning=rec_text,
                     category="irrigation",
                     severity=severity,
-                    confidence=max(0.6, min(0.95, base_conf)),
+                    confidence=max(0.50, min(0.95, recommendation_conf)),
                 ))
             elif score < -0.2:
                 recommendations.append(SmartRecommendation(

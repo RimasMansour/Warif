@@ -2,9 +2,10 @@
 import logging
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.db.session import get_db
 from src.db.models.models import SensorReading, SensorThreshold, Device
@@ -79,175 +80,200 @@ async def ingest_sensor_reading(
     """Ingest a single sensor reading and auto-generate alerts if thresholds exceeded."""
     from src.db.models.models import SensorReading, Alert, AlertSeverity, AlertStatus, Device
 
-    sensor_type = payload.get("sensor_type")
-    value       = float(payload.get("value", 0))
-
-    SENSOR_LABELS = {
-        "soil_moisture":    "رطوبة التربة",
-        "soil_temperature": "حرارة التربة",
-        "air_temperature":  "درجة الحرارة",
-        "air_humidity":     "رطوبة الهواء",
-    }
-
-    # 1. Save the reading
-    reading = SensorReading(
-        device_id=payload.get("device_id", "unknown"),
-        sensor_type=sensor_type,
-        value=value,
-        unit=payload.get("unit", ""),
-    )
-    db.add(reading)
-    await db.flush()
-
-    # 2. Check thresholds and generate alert if needed
-    thresh_result = await db.execute(
-        select(SensorThreshold).where(SensorThreshold.sensor_type == sensor_type)
-    )
-    threshold = thresh_result.scalar_one_or_none()
-
-    if threshold:
-        status = _compute_status(value, threshold)
-        if status in ("warning", "critical"):
-            severity = AlertSeverity.critical if status == "critical" else AlertSeverity.warning
-            label = SENSOR_LABELS.get(sensor_type, sensor_type)
-            if status == "critical":
-                # Professional format: [نوع المشكلة] + [القيمة] + [الحد] + [الإجراء]
-                message = f"انحراف حرج في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تجاوزت الحد الأمثل ({threshold.max_value or threshold.min_value} {reading.unit}). الإجراء: مراجعة النظام فوراً."
-            else:
-                message = f"انحراف طفيف في {label} - القيمة الحالية ({value:.1f} {reading.unit}) قريبة من الحد المتوقع ({threshold.warning_max or threshold.warning_min} {reading.unit}). التوصية: مراقبة التطور."
-
-            db.add(Alert(
-                sensor_type=sensor_type,
-                message=message,
-                severity=severity,
-                status=AlertStatus.open,
-            ))
-
-    # ── Data Gathering for ML (Anomaly + Recommendations) ──────────
-    full_sensor_data = {}
-    device_obj = None
     try:
-        device_result = await db.execute(
-            select(Device).where(Device.device_id == payload.get("device_id", "unknown"))
+        sensor_type = payload.get("sensor_type")
+        if not sensor_type:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="sensor_type is required"
+            )
+
+        try:
+            value = float(payload.get("value", 0))
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="value must be a valid number"
+            )
+
+        SENSOR_LABELS = {
+            "soil_moisture":    "رطوبة التربة",
+            "soil_temperature": "حرارة التربة",
+            "air_temperature":  "درجة الحرارة",
+            "air_humidity":     "رطوبة الهواء",
+        }
+
+        reading = SensorReading(
+            device_id=payload.get("device_id", "unknown"),
+            sensor_type=sensor_type,
+            value=value,
+            unit=payload.get("unit", ""),
         )
-        device_obj = device_result.scalar_one_or_none()
+        db.add(reading)
+        await db.flush()
+
+        thresh_result = await db.execute(
+            select(SensorThreshold).where(SensorThreshold.sensor_type == sensor_type)
+        )
+        threshold = thresh_result.scalar_one_or_none()
+
+        if threshold:
+            alert_status = _compute_status(value, threshold)
+            if alert_status in ("warning", "critical"):
+                severity = AlertSeverity.critical if alert_status == "critical" else AlertSeverity.warning
+                label = SENSOR_LABELS.get(sensor_type, sensor_type)
+                if alert_status == "critical":
+                    message = f"انحراف حرج في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تجاوزت الحد الأمثل ({threshold.max_value or threshold.min_value} {reading.unit}). الإجراء: مراجعة النظام فوراً."
+                else:
+                    message = f"انحراف طفيف في {label} - القيمة الحالية ({value:.1f} {reading.unit}) قريبة من الحد المتوقع ({threshold.warning_max or threshold.warning_min} {reading.unit}). التوصية: مراقبة التطور."
+
+                db.add(Alert(
+                    sensor_type=sensor_type,
+                    message=message,
+                    severity=severity,
+                    status=AlertStatus.open,
+                ))
+
+        full_sensor_data = {}
+        device_obj = None
+        try:
+            device_result = await db.execute(
+                select(Device).where(Device.device_id == payload.get("device_id", "unknown"))
+            )
+            device_obj = device_result.scalar_one_or_none()
+
+            if device_obj and device_obj.farm_id:
+                from sqlalchemy import func
+                sub = (
+                    select(SensorReading.sensor_type, func.max(SensorReading.timestamp).label("max_ts"))
+                    .join(Device, SensorReading.device_id == Device.device_id)
+                    .where(Device.farm_id == device_obj.farm_id)
+                    .group_by(SensorReading.sensor_type)
+                    .subquery()
+                )
+                recent_result = await db.execute(
+                    select(SensorReading).join(sub, (SensorReading.sensor_type == sub.c.sensor_type) & (SensorReading.timestamp == sub.c.max_ts))
+                )
+                for r in recent_result.scalars().all():
+                    full_sensor_data[r.sensor_type] = r.value
+                full_sensor_data[sensor_type] = value
+        except Exception as data_err:
+            logger.warning(f"Data gathering failed: {data_err}")
+
+        try:
+            import sys, os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
+            anomaly_features = {
+                "air_temperature":  full_sensor_data.get("air_temperature", 25.0),
+                "air_humidity":     full_sensor_data.get("air_humidity", 50.0),
+                "soil_moisture":    full_sensor_data.get("soil_moisture", 50.0),
+                "soil_temperature": full_sensor_data.get("soil_temperature", 25.0),
+                "co2":              650.0,
+                "cum_irr":          2.0,
+            }
+            from src.ml.anomaly_knn import predict as knn_predict
+            from src.ml.anomaly_svm import predict as svm_predict
+            knn_result = knn_predict(anomaly_features)
+            svm_result = svm_predict(anomaly_features)
+            is_anomaly = knn_result.get("is_anomaly", False) or svm_result.get("is_anomaly", False)
+            if is_anomaly:
+                confidence = max(knn_result.get("confidence", 0), svm_result.get("confidence", 0))
+                rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
+                anomaly_severity = AlertSeverity.critical if confidence >= 0.8 else AlertSeverity.warning
+                label = SENSOR_LABELS.get(sensor_type, sensor_type)
+
+                if rule_violated:
+                    anomaly_msg = f"انحراف غير طبيعي في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تنحرف عن النمط الطبيعي ({rule_violated}). الثقة: {confidence*100:.0f}%. الإجراء: فحص الحساس والنظام."
+                else:
+                    anomaly_msg = f"قراءة استثنائية في {label} - القيمة ({value:.1f} {reading.unit}) غير طبيعية بناءً على البيانات التاريخية. الثقة: {confidence*100:.0f}%. التوصية: تحقق من حالة الحساس."
+
+                db.add(Alert(
+                    sensor_type=sensor_type,
+                    message=anomaly_msg,
+                    severity=anomaly_severity,
+                    status=AlertStatus.open,
+                ))
+                logger.info(f"[ANOMALY DETECTED] {sensor_type}={value} | kNN={knn_result['is_anomaly']} | SVM={svm_result['is_anomaly']}")
+        except Exception as anomaly_err:
+            logger.warning(f"Anomaly detection skipped: {anomaly_err}")
 
         if device_obj and device_obj.farm_id:
-            from sqlalchemy import func
-            sub = (
-                select(SensorReading.sensor_type, func.max(SensorReading.timestamp).label("max_ts"))
-                .join(Device, SensorReading.device_id == Device.device_id)
-                .where(Device.farm_id == device_obj.farm_id)
-                .group_by(SensorReading.sensor_type)
-                .subquery()
-            )
-            recent_result = await db.execute(
-                select(SensorReading).join(sub, (SensorReading.sensor_type == sub.c.sensor_type) & (SensorReading.timestamp == sub.c.max_ts))
-            )
-            for r in recent_result.scalars().all():
-                full_sensor_data[r.sensor_type] = r.value
-            full_sensor_data[sensor_type] = value
-    except Exception as data_err:
-        logger.warning(f"Data gathering failed: {data_err}")
+            try:
+                from src.services.decision_engine import SmartDecisionEngine
+                from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity
 
-    # ── Anomaly Detection (k-NN + Isolation Forest) ───────────────────────────────
-    # Ref: Warif System Design Section 4.2.1.3
-    try:
-        import sys, os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
-        anomaly_features = {
-            "air_temperature":  full_sensor_data.get("air_temperature", 25.0),
-            "air_humidity":     full_sensor_data.get("air_humidity", 50.0),
-            "soil_moisture":    full_sensor_data.get("soil_moisture", 50.0),
-            "soil_temperature": full_sensor_data.get("soil_temperature", 25.0),
-            "co2":              650.0,
-            "cum_irr":          2.0,
+                engine = SmartDecisionEngine()
+                smart_recs = await engine.analyze(full_sensor_data)
+
+                cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
+                sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
+
+                for sr in smart_recs:
+                    if sr.severity != "normal" or sr.category == "irrigation":
+                        recent_rec_result = await db.execute(
+                            select(Recommendation)
+                            .where(
+                                Recommendation.farm_id == device_obj.farm_id,
+                                Recommendation.category == cat_map.get(sr.category),
+                                Recommendation.severity == sev_map.get(sr.severity),
+                                Recommendation.message == sr.message
+                            )
+                            .order_by(desc(Recommendation.created_at))
+                            .limit(1)
+                        )
+                        recent_rec = recent_rec_result.scalar_one_or_none()
+
+                        should_save = True
+                        if recent_rec:
+                            time_diff = datetime.now(timezone.utc) - recent_rec.created_at.replace(tzinfo=timezone.utc)
+                            if time_diff < timedelta(minutes=5):
+                                should_save = False
+
+                        if should_save:
+                            rec = Recommendation(
+                                farm_id=device_obj.farm_id,
+                                message=sr.message,
+                                reasoning=sr.reasoning,
+                                category=cat_map.get(sr.category, RecommendationCategory.irrigation),
+                                severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
+                                is_read=False,
+                            )
+                            db.add(rec)
+
+            except Exception as rec_err:
+                logger.warning(f"Smart recommendation generation failed: {rec_err}")
+
+        await db.commit()
+        return {
+            "status": "ok",
+            "sensor_type": sensor_type,
+            "value": value,
+            "alert_generated": threshold is not None and _compute_status(value, threshold) in ("warning", "critical")
         }
-        from src.ml.anomaly_knn import predict as knn_predict
-        from src.ml.anomaly_svm import predict as svm_predict
-        knn_result = knn_predict(anomaly_features)
-        svm_result = svm_predict(anomaly_features)
-        is_anomaly = knn_result.get("is_anomaly", False) or svm_result.get("is_anomaly", False)
-        if is_anomaly:
-            confidence = max(knn_result.get("confidence", 0), svm_result.get("confidence", 0))
-            rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
-            anomaly_severity = AlertSeverity.critical if confidence >= 0.8 else AlertSeverity.warning
-            label = SENSOR_LABELS.get(sensor_type, sensor_type)
 
-            # Professional format for anomaly alerts
-            if rule_violated:
-                anomaly_msg = f"انحراف غير طبيعي في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تنحرف عن النمط الطبيعي ({rule_violated}). الثقة: {confidence*100:.0f}%. الإجراء: فحص الحساس والنظام."
-            else:
-                anomaly_msg = f"قراءة استثنائية في {label} - القيمة ({value:.1f} {reading.unit}) غير طبيعية بناءً على البيانات التاريخية. الثقة: {confidence*100:.0f}%. التوصية: تحقق من حالة الحساس."
-
-            db.add(Alert(
-                sensor_type=sensor_type,
-                message=anomaly_msg,
-                severity=anomaly_severity,
-                status=AlertStatus.open,
-            ))
-            logger.info(f"[ANOMALY DETECTED] {sensor_type}={value} | kNN={knn_result['is_anomaly']} | SVM={svm_result['is_anomaly']}")
-    except Exception as anomaly_err:
-        logger.warning(f"Anomaly detection skipped: {anomaly_err}")
-    # ── End Anomaly Detection ──────────────────────────────────────────────────────
-
-    # ── Smart Recommendation Generation ──────────────────────────────
-    if device_obj and device_obj.farm_id:
-        try:
-            from src.services.decision_engine import SmartDecisionEngine
-            from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity
-
-            engine = SmartDecisionEngine()
-            smart_recs = await engine.analyze(full_sensor_data)
-
-            cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
-            sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
-
-            for sr in smart_recs:
-                if sr.severity != "normal" or sr.category == "irrigation":
-                    # Check if this exact recommendation was recently created
-                    recent_rec_result = await db.execute(
-                        select(Recommendation)
-                        .where(
-                            Recommendation.farm_id == device_obj.farm_id,
-                            Recommendation.category == cat_map.get(sr.category),
-                            Recommendation.severity == sev_map.get(sr.severity),
-                            Recommendation.message == sr.message
-                        )
-                        .order_by(desc(Recommendation.created_at))
-                        .limit(1)
-                    )
-                    recent_rec = recent_rec_result.scalar_one_or_none()
-
-                    # Only save if no identical recommendation exists or if older than 5 minutes
-                    should_save = True
-                    if recent_rec:
-                        time_diff = datetime.now(timezone.utc) - recent_rec.created_at.replace(tzinfo=timezone.utc)
-                        if time_diff < timedelta(minutes=5):
-                            should_save = False
-
-                    if should_save:
-                        rec = Recommendation(
-                            farm_id=device_obj.farm_id,
-                            message=sr.message,
-                            reasoning=sr.reasoning,
-                            category=cat_map.get(sr.category, RecommendationCategory.irrigation),
-                            severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
-                            is_read=False,
-                        )
-                        db.add(rec)
-
-        except Exception as rec_err:
-            logger.warning(f"Smart recommendation generation failed: {rec_err}")
-    # ── End Smart Recommendation Generation ──────────────────────────
-
-    await db.commit()
-    return {
-        "status": "ok",
-        "sensor_type": sensor_type,
-        "value": value,
-        "alert_generated": threshold is not None and _compute_status(value, threshold) in ("warning", "critical")
-    }
+    except HTTPException:
+        raise
+    except IntegrityError as e:
+        await db.rollback()
+        logger.error(f"Database integrity error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Sensor data violates database constraints"
+        )
+    except OperationalError as e:
+        await db.rollback()
+        logger.error(f"Database operational error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service temporarily unavailable"
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Unexpected error in sensor ingestion: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process sensor reading"
+        )
 
 
 def _compute_status(value: float, threshold) -> str:
