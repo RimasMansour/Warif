@@ -282,6 +282,14 @@ export function HealthStyleBarChart({
             {yAxisTitle || T.consumptionRate}
           </text>
 
+          {/* Horizontal X Label for HealthStyleBarChart */}
+          <text 
+            x={pLeft + (w-pLeft-pRight)/2} y={h - padBottom + 70} 
+            textAnchor="middle" fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.6"
+          >
+            {isRtl ? 'الوقت' : 'Time'}
+          </text>
+
           <line x1={pLeft} y1={padTop} x2={pLeft} y2={h - padBottom} stroke="#E2E8F0" strokeWidth="3" strokeLinecap="round" />
           <line x1={pLeft} y1={h - padBottom} x2={w - pRight} y2={h - padBottom} stroke="#E2E8F0" strokeWidth="3" strokeLinecap="round" />
           
@@ -379,18 +387,18 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
     { key: 'Y', label: T.yearLabel },
   ];
 
-  const h = 240; 
-  const pLeft = 85; 
-  const pRight = 45;
-  const pTop = 20; 
-  const pBottom = 20; 
+  const h = 380; 
+  const pLeft = 80; 
+  const pRight = 80;
+  const pTop = 30; 
+  const pBottom = 60; 
   
   const n = data.length;
   const w = 900; 
   const segmentW = (w - pLeft - pRight) / (n - 1 || 1);
 
   const allValues = data.flatMap(d => [d.water || 0, d.power || 0]);
-  const yMax = Math.ceil(Math.max(...allValues, 10) / 10) * 10 + 10; 
+  const yMax = 100; 
   const getY = (v) => h - pBottom - (v / (yMax || 1)) * (h - pTop - pBottom);
   const getX = (i) => pLeft + i * segmentW;
 
@@ -415,8 +423,8 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   };
 
   return (
-    <CardShell className="p-6 relative group/chart overflow-visible" dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="flex justify-between items-center mb-6 flex-row">
+    <CardShell className="p-5 relative group/chart overflow-visible" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex justify-between items-center mb-4 flex-row">
         <div className={isRtl ? 'text-right' : 'text-left'}>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-black text-gray-800 leading-none">
@@ -454,35 +462,49 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
         ))}
       </div>
 
-      <div className="flex items-center justify-center gap-6 mb-6">
+      <div className="flex items-center justify-center gap-6 mb-4">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-[var(--status-info)] shadow-sm shadow-blue-200" />
           <span className="text-[12px] font-black text-gray-600">{T?.waterLabel || 'Water'}</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-[var(--status-warning)] shadow-sm shadow-yellow-200" />
+          <div className="w-3 h-3 rounded-full bg-[#EAB308] shadow-sm shadow-yellow-200" />
           <span className="text-[12px] font-black text-gray-600">{T?.powerLabel || 'Power'}</span>
         </div>
       </div>
 
-      <div className="w-full h-full relative min-h-[180px] mt-2">
-        <svg width="100%" height={190} viewBox="-100 0 1000 310" preserveAspectRatio="xMidYMid meet" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
+      <div className="w-full max-w-full mx-auto relative">
+        <svg width="100%" height={260} viewBox={`-100 0 1000 420`} preserveAspectRatio="xMidYMid meet" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
           <defs>
             <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.2" />
               <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
             </linearGradient>
             <linearGradient id="powerGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#EAB308" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#EAB308" stopOpacity="0" />
+              <stop offset="0%" stopColor="#FACC15" stopOpacity="0.15" />
+              <stop offset="100%" stopColor="#FACC15" stopOpacity="0" />
             </linearGradient>
           </defs>
-          <text x={- (h-pBottom)/2 - pTop + 10} y={5} transform="rotate(-90)" textAnchor="middle" fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.5">
-            {yAxisTitle || T.consumptionRate}
+
+          {/* Vertical Y Label */}
+          <text 
+            x={- (h-pBottom)/2 - pTop} y={15} 
+            transform="rotate(-90)" textAnchor="middle" 
+            fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.6"
+          >
+            {isRtl ? 'معدل استهلاك الموارد (%)' : 'Resource Consumption (%)'}
+          </text>
+
+          {/* Horizontal X Label */}
+          <text 
+            x={pLeft + (w-pLeft-pRight)/2} y={h - pBottom + 70} 
+            textAnchor="middle" fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.6"
+          >
+            {isRtl ? 'الوقت' : 'Time'}
           </text>
           
-          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="3" strokeLinecap="round" />
-          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="3" strokeLinecap="round" />
+          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
+          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
 
           {[0, 0.25, 0.5, 0.75, 1].map(i => {
               const v = yMax * i;
@@ -490,56 +512,79 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
               return (
                 <g key={i}>
                 <line x1={pLeft} x2={w-pRight} y1={yy} y2={yy} stroke="#F1F5F9" strokeWidth="1.5" strokeDasharray="6 6" />
-                <text x={pLeft - 30} y={yy} dominantBaseline="central" textAnchor="end" fontSize="22" fontWeight="black" fill="#94A3B8">
+                <text x={pLeft - 30} y={yy} dominantBaseline="central" textAnchor="end" fontSize="18" fontWeight="black" fill="#94A3B8">
                   {Math.round(v)}
                 </text>
               </g>
               );
           })}
 
+          {/* Area Gradients */}
           <path d={getAreaPath('water')} fill="url(#waterGrad)" />
           <path d={getAreaPath('power')} fill="url(#powerGrad)" />
+          
+          {/* Main Lines */}
           <path d={getPath('water')} fill="none" stroke="var(--status-info)" strokeWidth="4.5" strokeLinecap="round" />
-          <path d={getPath('power')} fill="none" stroke="var(--status-warning)" strokeWidth="4.5" strokeLinecap="round" />
+          <path d={getPath('power')} fill="none" stroke="#EAB308" strokeWidth="4.5" strokeLinecap="round" />
 
           {data.map((d, i) => {
             const xx = getX(i);
             const isHovered = hoveredIdx === i;
             
             let showLabel = false;
-            let labelText = d.label;
-            if (range === 'D' && i % 6 === 0) showLabel = true;
-            else if (range === 'W') showLabel = true;
-            else if (range === 'M' && i % 4 === 0) showLabel = true;
-            else if (range === 'Y' && i % 3 === 0) showLabel = true;
+            const step = Math.max(1, Math.ceil(n / 7)); // Shows approx 7 labels regardless of data points
+            if (i % step === 0) showLabel = true;
 
-            const tooltipX = xx < w/2 ? xx + 15 : xx - 145;
+            const tW = 175; // Increased width for better legibility
+            const tH = 100; 
+            const tX = Math.max(0, Math.min(w - tW, xx - tW / 2));
+            const topY = Math.min(getY(d.water), getY(d.power));
+            const tY = Math.max(-50, topY - tH - 40); 
 
             return (
               <g key={i}>
                 <rect x={xx - segmentW/2} y={pTop} width={segmentW} height={h-pTop-pBottom} fill="transparent" onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer" />
                 {showLabel && (
-                  <text x={xx} y={h - pBottom + 32} textAnchor="middle" fontSize="22" fill="#94A3B8" fontWeight="black">{labelText}</text>
+                  <text x={xx} y={h - pBottom + 28} textAnchor="middle" fontSize="16" fill="#94A3B8" fontWeight="black">{d.label}</text>
                 )}
                 {isHovered && (
                   <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="2" strokeDasharray="4 4" />
-                    <circle cx={xx} cy={getY(d.water)} r="7" fill="#3b82f6" stroke="white" strokeWidth="3" />
-                    <circle cx={xx} cy={getY(d.power)} r="7" fill="#EAB308" stroke="white" strokeWidth="3" />
                     
-                    <rect x={tooltipX} y={Math.min(getY(d.water), getY(d.power)) - 95} width="160" height="85" rx="16" fill="#111827" filter="drop-shadow(0 15px 30px rgba(0,0,0,0.5))" />
-                    <text x={tooltipX + 15} y={Math.min(getY(d.water), getY(d.power)) - 60} fontSize="18" fontWeight="black" fill="white">
-                      {T.waterLabel}: {(d.water).toFixed(1)}٪
-                    </text>
-                    <text x={tooltipX + 15} y={Math.min(getY(d.water), getY(d.power)) - 30} fontSize="18" fontWeight="black" fill="#EAB308">
-                      {T.powerLabel}: {(d.power).toFixed(1)}٪
-                    </text>
+                    <foreignObject x={tX} y={tY} width={tW} height={tH + 35}>
+                      <div 
+                        className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-[22px] border border-white/10 shadow-2xl flex flex-col gap-2.5"
+                        style={{ direction: isRtl ? 'rtl' : 'ltr' }}
+                      >
+                        <div className={`flex items-center mb-0.5 border-b border-white/10 pb-2 ${isRtl ? 'justify-start' : 'justify-end'}`}>
+                          <span className="text-[16px] font-black text-slate-400 tracking-wide uppercase">{d.label}</span>
+                        </div>
+                        
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
+                            <span className="text-[16px] font-black text-slate-200">{T.waterLabel}</span>
+                          </div>
+                          <span className="text-[20px] font-black text-blue-400 tracking-tighter">{d.water.toFixed(1)}٪</span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-3 h-3 rounded-full bg-[#EAB308] shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
+                            <span className="text-[16px] font-black text-slate-200">{T.powerLabel}</span>
+                          </div>
+                          <span className="text-[20px] font-black text-yellow-400 tracking-tighter">{d.power.toFixed(1)}٪</span>
+                        </div>
+                      </div>
+                    </foreignObject>
+
+                    <circle cx={xx} cy={getY(d.water)} r="6" fill="#3b82f6" stroke="white" strokeWidth="2.5" />
+                    <circle cx={xx} cy={getY(d.power)} r="6" fill="#EAB308" stroke="white" strokeWidth="2.5" />
                   </g>
                 )}
               </g>
             );
           })}
-          <text x={pLeft + (w - pLeft - pRight)/2} y={h+65} textAnchor="middle" fontSize="26" fontWeight="1000" fill="#2E7D32" opacity="0.5">{xAxisTitle || T.periodLabel}</text>
         </svg>
       </div>
     </CardShell>
@@ -603,18 +648,32 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
       let temp = tempItem?.value ?? 0;
       let moisture = moistItem?.value ?? 0;
       
-      let timeStr = getLabelForRange('D', i, tempItem?.timestamp || moistItem?.timestamp, isEn);
+      // Calculate an hour label: Now, -1h, -2h, etc.
+      const now = new Date();
+      now.setHours(now.getHours() - (len - 1 - i));
+      const hours = now.getHours();
+      
+      let timeStr = "";
+      if (isEn) {
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const h12 = hours % 12 || 12;
+        timeStr = `${h12} ${ampm}`;
+      } else {
+        const ampm = hours >= 12 ? 'م' : 'ص';
+        const h12 = hours % 12 || 12;
+        timeStr = `${h12} ${ampm}`;
+      }
       
       points.push({ time: timeStr, temp, moisture });
     }
     return points;
   }, [rawTemp, rawMoist, isEn]);
-  const h = compact ? 220 : 600;
-  const w = 900;
-  const pLeft = compact ? 30 : 25;
+  const h = compact ? 190 : 500;
+  const w = compact ? 900 : 500;
+  const pLeft = 35;
   const pRight = compact ? 20 : 25;
-  const pTop = compact ? 25 : 5;
-  const pBottom = compact ? 45 : 50;
+  const pTop = compact ? 8 : 100;
+  const pBottom = compact ? 55 : 30;
   const segmentW = (w - pLeft - pRight) / (data.length - 1);
   
   // Fixed 0-100 Y-axis like the reference
@@ -645,25 +704,31 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
   };
 
   return (
-    <CardShell className={`${compact ? 'p-3' : 'p-2 md:p-4'} relative overflow-hidden group/trend bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md h-full flex flex-col`} dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className={`flex flex-col gap-1 mb-1 px-4 pt-4 ${isRtl ? 'text-right' : 'text-left'}`}>
-        <h3 className="text-lg font-bold text-gray-800 tracking-tight leading-tight">
+    <CardShell className={`${compact ? 'p-2' : 'p-2 md:p-4'} relative overflow-hidden group/trend bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md h-full flex flex-col`} dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className={`flex flex-col gap-1 mb-2 px-4 pt-3 ${isRtl ? 'text-right' : 'text-left'}`}>
+        <h3 className="text-lg font-black text-gray-800 tracking-tight leading-tight">
           {isEn ? "Soil Trend (12h)" : "اتجاه التربة (١٢ ساعة)"}
         </h3>
-        <div className="flex items-center gap-6 mt-1">
+        <div className="flex items-center gap-6 mt-1" dir={isRtl ? 'rtl' : 'ltr'}>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
-            <span className="text-[15px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Moisture" : "رطوبة التربة"}</span>
+            <span className="text-[13px] font-bold text-gray-400 uppercase tracking-tight">{isEn ? "Moist" : "رطوبة"}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" />
-            <span className="text-[15px] font-black text-gray-400 uppercase tracking-tight">{isEn ? "Soil Temp" : "حرارة التربة"}</span>
+            <span className="text-[13px] font-bold text-gray-400 uppercase tracking-tight">{isEn ? "Temp" : "حرارة"}</span>
           </div>
         </div>
       </div>
       
-      <div className="w-full flex-1 relative min-h-0">
-        <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
+      <div className="w-full flex-1 relative min-h-0 pb-8 px-2">
+        <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 text-[12px] font-black text-[#2E7D32] opacity-60 whitespace-nowrap" style={{transformOrigin:'center', left:'-28px'}}>
+          {isEn ? 'Value (%)' : 'القيمة (%)'}
+        </div>
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[13px] font-black text-[#2E7D32] opacity-60">
+          {isEn ? 'Time' : 'الوقت'}
+        </div>
+        <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
           <defs>
             <linearGradient id="soilTempGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
@@ -675,25 +740,24 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
             </linearGradient>
           </defs>
 
-          {/* Grid lines (dashed) and Y Labels exactly like the reference */}
-          {[0, 25, 50, 75, 100].map(v => {
-            const yy = getY(v);
+          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#CBD5E1" strokeWidth="1.5" />
+          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#CBD5E1" strokeWidth="1.5" />
+
+          {[0, 20, 40, 60, 80, 100].map(val => {
+            const yy = getY(val);
             return (
-              <g key={v}>
-                <line x1={pLeft} y1={yy} x2={w - pRight} y2={yy} stroke="#F1F5F9" strokeWidth="3" strokeDasharray={v === 0 ? "0" : "6 6"} />
-                <text x={pLeft - 10} y={yy} dominantBaseline="middle" textAnchor="end" fontSize="28" fill="#94A3B8" fontWeight="900">{v}</text>
+              <g key={val}>
+                {val !== 0 && <line x1={pLeft - 5} y1={yy} x2={w - pRight} y2={yy} stroke="#F1F5F9" strokeWidth="1" />}
+                <text x={pLeft - 5} y={yy + 4} textAnchor="end" fontSize="11" fill="#94A3B8" fontWeight="bold">{val}</text>
               </g>
             );
           })}
 
-          {/* Solid Axis lines like the reference */}
-          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
-          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
 
           <path d={getAreaPath('moisture')} fill="url(#soilMoistGrad)" />
           <path d={getAreaPath('temp')} fill="url(#soilTempGrad)" />
-          <path d={getPath('moisture')} fill="none" stroke="#3b82f6" strokeWidth="12" strokeLinecap="round" />
-          <path d={getPath('temp')} fill="none" stroke="#10b981" strokeWidth="12" strokeLinecap="round" />
+          <path d={getPath('moisture')} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" />
+          <path d={getPath('temp')} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" />
 
           {data.map((d, i) => {
             const xx = getX(i);
@@ -703,7 +767,10 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
             const shouldHighlight = i === data.length - 1;
             
             const topY = Math.min(getY(d.temp), getY(d.moisture));
-            const tooltipY = Math.max(5, topY - 160); 
+            const tW = 150;
+            const tH = 90;
+            const tX = Math.max(0, Math.min(w - tW, xx - tW / 2));
+            const tY = Math.max(5, topY - tH - 50); 
 
             return (
               <g key={i}>
@@ -712,15 +779,15 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
                 {(i % (compact ? 3 : 2) === 0) && (
                   <g>
                     {shouldHighlight && (
-                      <rect x={xx - 45} y={h - pBottom + 5} width="90" height="42" rx="10" fill="#10b981" fillOpacity="0.15" />
+                      <rect x={xx - 35} y={h - pBottom + 3} width="70" height="24" rx="8" fill="#10b981" fillOpacity="0.15" />
                     )}
                     <text 
                       x={xx} 
-                      y={h - pBottom + 38} 
+                      y={h - pBottom + 22} 
                       textAnchor="middle" 
-                      fontSize="28" 
+                      fontSize="14" 
                       fill={shouldHighlight ? "#10b981" : "#94A3B8"} 
-                      fontWeight="900"
+                      fontWeight="bold"
                     >
                       {d.time}
                     </text>
@@ -729,13 +796,35 @@ export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
 
                 {isHovered && (
                   <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-                    <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="3" strokeDasharray="4 4" />
-                    <rect x={xx - 130} y={tooltipY} width="260" height="135" rx="24" fill="#111827" filter="drop-shadow(0 15px 30px rgba(0,0,0,0.5))" />
-                    <text x={xx} y={tooltipY + 35} textAnchor="middle" fontSize="20" fontWeight="bold" fill="#94A3B8">{d.time}</text>
-                    <text x={xx} y={tooltipY + 75} textAnchor="middle" fontSize="26" fontWeight="900" fill="#fff">{isEn ? `Moisture: ${d.moisture.toFixed(1)}%` : `رطوبة: ${d.moisture.toFixed(1)}%`}</text>
-                    <text x={xx} y={tooltipY + 110} textAnchor="middle" fontSize="26" fontWeight="900" fill="#10b981">{isEn ? `Temp: ${d.temp.toFixed(1)}°` : `حرارة: ${d.temp.toFixed(1)}°`}</text>
-                    <circle cx={xx} cy={getY(d.temp)} r="12" fill="#10b981" stroke="white" strokeWidth="4" />
-                    <circle cx={xx} cy={getY(d.moisture)} r="12" fill="#3b82f6" stroke="white" strokeWidth="4" />
+                    <foreignObject x={tX} y={tY} width={tW} height={tH + 15}>
+                      <div 
+                        className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-[20px] border border-white/10 shadow-2xl flex flex-col gap-2"
+                        style={{ direction: isRtl ? 'rtl' : 'ltr' }}
+                      >
+                        <div className="flex items-center justify-between border-b border-white/5 pb-1.5 mb-0.5">
+                          <span className="text-[14px] font-bold text-slate-400 uppercase tracking-wider">{d.time}</span>
+                          <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
+                        </div>
+                        
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                            <span className="text-[16px] font-medium text-slate-300">{isEn ? 'Moist' : 'رطوبة'}</span>
+                          </div>
+                          <span className="text-[18px] font-black text-blue-400">{d.moisture.toFixed(1)}%</span>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                            <span className="text-[16px] font-medium text-slate-300">{isEn ? 'Temp' : 'حرارة'}</span>
+                          </div>
+                          <span className="text-[18px] font-black text-emerald-400">{d.temp.toFixed(1)}°</span>
+                        </div>
+                      </div>
+                    </foreignObject>
+                    <circle cx={xx} cy={getY(d.temp)} r="5" fill="#10b981" stroke="white" strokeWidth="2" />
+                    <circle cx={xx} cy={getY(d.moisture)} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" />
                   </g>
                 )}
               </g>

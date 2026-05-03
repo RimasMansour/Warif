@@ -3,15 +3,15 @@ import { translations } from '../../i18n';
 import { 
   SensorTopBar, 
   CardShell, 
-  PlantSoilIcon,
-  WindSharedIcon,
-  EmptyState
+  PlantSoilIcon, 
+  WindSharedIcon, 
+  EmptyState 
 } from './DashboardShared';
 import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
 
 import { 
   generateDataForRange, 
-  formatLastUpdated
+  formatLastUpdated 
 } from './dashboardUtils';
 import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
 import { getLabelForRange } from './dashboardUtils';
@@ -86,15 +86,41 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
   const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);
 
   const formatPoints = (rawData) => {
-    const points = [];
-    const len = Math.max(range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12, rawData?.length || 0);
-    for (let i = 0; i < len; i++) {
-      const item = rawData?.[i];
-      let val = item?.value ?? 0;
-      let label = getLabelForRange(range, i, item?.timestamp, isEn);
-      points.push({ label, value: val });
+    const now = new Date();
+    const daysAr = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+    const daysEn = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const monthsAr = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    if (range === 'D') {
+      return Array.from({ length: 24 }, (_, i) => {
+        const label = `${i}:00`;
+        const item = rawData?.find(r => new Date(r.timestamp).getHours() === i);
+        return { label, value: item?.value ?? 0 };
+      });
     }
-    return points;
+    if (range === 'W') {
+      return Array.from({ length: 7 }, (_, i) => {
+        const label = isEn ? daysEn[i] : daysAr[i];
+        const item = rawData?.find(r => new Date(r.timestamp).getDay() === i);
+        return { label, value: item?.value ?? 0 };
+      });
+    }
+    if (range === 'M') {
+      return Array.from({ length: 30 }, (_, i) => {
+        const label = `${i + 1}`;
+        const item = rawData?.find(r => new Date(r.timestamp).getDate() === i + 1);
+        return { label, value: item?.value ?? 0 };
+      });
+    }
+    if (range === 'Y') {
+      return Array.from({ length: 12 }, (_, i) => {
+        const label = isEn ? monthsEn[i] : monthsAr[i];
+        const item = rawData?.find(r => new Date(r.timestamp).getMonth() === i);
+        return { label, value: item?.value ?? 0 };
+      });
+    }
+    return [];
   };
 
   const tempSeries = useMemo(() => formatPoints(rawTemp), [rawTemp, range, isEn]);
@@ -315,15 +341,41 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
   const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit);
 
   const formatPoints = (rawData) => {
-    const points = [];
-    const len = Math.max(range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12, rawData?.length || 0);
-    for (let i = 0; i < len; i++) {
-      const item = rawData?.[i];
-      let val = item?.value ?? 0;
-      let label = getLabelForRange(range, i, item?.timestamp, isEn);
-      points.push({ label, value: val });
+    const now = new Date();
+    const daysAr = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+    const daysEn = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const monthsAr = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    if (range === 'D') {
+      return Array.from({ length: 24 }, (_, i) => {
+        const label = `${i}:00`;
+        const item = rawData?.find(r => new Date(r.timestamp).getHours() === i);
+        return { label, value: item?.value ?? 0 };
+      });
     }
-    return points;
+    if (range === 'W') {
+      return Array.from({ length: 7 }, (_, i) => {
+        const label = isEn ? daysEn[i] : daysAr[i];
+        const item = rawData?.find(r => new Date(r.timestamp).getDay() === i);
+        return { label, value: item?.value ?? 0 };
+      });
+    }
+    if (range === 'M') {
+      return Array.from({ length: 30 }, (_, i) => {
+        const label = `${i + 1}`;
+        const item = rawData?.find(r => new Date(r.timestamp).getDate() === i + 1);
+        return { label, value: item?.value ?? 0 };
+      });
+    }
+    if (range === 'Y') {
+      return Array.from({ length: 12 }, (_, i) => {
+        const label = isEn ? monthsEn[i] : monthsAr[i];
+        const item = rawData?.find(r => new Date(r.timestamp).getMonth() === i);
+        return { label, value: item?.value ?? 0 };
+      });
+    }
+    return [];
   };
 
   const soilTempSeries = useMemo(() => formatPoints(rawSoilTemp), [rawSoilTemp, range, isEn]);

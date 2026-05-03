@@ -217,22 +217,38 @@ export function sensorBuildRecommendationsLight(current) {
   return rec;
 }
 
-// Removed mock data generators: getLiveFarmData, getStrategicRecommendations, getAllCombinedRecommendations
-
 export function getLabelForRange(range, index, timestamp = null, isEn = false) {
   const labels = L(isEn);
+  
+  // UX FIX: Always prioritize actual timestamp for accuracy in trend charts
   if (timestamp) {
     const d = new Date(timestamp);
-    if (range === 'D') return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (range === 'D') {
+      const hours = d.getHours();
+      const ampm = isEn ? (hours >= 12 ? 'PM' : 'AM') : (hours >= 12 ? 'م' : 'ص');
+      const h12 = hours % 12 || 12;
+      return `${h12}${ampm}`;
+    }
     if (range === 'W') return isEn ? labels.daysEn[d.getDay()] : labels.daysAr[d.getDay()];
     if (range === 'M') return `${d.getDate()}`;
     if (range === 'Y') return isEn ? labels.monthsEn[d.getMonth()] : labels.monthsAr[d.getMonth()];
   }
-  // Fallback to index-based if no timestamp
-  if (range === 'D') return `${index}:00`;
-  if (range === 'W') return isEn ? labels.daysEn[index % 7] : labels.daysAr[index % 7];
+
+  // Fallback to index-based labels if no timestamp (mock data)
+  if (range === 'D') {
+    const hours = index % 24;
+    const ampm = isEn ? (hours >= 12 ? 'PM' : 'AM') : (hours >= 12 ? 'م' : 'ص');
+    const h12 = hours % 12 || 12;
+    return `${h12}${ampm}`;
+  }
+  
+  if (range === 'W') {
+    return isEn ? labels.daysEn[index % 7] : labels.daysAr[index % 7];
+  }
+  
   if (range === 'M') return `${index + 1}`;
   if (range === 'Y') return isEn ? labels.monthsEn[index % 12] : labels.monthsAr[index % 12];
+
   return `${index}`;
 }
 

@@ -39,9 +39,19 @@ const waveStyles = `
   }
 `;
 
+function LastUpdatedTimer({ seconds, ar, en, isEn }) {
+  const [localSec, setLocalSec] = useState(seconds);
+  useEffect(() => {
+    const interval = setInterval(() => setLocalSec(s => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return <>{formatLastUpdated(localSec, ar, en)}</>;
+}
+
 export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
+  const isRtl = !isEn;
 
   // ── Live data from Backend API ─────────────────────────────
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
@@ -56,17 +66,8 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   const coolingActive= livesensors?.coolingActive    ?? false;
   const apiSoilMoist = livesensors?.soil_moisture    ?? null;
   const apiSoilTemp  = livesensors?.soil_temperature ?? null;
-  const [seconds, setSeconds] = useState(0);
 
   const [resourceRange, setResourceRange] = useState("D");
-
-  useEffect(() => {
-    setSeconds(0);
-    const interval = setInterval(() => {
-      setSeconds(s => s + 1);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [activeFarm]);
 
   const { data: rawWater } = useSensorHistory('water_usage', 12);
   const { data: rawPower } = useSensorHistory('power_usage', 12);
@@ -137,10 +138,10 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           
           {/* Row 1: Top Aligned Cards */}
           <div className="animate-fade-in-up delay-2">
-            <MicroclimateGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
+            <MicroclimateGlanceCard onGo={onGo} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
           </div>
           <div className="animate-fade-in-up delay-3">
-            <SoilCropHealthGlanceCard onGo={onGo} seconds={seconds} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
+            <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
           </div>
           <div className="animate-fade-in-up delay-4 flex flex-col">
             <DashboardAlertsCard 
@@ -155,10 +156,10 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
           {/* Row 2: Bottom Aligned Cards */}
           <div className="animate-fade-in-up delay-5">
-            <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} resourceData={resourceData} dashboardData={dashboardData} />
+            <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} resourceData={resourceData} dashboardData={dashboardData} />
           </div>
           <div className="animate-fade-in-up delay-6">
-            <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} seconds={seconds} activeFarm={activeFarm} />
+            <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} />
           </div>
           <div className="animate-fade-in-up delay-7">
             <SoilTrendChart isRtl={!isEn} isEn={isEn} activeFarm={activeFarm} />
@@ -261,9 +262,8 @@ function ClimateSparkline({ color = "#ef4444", gradientId = "climateGradient" })
     <div className="flex flex-col gap-1.5 h-full justify-center">
       <div className="flex items-center justify-between opacity-70">
         <div className="text-xs font-black text-gray-400 uppercase tracking-tighter">{isEn ? 'Temp Trend (24h)' : 'ميول الحرارة (٢٤ ساعة)'}</div>
-        <div className="text-xs font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}10` }}>{isEn ? 'Peak' : 'الأعلى'}: ٣٤°C</div>
       </div>
-      <div className="relative w-32 h-16 bg-gray-50/30 rounded-xl overflow-hidden border border-gray-100/50 flex items-center">
+      <div className="relative w-44 h-24 bg-gray-50/30 rounded-xl overflow-hidden border border-gray-100/50 flex items-center">
         <svg viewBox="0 0 100 40" className="w-full h-full preserve-3d ml-2">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -286,6 +286,12 @@ function ClimateSparkline({ color = "#ef4444", gradientId = "climateGradient" })
           />
         </svg>
       </div>
+      <div className="flex items-center justify-between mt-1 px-1">
+        <div className="text-[11px] font-black text-gray-300 uppercase tracking-tight">{isEn ? 'Stable Range' : 'النطاق المستقر'}</div>
+        <div className="text-[11px] font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}10` }}>
+          18°C – 38°C
+        </div>
+      </div>
     </div>
   );
 }
@@ -296,10 +302,9 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
     <div className="flex flex-col gap-1.5 h-full justify-center">
       <div className="flex items-center justify-between opacity-70">
         <div className="text-xs font-black text-gray-400 uppercase tracking-tighter">{isEn ? 'Moisture Trend (24h)' : 'اتجاه الرطوبة (٢٤ ساعة)'}</div>
-        <div className="text-xs font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}15` }}>{isEn ? 'Peak' : 'الأعلى'}: ٤٨٪</div>
       </div>
       
-      <div className="relative w-32 h-16 bg-gray-50/30 rounded-xl overflow-hidden border border-gray-100/50 flex items-center">
+      <div className="relative w-44 h-24 bg-gray-50/30 rounded-xl overflow-hidden border border-gray-100/50 flex items-center">
         <svg viewBox="0 0 100 40" className="w-full h-full preserve-3d ml-2">
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -323,20 +328,21 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
           />
         </svg>
       </div>
-
-      <div className={`flex items-center justify-between px-1 ${isEn ? 'flex-row-reverse' : ''}`}>
-        <span className="text-xs font-bold text-gray-400">{isEn ? 'Stable Trend' : 'تحليل الميول مستقر'}</span>
-        <span className="text-xs font-black text-gray-300">{isEn ? 'Low' : 'الأقل'}: ٣٢٪</span>
+      <div className="flex items-center justify-between mt-1 px-1">
+        <div className="text-[11px] font-black text-gray-300 uppercase tracking-tight">{isEn ? 'Stable Range' : 'النطاق المستقر'}</div>
+        <div className="text-[11px] font-bold px-1.5 rounded-md" style={{ color: color, backgroundColor: `${color}15` }}>
+          80% - 35%
+        </div>
       </div>
     </div>
   );
 }
 
-function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, apiLight, coolingActive }) {
+function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, coolingActive }) {
   const temp = apiTemp ?? 0;
   const hum  = apiHum  ?? 0;
   const light = apiLight ?? 0;
-  const isOptimal = temp < 32 && hum < 65 && light < 100000;
+  const isOptimal = temp >= 18 && temp <= 38 && hum >= 45 && hum <= 85;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
@@ -344,7 +350,7 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, ap
       <div className="animate-fade-in delay-1">
       <CardTopRow 
         title={isEn ? "Climate & Ventilation" : "المناخ والتهوية"} 
-        subtitle={formatLastUpdated(seconds)} 
+        subtitle={<LastUpdatedTimer seconds={0} ar="آخر تحديث" en="Last Update" isEn={isEn} />} 
         icon={<WindSharedIcon />} 
         isEn={isEn}
         iconBg="bg-emerald-50"
@@ -376,7 +382,7 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, ap
         <div className="flex flex-col items-center gap-3">
            <div className={`px-3 py-1.5 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm min-w-[70px] border ${coolingActive ? 'bg-blue-50 border-blue-200' : isOptimal ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
               <div className={`text-xs font-bold mb-0.5 ${coolingActive ? 'text-blue-600' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
-              <div className={`text-[12px] font-black ${coolingActive ? 'text-blue-700' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{coolingActive ? (isEn ? 'Cooling...' : 'تبريد نشط') : isOptimal ? (isEn ? 'Stable' : 'مستقر') : (isEn ? 'Unstable' : 'غير مستقر')}</div>
+              <div className={`text-[12px] font-black ${coolingActive ? 'text-blue-700' : isOptimal ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{coolingActive ? (isEn ? 'Cooling Active' : 'تبريد نشط') : isOptimal ? (isEn ? 'Optimal' : 'ضمن النطاق المثالي') : temp > 38 ? (isEn ? 'High Temp!' : 'حرارة مرتفعة!') : hum < 45 ? (isEn ? 'Low Humidity' : 'رطوبة منخفضة') : hum > 85 ? (isEn ? 'High Humidity' : 'رطوبة مرتفعة') : (isEn ? 'Check Needed' : 'يحتاج مراجعة')}</div>
            </div>
            <div className="w-full">
               <ClimateSparkline color={temp > 32 ? 'var(--status-error)' : temp > 28 ? 'var(--status-warning)' : 'var(--status-success)'} gradientId="climateGradHome" />
@@ -388,10 +394,10 @@ function MicroclimateGlanceCard({ onGo, seconds, activeFarm, apiTemp, apiHum, ap
   );
 }
 
-function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, apiSoilTemp }) {
+function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp }) {
   const soilMoist = apiSoilMoist ?? 0;
   const soilTemp  = apiSoilTemp  ?? 0;
-  const isHealthy = soilMoist > 30 && soilMoist < 55;
+  const isHealthy = soilMoist >= 35 && soilMoist <= 80 && soilTemp >= 18 && soilTemp <= 35;
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
@@ -399,7 +405,7 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, api
       <div className="animate-fade-in delay-2">
       <CardTopRow 
         title={isEn ? "Soil & Crop Health" : "بيئة وصحة التربة"} 
-        subtitle={formatLastUpdated(seconds)} 
+        subtitle={<LastUpdatedTimer seconds={0} ar="آخر تحديث" en="Last Update" isEn={isEn} />} 
         icon={<PlantSoilIcon />} 
         isEn={isEn}
         iconBg="bg-emerald-50"
@@ -427,7 +433,7 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, api
         <div className="flex flex-col items-center gap-4">
            <div className={`px-3 py-2 rounded-2xl flex flex-col items-center justify-center text-center shadow-sm min-w-[70px] border ${isHealthy ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}>
               <div className={`text-xs font-bold mb-0.5 ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isEn ? 'Status' : 'الوضع'}</div>
-              <div className={`text-[13px] font-black ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isHealthy ? (isEn ? 'Stable' : 'مستقر') : (isEn ? 'Unstable' : 'غير مستقر')}</div>
+              <div className={`text-[13px] font-black ${isHealthy ? 'text-[var(--status-success)]' : 'text-[var(--status-warning)]'}`}>{isHealthy ? (isEn ? 'Optimal' : 'ضمن النطاق المثالي') : soilMoist < 35 ? (isEn ? 'Dry Soil!' : 'تربة جافة!') : soilMoist > 80 ? (isEn ? 'Waterlogged' : 'تربة مشبعة') : soilTemp > 35 ? (isEn ? 'Hot Soil' : 'حرارة تربة مرتفعة') : (isEn ? 'Check Needed' : 'يحتاج مراجعة')}</div>
            </div>
            <div className="w-full">
               <SoilSparkline color={isHealthy ? 'var(--status-success)' : 'var(--status-warning)'} gradientId="soilGradHome" />
@@ -439,7 +445,7 @@ function SoilCropHealthGlanceCard({ onGo, seconds, activeFarm, apiSoilMoist, api
   );
 }
 
-function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashboardData, resourceData }) {
+function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData, resourceData }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   
   // Get real data from dashboard API
@@ -452,90 +458,74 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, seconds, activeFarm, dashb
       <div className="animate-fade-in delay-3">
         <CardTopRow 
           title={isEn ? "Irrigation Management" : "إدارة الري"} 
-          subtitle={formatLastUpdated(seconds)} 
+          subtitle={<LastUpdatedTimer seconds={0} ar="آخر تحديث" en="Last Update" isEn={isEn} />} 
           icon={<IrrigationSmartIcon />} 
           isEn={isEn}
           iconBg="bg-emerald-50"
           iconColor="text-[#059669]"
         />
 
-        <div className="mt-5 flex items-end justify-between gap-2">
-          <div className="flex flex-col gap-3">
-            <div className={`text-xs font-black px-2.5 py-1 rounded-lg w-max mb-3 shadow-sm flex items-center gap-1.5 border ${dashboardData?.irrigation_status === "active" ? 'text-emerald-700 bg-emerald-50 border-emerald-100/50' : 'text-gray-500 bg-gray-50 border-gray-100'}`}>
-              <span className="relative flex h-1.5 w-1.5 ">
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${dashboardData?.irrigation_status === "active" ? 'bg-emerald-400' : 'bg-gray-400'}`}></span>
-                <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${dashboardData?.irrigation_status === "active" ? 'bg-emerald-600' : 'bg-gray-600'}`}></span>
+        <div className="mt-8 flex flex-col items-center">
+          {/* Centered Donut Chart */}
+          <div className="relative w-32 h-32 flex items-center justify-center mb-6">
+            <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-gray-100/50" />
+              <circle
+                cx="50" cy="50" r="42" stroke={`url(#glanceFlowGrad-${dashboardData?.irrigation_status === "active" ? 100 : 0})`} strokeWidth="8"
+                strokeDasharray={264} strokeDashoffset={264 - (264 * (dashboardData?.irrigation_status === "active" ? 100 : 0)) / 100}
+                strokeLinecap="round" fill="transparent" className="transition-all duration-1000 ease-out"
+              />
+              <defs>
+                <linearGradient id={`glanceFlowGrad-${dashboardData?.irrigation_status === "active" ? 100 : 0}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor={dashboardData?.irrigation_status === "active" ? "#10b981" : "#ef4444"} />
+                  <stop offset="100%" stopColor={dashboardData?.irrigation_status === "active" ? "#3b82f6" : "#f87171"} />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute flex flex-col items-center">
+              <span className={`text-2xl font-black tracking-tighter ${dashboardData?.irrigation_status === "active" ? 'text-emerald-600' : 'text-gray-400'}`}>
+                {dashboardData?.irrigation_status === "active" ? "ON" : "OFF"}
               </span>
-              {isEn ? 'System Active' : 'النظام نشط'}
-            </div>
-            
-            <div className="flex flex-col">
-              <div className="text-xs text-gray-400 font-bold uppercase mb-0.5 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
-              <div className="text-3xl font-black text-gray-800 tracking-tight">
-                {Math.round(resourceData?.water ?? 0)} <span className="text-[13px] font-bold text-gray-400 mx-1 tracking-normal">{isEn ? 'L' : 'لتر'}</span>
-              </div>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{isEn ? "Flow" : "تدفق"}</span>
             </div>
           </div>
 
-          <div className="flex flex-col items-center gap-3">
-            <div className="relative w-28 h-28 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" stroke="currentColor" strokeWidth="7" fill="transparent" className="text-gray-100/50" />
-                <circle
-                  cx="50" cy="50" r="42" stroke={`url(#glanceFlowGrad-${dashboardData?.irrigation_status === "active" ? 100 : 0})`} strokeWidth="7"
-                  strokeDasharray={264} strokeDashoffset={264 - (264 * (dashboardData?.irrigation_status === "active" ? 100 : 0)) / 100}
-                  strokeLinecap="round" fill="transparent" className="transition-all duration-1000 ease-out"
-                />
-                <defs>
-                  <linearGradient id={`glanceFlowGrad-${dashboardData?.irrigation_status === "active" ? 100 : 0}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor={dashboardData?.irrigation_status === "active" ? "#10b981" : "#ef4444"} />
-                    <stop offset="100%" stopColor={dashboardData?.irrigation_status === "active" ? "#3b82f6" : "#f87171"} />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute flex flex-col items-center">
-                <span className={`text-[18px] font-black tracking-tighter ${dashboardData?.irrigation_status === "active" ? 'text-emerald-600' : 'text-gray-400'}`}>
-                  {dashboardData?.irrigation_status === "active" ? "ON" : "OFF"}
-                </span>
-                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{isEn ? "Flow" : "تدفق"}</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 w-full min-w-[110px] bg-gray-50/50 p-2 rounded-xl border border-gray-100/50">
-               <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-md bg-blue-50 text-blue-500 flex items-center justify-center border border-blue-100/50 shrink-0">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
-                  </div>
-                  <div className="flex-1 h-2 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
-                    <div className="h-full bg-blue-500 rounded-full transition-all duration-1000" style={{ width: `${waterPercent}%` }} />
-                  </div>
-                  <div className="text-[10px] font-black text-blue-600 shrink-0 min-w-[28px]">{waterPercent.toFixed(0)}%</div>
-               </div>
-               <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 rounded-md bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-100/50 shrink-0">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                  </div>
-                  <div className="flex-1 h-2 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
-                    <div className="h-full bg-amber-500 rounded-full transition-all duration-1000" style={{ width: `${energyPercent}%` }} />
-                  </div>
-                  <div className="text-[10px] font-black text-amber-600 shrink-0 min-w-[28px]">{energyKwh.toFixed(1)}</div>
-               </div>
+          {/* Centered Daily Consumption */}
+          <div className="flex flex-col items-center text-center">
+            <div className="text-xs text-gray-400 font-bold uppercase mb-1 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
+            <div className="text-4xl font-black text-gray-800 tracking-tight flex items-baseline gap-1">
+              {Math.round(resourceData?.water ?? 0)} <span className="text-base font-bold text-gray-400">{isEn ? 'L' : 'لتر'}</span>
             </div>
           </div>
         </div>
 
-        {globalAutoMode && (
-          <div className="bg-emerald-500 text-white rounded-xl py-2 px-4 mt-4 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(16,185,129,0.2)]">
-            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            <span className="text-[13px] font-black uppercase tracking-wider">{isEn ? 'Automatic Control Active' : 'التحكم التلقائي نشط'}</span>
-          </div>
-        )}
+        {/* Thickened Resource Bars */}
+        <div className="mt-8 flex flex-col gap-4 w-full bg-gray-50/50 p-4 rounded-[24px] border border-gray-100/50">
+           <div className="flex items-center gap-4">
+              <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center border border-blue-100/50 shrink-0 shadow-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+              </div>
+              <div className="flex-1 h-3.5 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
+                <div className="h-full bg-blue-500 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(59,130,246,0.5)]" style={{ width: `${waterPercent}%` }} />
+              </div>
+              <div className="text-[13px] font-black text-blue-600 shrink-0 min-w-[35px]">{waterPercent.toFixed(0)}%</div>
+           </div>
+           <div className="flex items-center gap-4">
+              <div className="w-6 h-6 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-100/50 shrink-0 shadow-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <div className="flex-1 h-3.5 bg-gray-200/50 rounded-full overflow-hidden shadow-inner relative">
+                <div className="h-full bg-amber-500 rounded-full transition-all duration-1000 shadow-[0_0_8px_rgba(245,158,11,0.5)]" style={{ width: `${energyPercent}%` }} />
+              </div>
+              <div className="text-[13px] font-black text-amber-600 shrink-0 min-w-[35px]">{energyKwh.toFixed(1)}</div>
+           </div>
+        </div>
       </div>
     </CardShell>
   );
 }
 
-function DSSGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
+function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const [interactedIds, setInteractedIds] = useState({}); // { index: 'approved' | 'later' | 'up' | 'down' }
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
@@ -646,7 +636,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, seconds, activeFarm }) {
         <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'Infer Engine Active' : 'محرك الاستدلال نشط'}</div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-           <span className="text-xs font-black text-emerald-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
+           <span className="text-xs font-black text-emerald-600 tracking-wide"><LastUpdatedTimer seconds={0} ar="" en="" isEn={isEn} /></span>
         </div>
       </div>
     </CardShell>
@@ -715,7 +705,7 @@ function MinimalStat({ value, label }) {
   );
 }
 
-function IoTSystemHealthCard({ isEn, seconds }) {
+function IoTSystemHealthCard({ isEn }) {
   return (
     <CardShell className="flex flex-col bg-white p-5 md:p-6 min-h-[220px]">
       <CardTopRow 
@@ -769,7 +759,7 @@ function IoTSystemHealthCard({ isEn, seconds }) {
         <div className="text-xs font-bold text-gray-400 tracking-tighter">{isEn ? 'Last Sync Time' : 'آخر مزامنة للبيانات'}</div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-           <span className="text-xs font-black text-blue-600 tracking-wide">{formatLastUpdated(seconds, "", "")}</span>
+           <span className="text-xs font-black text-blue-600 tracking-wide"><LastUpdatedTimer seconds={0} ar="" en="" isEn={isEn} /></span>
         </div>
       </div>
     </CardShell>
