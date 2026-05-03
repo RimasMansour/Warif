@@ -12,6 +12,16 @@ const authHeaders = () => ({
   'Authorization': `Bearer ${getToken()}`
 })
 
+// Global Persistence Cache to prevent "zeroing" on navigation
+const globalCache = {
+  latestSensors: null,
+  history: {}, // Keyed by sensor_type + limit
+  dashboard: {}, // Keyed by farm_id
+  recommendations: {}, // Keyed by farm_id
+  irrigationStatus: {}, // Keyed by farm_id
+  irrigationResources: {} // Keyed by farm_id
+};
+
 // Global Simulation State (frontend-only mock logic)
 let simState = {
   noisePhase: 0,
@@ -28,15 +38,13 @@ export function triggerManualIrrigation() {
   setTimeout(() => { simState.irrigationActive = false; }, 30000); // Auto off after 30s
 }
 export function triggerManualCooling() {
-  // Fan is thermostat-controlled by physics simulator
-  // This is a UI feedback function only
   console.log('[Warif] Manual cooling requested - simulator handles fan automatically at 33°C')
   return Promise.resolve({ status: 'acknowledged' })
 }
 
 export function useLatestSensors(intervalMs = 10000) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(globalCache.latestSensors)
+  const [loading, setLoading] = useState(!globalCache.latestSensors)
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
@@ -54,7 +62,7 @@ export function useLatestSensors(intervalMs = 10000) {
           throw new Error("Backend not ok")
         }
       } catch (fetchErr) {
-        // Fallback to base mock values if backend is down or throws error
+        // Fallback to base mock values if backend is down
         mapped = {
           air_temperature: 31,
           air_humidity: 45,
@@ -63,77 +71,7 @@ export function useLatestSensors(intervalMs = 10000) {
         }
       }
 
-      // --- SIMULATION ENGINE (FRONTEND INJECTION) ---
-      // DISABLED: Now using the true Backend Physics Engine.
-      if (false) {
-      mapped.air_temperature = parseFloat(mapped.air_temperature || mapped['درجة الحرارة'] || 31);
-      mapped.air_humidity = parseFloat(mapped.air_humidity || mapped['رطوبة الهواء'] || 45);
-      mapped.soil_moisture = parseFloat(mapped.soil_moisture || mapped['رطوبة التربة'] || 42);
-      mapped.soil_temperature = parseFloat(mapped.soil_temperature || mapped['حرارة التربة'] || 25);
-
-      // 1. Light Intensity (Mock Sensor)
-      mapped.light_intensity = 60000; 
-
-      // 2. Pulse Noise (Random fluctuation over time)
-      simState.noisePhase += 0.2;
-      const noise = Math.sin(simState.noisePhase);
-      mapped.air_temperature += noise * 0.5;
-      mapped.air_humidity += noise * 2;
-      mapped.soil_moisture += (Math.random() - 0.5) * 1.0;
-      mapped.light_intensity += (Math.random() - 0.5) * 5000;
-
-      // 3. Anomaly Generation (1% chance if no active anomaly)
-      if (!simState.activeAnomaly && Math.random() < 0.01) {
-        const anomalies = ["cooling_failure", "irrigation_failure"];
-        simState.activeAnomaly = anomalies[Math.floor(Math.random() * anomalies.length)];
-        simState.anomalyRemainingCycles = 5; // lasts for 5 cycles
-      }
-
-      if (simState.activeAnomaly) {
-        if (simState.activeAnomaly === "cooling_failure") {
-          mapped.air_temperature += 8; // Spike temp
-        } else if (simState.activeAnomaly === "irrigation_failure") {
-          mapped.soil_moisture = 15; // Severe drop
-        }
-        simState.anomalyRemainingCycles -= 1;
-        if (simState.anomalyRemainingCycles <= 0) {
-          simState.activeAnomaly = null; // Recover
-        }
-      }
-
-      // 4. Hysteresis Loop for Cooling
-      if (mapped.air_temperature >= 33) {
-        simState.coolingActive = true;
-      } else if (mapped.air_temperature <= 30 && !simState.activeAnomaly) {
-        simState.coolingActive = false;
-      }
-      
-      // Affect values based on active states
-      if (simState.coolingActive) {
-        mapped.air_temperature -= 1.5; // Simulate cooling pulling temp down
-      }
-      if (simState.irrigationActive) {
-        mapped.soil_moisture += 15; // Simulate watering
-      }
-      
-        // Attach simulation state flags to data for UI to consume
-        mapped.coolingActive = simState.coolingActive;
-        mapped.irrigationActive = simState.irrigationActive;
-        mapped.anomaly = simState.activeAnomaly;
-      }
-
-      // Maintain historic array for charts
-      simState.history.push({ 
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 
-        temp: mapped.air_temperature, 
-        hum: mapped.air_humidity, 
-        soil: mapped.soil_moisture 
-      });
-      if (simState.history.length > 20) {
-        simState.history.shift();
-      }
-
-      mapped.history = [...simState.history];
+      globalCache.latestSensors = mapped;
       setData(mapped)
       setError(null)
     } catch (err) {
@@ -153,8 +91,9 @@ export function useLatestSensors(intervalMs = 10000) {
 }
 
 export function useSensorHistory(sensor_type, limit = 100) {
-  const [data, setData] = useState([])
-  const [loading, setLoading] = useState(true)
+  const cacheKey = `${sensor_type}_${limit}`;
+  const [data, setData] = useState(globalCache.history[cacheKey] || [])
+  const [loading, setLoading] = useState(!globalCache.history[cacheKey])
 
   const fetch_data = useCallback(async () => {
     if (!sensor_type) return
@@ -164,14 +103,16 @@ export function useSensorHistory(sensor_type, limit = 100) {
       })
       if (res.ok) {
         const json = await res.json()
-        setData(json.reverse()) // Reverse so oldest is first for chart plotting
+        const reversed = json.reverse();
+        globalCache.history[cacheKey] = reversed;
+        setData(reversed)
       }
     } catch (err) {
       console.error("History fetch failed:", err)
     } finally {
       setLoading(false)
     }
-  }, [sensor_type, limit])
+  }, [sensor_type, limit, cacheKey])
 
   useEffect(() => {
     fetch_data()
@@ -215,16 +156,10 @@ export function useAutoAlerts(sensors, globalAutoMode) {
 
         const msg = backendAlert.message || (isEn ? "System Alert" : "تنبيه النظام");
 
-        // Extract headline: "انحراف حرج في رطوبة التربة" from full message
         let shortTitle = msg;
         let fullDetails = msg;
 
-        if (!isEn && msg.includes('-')) {
-          // Arabic: split on first dash to get headline
-          const parts = msg.split('-');
-          shortTitle = parts[0].trim();
-          fullDetails = msg;
-        } else if (isEn && msg.includes('-')) {
+        if (msg.includes('-')) {
           const parts = msg.split('-');
           shortTitle = parts[0].trim();
           fullDetails = msg;
@@ -233,11 +168,11 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         return {
           id: backendAlert.id,
           autoMode: globalAutoMode,
-          title: shortTitle, // Short headline for display
+          title: shortTitle,
           severity: frontendSeverity,
           sensor: isEn ? sensorNameEn : sensorNameAr,
           value: backendAlert.actual_value !== null ? backendAlert.actual_value.toString() : "",
-          message: fullDetails, // Full professional message
+          message: fullDetails,
           actionType: "system",
           timestamp: new Date(backendAlert.created_at).toLocaleTimeString()
         };
@@ -274,8 +209,8 @@ export function useAutoAlerts(sensors, globalAutoMode) {
 }
 
 export function useDashboard(farm_id) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(globalCache.dashboard[farm_id] || null)
+  const [loading, setLoading] = useState(!globalCache.dashboard[farm_id])
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
@@ -286,6 +221,7 @@ export function useDashboard(farm_id) {
       })
       if (!res.ok) throw new Error('Failed to fetch dashboard')
       const json = await res.json()
+      globalCache.dashboard[farm_id] = json;
       setData(json)
       setError(null)
     } catch (err) {
@@ -305,8 +241,8 @@ export function useDashboard(farm_id) {
 }
 
 export function useRecommendations(farm_id) {
-  const [data, setData] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(globalCache.recommendations[farm_id] || [])
+  const [loading, setLoading] = useState(!globalCache.recommendations[farm_id])
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
@@ -317,6 +253,7 @@ export function useRecommendations(farm_id) {
       })
       if (!res.ok) throw new Error('Failed to fetch recommendations')
       const json = await res.json()
+      globalCache.recommendations[farm_id] = json;
       setData(json)
       setError(null)
     } catch (err) {
@@ -336,8 +273,8 @@ export function useRecommendations(farm_id) {
 }
 
 export function useIrrigationStatus(farm_id) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(globalCache.irrigationStatus[farm_id] || null)
+  const [loading, setLoading] = useState(!globalCache.irrigationStatus[farm_id])
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
@@ -348,6 +285,7 @@ export function useIrrigationStatus(farm_id) {
       })
       if (!res.ok) throw new Error('Failed to fetch irrigation status')
       const json = await res.json()
+      globalCache.irrigationStatus[farm_id] = json;
       setData(json)
       setError(null)
     } catch (err) {
@@ -406,8 +344,8 @@ export function useIrrigationPrediction(farm_id, sensors) {
 }
 
 export function useIrrigationResources(farmId, intervalMs = 15000) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(globalCache.irrigationResources[farmId] || null)
+  const [loading, setLoading] = useState(!globalCache.irrigationResources[farmId])
 
   const fetch_data = useCallback(async () => {
     try {
@@ -420,6 +358,7 @@ export function useIrrigationResources(farmId, intervalMs = 15000) {
       })
       if (!res.ok) throw new Error('Failed')
       const json = await res.json()
+      globalCache.irrigationResources[farmId] = json;
       setData(json)
     } catch (err) {
       // silently fail

@@ -60,6 +60,10 @@
    Base
    ========================================================= */
 
+html {
+  scroll-behavior: smooth;
+}
+
 html,
 body,
 #root {
@@ -841,8 +845,19 @@ select option {
    Page Transition Wrapper
    ========================================================= */
 
+@keyframes pageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .page-enter {
-  animation: fadeInUp 500ms var(--ease-out-expo) both;
+  animation: pageSlideIn 600ms var(--ease-out-expo) both;
 }
 
 .page-exit {

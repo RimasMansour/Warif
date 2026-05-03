@@ -198,6 +198,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   // Navigation scaffold
   const [page, setPage] = useState("dashboard");
+
+  // Global UX: Scroll to top whenever page changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page]);
   const [activeFarm, setActiveFarm] = useState(0); 
   const [globalAutoMode, setGlobalAutoMode] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
