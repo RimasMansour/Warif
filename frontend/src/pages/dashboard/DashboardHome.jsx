@@ -176,13 +176,13 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
   return (
     <CardShell className="h-full flex flex-col bg-white p-5">
-      <CardTopRow 
+      <CardTopRow
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
         iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
         iconColor={alerts.length > 0 ? "text-red-500" : "text-emerald-600"}
         title={isEn ? "System Alerts" : "تنبيهات النظام اللحظية"}
         subtitle={
-          alerts.length > 0 
+          alerts.length > 0
             ? `${alerts.length} ${isEn ? 'Active alerts' : 'تنبيهات نشطة'}`
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
@@ -190,53 +190,72 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
       <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
         {alerts.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mb-2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-            <div className="text-[13px] font-bold">{isEn ? 'System Normal' : 'جميع الأنظمة طبيعية'}</div>
+            <div className="text-[13px] font-bold">{isEn ? 'No active alerts' : 'لا توجد تنبيهات نشطة'}</div>
           </div>
         ) : (
-          alerts.map((alert, i) => (
-            <div key={alert.id || i} className={`p-4 rounded-xl border flex flex-col gap-3 animate-fade-in ${alert.severity === 'high' ? 'bg-red-50/20 border-red-100/50' : 'bg-amber-50/20 border-amber-100/50'}`}>
-              <div className="flex justify-between items-start gap-2">
-                <div className="flex flex-col flex-1">
-                  <h4 className={`text-[15px] font-black leading-tight mb-2 ${alert.severity === 'high' ? 'text-red-700' : 'text-amber-700'}`}>
+          alerts.map((alert, i) => {
+            const isRtl = !isEn;
+            const isCritical = alert.severity === 'high' || alert.severity === 'critical';
+            const borderColor = isCritical ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-orange-500';
+            const bgColor = isCritical ? 'bg-red-50/20' : 'bg-orange-50/20';
+            const titleColor = isCritical ? 'text-red-700' : 'text-orange-700';
+
+            return (
+              <div key={alert.id || i} className={`p-4 rounded-lg ${borderColor} flex flex-col gap-3 animate-fade-in ${bgColor}`}>
+
+                {/* العنوان فقط - واضح وصريح */}
+                <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                  <h4 className={`text-[15px] font-black leading-tight ${titleColor}`}>
                     {alert.title}
                   </h4>
-                  <div className="text-[11px] font-bold text-gray-500">{alert.sensor} {alert.value ? `: ${alert.value}` : ''}</div>
+                  <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.timestamp}</span>
                 </div>
-                <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.timestamp}</span>
-              </div>
 
-              {alert.message && (
-                <div className={`rounded-2xl p-3 border ${alert.severity === 'high' ? 'bg-red-50/30 border-red-100/30' : 'bg-amber-50/30 border-amber-100/30'}`}>
-                  <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
-                    {alert.message}
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-2 border-t border-gray-100/60 flex items-center justify-between">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  {globalAutoMode ? (isEn ? 'System Feedback' : 'تقييم النظام') : (isEn ? 'Your Action' : 'إجراؤك')}
-                </span>
-
-                {globalAutoMode ? (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => onFeedback?.(alert.id, true)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm active:scale-90">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-                    </button>
-                    <button onClick={() => onFeedback?.(alert.id, false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 transition-all shadow-sm active:scale-90">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => onReject?.(alert.id)} className="px-3 py-1.5 rounded-lg text-[11px] font-black text-gray-500 hover:bg-gray-100 transition-all uppercase">{isEn ? 'Dismiss' : 'تجاهل'}</button>
-                    <button onClick={() => onAccept?.(alert.id)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-black shadow-md hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Execute' : 'نفذ'}</button>
+                {/* السبب - نبقيه كما هو */}
+                {alert.reason && (
+                  <div className={`rounded-lg p-3 bg-blue-50/50 border border-blue-100/40 ${isRtl ? 'text-right' : 'text-left'}`}>
+                    <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
+                      <span className="font-bold text-gray-800">السبب: </span>{alert.reason}
+                    </div>
                   </div>
                 )}
+
+                {/* الإجراء المطلوب - نبقيه كما هو */}
+                <div className={`bg-gradient-to-r ${isCritical ? 'from-red-100 to-red-50' : 'from-orange-100 to-orange-50'} rounded-lg p-3 border ${isCritical ? 'border-red-200' : 'border-orange-200'}`}>
+                  <div className={`${isRtl ? 'text-right' : 'text-left'}`}>
+                    <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">الإجراء:</div>
+                    <div className={`text-[13px] font-black ${isCritical ? 'text-red-700' : 'text-orange-700'}`}>
+                      {alert.action}
+                    </div>
+                  </div>
+                </div>
+
+                {/* الفيدباك - اللايك والدس لايك */}
+                <div className={`pt-2 border-t border-gray-100/60 flex items-center justify-between gap-2`}>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {isEn ? 'Was this helpful?' : 'هل كان مفيداً؟'}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => onFeedback?.(alert.id, false)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all"
+                      title={isEn ? 'Not helpful' : 'غير مفيد'}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                    </button>
+                    <button
+                      onClick={() => onFeedback?.(alert.id, true)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+                      title={isEn ? 'Helpful' : 'مفيد'}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </CardShell>
@@ -527,113 +546,114 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
 
 function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
-  const [interactedIds, setInteractedIds] = useState({}); // { index: 'approved' | 'later' | 'up' | 'down' }
+  const isRtl = !isEn;
+  const [interactedIds, setInteractedIds] = useState({});
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: apiRecs } = useRecommendations(farmId);
-  
-  // Use shared recommendations logic
-  const decisions = (apiRecs && apiRecs.length > 0) ? apiRecs.map(r => ({
-    mode: 'auto',
-    title: r.message?.slice(0, 50) || 'توصية',
-    desc: r.message || '',
-    reasoning: '',
-    time: isEn ? 'Just now' : 'الآن',
-  })).slice(0, 2) : [];
 
-  const T_Reason = isEn ? "Reason:" : "السبب:";
-  const T_Subtitle = isEn ? "Suggested actions to maintain environmental stability" : "إجراءات مقترحة للحفاظ على استقرار المحيط";
+  // Format recommendations professionally
+  const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs.slice(0, 2).map((r, idx) => ({
+    id: r.id || idx,
+    title: r.title || r.message?.slice(0, 45) || 'توصية',
+    data_insight: r.data_insight || r.reasoning || r.message || '',
+    suggestion: r.suggestion || r.message || '',
+    reason: r.reason || r.reasoning || '',
+    priority: r.priority === 'high' ? 'high' : 'normal',
+    category: r.category || 'general',
+    is_read: r.is_read,
+  })) : [];
+
+  const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات مدروسة لتحسين أداء المزرعة";
 
   const handleAction = (e, idx, type) => {
     e.stopPropagation();
     setInteractedIds(prev => ({ ...prev, [idx]: type }));
-    // In a real app, this would call an API
   };
 
   return (
     <CardShell className="p-6 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("dss")}>
       <div className="animate-fade-in delay-2">
-        <CardTopRow 
-          title={isEn ? "Smart Recommendations" : "توصيات ذكية"} 
-          subtitle={T_Subtitle} 
-          icon={<ListIcon />} 
+        <CardTopRow
+          title={isEn ? "Smart Recommendations" : "توصيات ذكية"}
+          subtitle={T_Subtitle}
+          icon={<ListIcon />}
           isEn={isEn}
           iconBg="bg-emerald-50"
           iconColor="text-[#059669]"
         />
       </div>
 
-      <div className="flex-1 flex flex-col gap-4 mt-4">
-        {(() => {
-          const visibleDecisions = decisions.filter((_, idx) => interactedIds[idx] !== 'later');
-          
-          if (visibleDecisions.length === 0) {
-            return (
-              <EmptyState 
-                compact={true}
-                title={isEn ? "No active recommendations" : "لا توجد توصيات نشطة حالياً"}
-                subtitle={isEn ? "All deferred recommendations can be found in the dedicated DSS page." : "تم تأجيل كافة المقترحات، يمكنك مراجعتها في الصفحة الخاصة بالتوصيات."}
-              />
-            );
-          }
-
-          return decisions.map((item, idx) => {
-            const status = interactedIds[idx];
+      <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
+        {recommendations.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
+            <div className="text-[13px] font-bold">{isEn ? 'No active recommendations' : 'لا توجد توصيات نشطة'}</div>
+          </div>
+        ) : (
+          recommendations.map((rec, idx) => {
+            const status = interactedIds[rec.id];
             if (status === 'later') return null;
-            
+
             return (
-              <div key={idx} className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-gray-100 bg-gray-50/30 animate-fade-in">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 mt-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[var(--status-success)] shadow-[0_0_8px_rgba(18,183,106,0.4)]" />
-                  </div>
-                  <div className="flex flex-col gap-0.5 flex-1">
-                    <div className="text-[14px] font-black text-gray-800 leading-tight">{item.title}</div>
-                    <div className="text-[11px] text-gray-400 font-bold leading-relaxed">
-                       <span className="text-emerald-600 font-extrabold ml-1">{T_Reason}</span>
-                       {item.reasoning}
+              <div key={rec.id} className={`p-4 rounded-xl border flex flex-col gap-2.5 animate-fade-in ${
+                rec.priority === 'high'
+                  ? 'bg-blue-50/30 border-blue-100/50'
+                  : 'bg-emerald-50/30 border-emerald-100/50'
+              }`}>
+
+                {/* العنوان */}
+                <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                  <div className="flex-1">
+                    <h4 className={`text-[14px] font-black leading-tight ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                      {rec.title}
+                    </h4>
+                    <div className="text-[10px] font-bold text-gray-500 mt-0.5">
+                      {rec.priority === 'high' ? (isEn ? 'High Priority' : 'أولوية عالية') : (isEn ? 'Normal Priority' : 'أولوية عادية')}
                     </div>
                   </div>
                 </div>
 
-                {/* Unified Interactive Footer for Recommendations */}
-                <div className="pt-2 border-t border-gray-100 flex items-center justify-between mt-0.5">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                    {status 
-                      ? (isEn ? 'Acknowledged' : 'تم استلام الإجراء') 
-                      : (globalAutoMode ? (isEn ? 'Accuracy' : 'دقة التحليل') : (isEn ? 'Authorize' : 'إذن التنفيذ'))}
-                  </span>
-                  
-                  {status ? (
-                    <div className="flex items-center gap-1.5 text-emerald-600 animate-fade-in">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
-                      <span className="text-[10px] font-black uppercase">{isEn ? 'Confirmed' : 'تم التأكيد'}</span>
+                {/* البيانات والتحليل */}
+                {rec.data_insight && (
+                  <div className={`rounded-lg p-2.5 bg-white/60 border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}>
+                    <div className="text-[11px] text-gray-600 leading-relaxed font-medium">
+                      <span className="font-bold text-gray-800">{isEn ? 'Analysis:' : 'التحليل:'}</span> {rec.data_insight}
                     </div>
-                  ) : (
-                    globalAutoMode ? (
-                      <div className="flex items-center gap-2">
-                        <button onClick={(e) => handleAction(e, idx, 'up')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-300 hover:text-emerald-600 hover:border-emerald-200 transition-all active:scale-90">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-                        </button>
-                        <button onClick={(e) => handleAction(e, idx, 'down')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-300 hover:text-red-600 hover:border-red-200 transition-all active:scale-90">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                        </button>
+                  </div>
+                )}
+
+                {/* الاقتراح */}
+                {rec.suggestion && (
+                  <div className={`bg-gradient-to-r ${rec.priority === 'high' ? 'from-blue-100 to-blue-50' : 'from-emerald-100 to-emerald-50'} rounded-lg p-3 border ${rec.priority === 'high' ? 'border-blue-200' : 'border-emerald-200'}`}>
+                    <div className={`${isRtl ? 'text-right' : 'text-left'}`}>
+                      <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">{isEn ? 'Suggestion' : 'الاقتراح'}:</div>
+                      <div className={`text-[13px] font-black ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                        {rec.suggestion}
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                         <button onClick={(e) => handleAction(e, idx, 'later')} className="px-2.5 py-1 rounded-lg text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase">{isEn ? 'Later' : 'لاحقاً'}</button>
-                         <button onClick={(e) => handleAction(e, idx, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-black shadow-lg shadow-emerald-600/10 hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Approve' : 'موافقة'}</button>
-                      </div>
-                    )
+                    </div>
+                  </div>
+                )}
+
+                {/* الأزرار */}
+                <div className={`pt-1 border-t border-gray-100/60 flex items-center justify-between gap-2`}>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                    {globalAutoMode ? (isEn ? 'Feedback' : 'تقييمك') : (isEn ? 'Action' : 'إجراء')}
+                  </span>
+
+                  {!globalAutoMode && (
+                    <div className="flex items-center gap-2">
+                      <button onClick={(e) => handleAction(e, rec.id, 'later')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-500 hover:bg-gray-100 transition-all uppercase">{isEn ? 'Later' : 'لاحقاً'}</button>
+                      <button onClick={(e) => handleAction(e, rec.id, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold shadow-md hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Apply' : 'تطبيق'}</button>
+                    </div>
                   )}
                 </div>
               </div>
             );
-          });
-        })()}
+          })
+        )}
       </div>
 
       <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-50">
-        <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'Infer Engine Active' : 'محرك الاستدلال نشط'}</div>
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'System Ready' : 'النظام جاهز'}</div>
         <div className="flex items-center gap-1.5">
            <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
            <span className="text-xs font-black text-emerald-600 tracking-wide"><LastUpdatedTimer seconds={0} ar="" en="" isEn={isEn} /></span>

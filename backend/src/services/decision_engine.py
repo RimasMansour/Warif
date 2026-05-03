@@ -1,4 +1,9 @@
 # backend/src/services/decision_engine.py
+"""
+Warif Digital Twin Decision Engine
+عقل التوأم الرقمي الذكي - يرى، يفكر، يحلل، ويقرر
+"""
+
 import os
 import logging
 from datetime import datetime, timezone
@@ -7,6 +12,7 @@ from typing import List, Optional, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class SmartRecommendation:
     message: str
@@ -14,12 +20,36 @@ class SmartRecommendation:
     category: str      # "irrigation" | "temperature" | "humidity" | "soil"
     severity: str      # "normal" | "warning" | "urgent"
     confidence: float  # 0.0 to 1.0
+    risk_level: Optional[str] = None  # NEW: من Risk Engine
+    anomalies: Optional[List[Dict]] = None  # NEW: من Anomaly Detector
 
 
 class SmartDecisionEngine:
+    """
+    عقل التوأم الرقمي - يجمع كل المعلومات ويتخذ قرارات ذكية
+    Integration:
+    1. Anomaly Detector: كشف الشذوذ
+    2. Risk Engine: تقييم المخاطر
+    3. ML Ensemble: تنبؤات الذكاء الاصطناعي
+    4. Weather API: العوامل الخارجية
+    """
+
     # Class-level cache to prevent duplicate recommendations
     # Key: (farm_id, category) -> Value: (message, severity, timestamp)
     _rec_cache: Dict[Tuple[int, str], Tuple[str, str, datetime]] = {}
+
+    def __init__(self):
+        """Initialize the decision engine with sub-components"""
+        try:
+            from src.ml.anomaly_detector import AnomalyDetector
+            from src.services.risk_engine import RiskEngine
+            self.anomaly_detector = AnomalyDetector()
+            self.risk_engine = RiskEngine()
+            logger.info("Decision Engine: Anomaly Detector & Risk Engine initialized")
+        except ImportError as e:
+            logger.error(f"Failed to load AI components: {e}")
+            self.anomaly_detector = None
+            self.risk_engine = None
 
     async def fetch_weather(self) -> dict:
         """Fetch real weather from open-meteo for Makkah region"""
@@ -287,3 +317,126 @@ class SmartDecisionEngine:
                 ))
 
         return recommendations
+
+    async def analyze_with_intelligence(self, sensor_data: dict, farm_id: Optional[int] = None) -> Dict:
+        """
+        القرار الموحد الذكي الشامل
+        يدمج:
+        1. الـ Anomaly Detection (كشف المشاكل)
+        2. الـ Risk Assessment (تقييم المخاطر)
+        3. الـ ML Analysis (التنبؤ الذكي)
+        4. العوامل الخارجية (الطقس، الوقت)
+
+        Returns: {
+            "recommendations": [...],  # التوصيات الأساسية
+            "risk_assessment": {...},  # تقييم المخاطر
+            "anomalies": [...],        # الشذوذ المكتشف
+            "overall_intelligence": {...},  # الحكم الموحد
+        }
+        """
+
+        # Step 1: Check for anomalies
+        anomalies = []
+        if self.anomaly_detector:
+            for sensor_type, value in sensor_data.items():
+                anomaly = await self.anomaly_detector.detect_anomalies(
+                    sensor_type, value, datetime.now(timezone.utc)
+                )
+                if anomaly:
+                    anomalies.append({
+                        "sensor": sensor_type,
+                        "type": anomaly.anomaly_type,
+                        "severity": anomaly.severity,
+                        "confidence": anomaly.confidence,
+                        "description": anomaly.probable_cause,
+                        "action": anomaly.recommended_action,
+                    })
+                    logger.warning(f"[ANOMALY] {sensor_type}: {anomaly.probable_cause}")
+
+        # Step 2: Assess risks
+        risk_assessment = {}
+        if self.risk_engine:
+            risk_report = await self.risk_engine.assess_overall_risk(sensor_data)
+            risk_assessment = {
+                "overall_score": risk_report.overall_risk_score,
+                "level": risk_report.risk_level,
+                "primary_risks": [
+                    {
+                        "name": r.name,
+                        "score": r.current_score,
+                        "trend": r.trend,
+                        "description": r.description,
+                    }
+                    for r in risk_report.primary_risks
+                ],
+                "secondary_risks": [
+                    {
+                        "name": r.name,
+                        "score": r.current_score,
+                        "description": r.description,
+                    }
+                    for r in risk_report.secondary_risks
+                ],
+                "immediate_actions": risk_report.immediate_actions_required,
+                "monitoring": risk_report.monitoring_recommendations,
+            }
+            logger.info(f"[RISK] Overall risk level: {risk_report.risk_level} ({risk_report.overall_risk_score:.2%})")
+
+        # Step 3: Get standard recommendations
+        recommendations = await self.analyze(sensor_data)
+
+        # Step 4: Enhance recommendations with risk info
+        for rec in recommendations:
+            if anomalies:
+                rec.anomalies = [a for a in anomalies if a["sensor"] in sensor_data]
+            if risk_assessment:
+                rec.risk_level = risk_assessment.get("level")
+
+        # Step 5: Build overall intelligence summary
+        overall_intelligence = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "farm_id": farm_id,
+            "anomaly_count": len(anomalies),
+            "critical_anomalies": len([a for a in anomalies if a.get("severity") == "critical"]),
+            "risk_level": risk_assessment.get("level", "unknown"),
+            "risk_score": risk_assessment.get("overall_score", 0),
+            "recommendation_count": len(recommendations),
+            "urgent_count": len([r for r in recommendations if r.severity == "urgent"]),
+            "status": self._determine_system_status(risk_assessment, recommendations, anomalies),
+        }
+
+        return {
+            "recommendations": recommendations,
+            "risk_assessment": risk_assessment,
+            "anomalies": anomalies,
+            "overall_intelligence": overall_intelligence,
+        }
+
+    def _determine_system_status(self, risk_assessment: Dict, recommendations: List, anomalies: List) -> str:
+        """
+        حكم نهائي على حالة النظام
+        """
+        # Critical if there are critical anomalies
+        critical_anomalies = len([a for a in anomalies if a.get("severity") == "critical"])
+        if critical_anomalies > 0:
+            return "CRITICAL - تدخل فوري مطلوب"
+
+        # Critical if risk is high
+        if risk_assessment.get("level") == "critical":
+            return "CRITICAL - مخاطر حرجة"
+
+        # Warning if there are urgent recommendations
+        urgent_recs = len([r for r in recommendations if r.severity == "urgent"])
+        if urgent_recs > 0:
+            return "WARNING - تدخل مطلوب قريباً"
+
+        # High alert if risk is high
+        if risk_assessment.get("level") == "high":
+            return "HIGH_ALERT - مراقبة مكثفة مطلوبة"
+
+        # Normal if moderate risk
+        if risk_assessment.get("level") == "moderate":
+            return "NORMAL - النظام يعمل بشكل عام"
+
+        # Good if low risk or safe
+        return "GOOD - جميع الأنظمة تعمل بشكل مثالي"

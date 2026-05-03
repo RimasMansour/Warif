@@ -66,14 +66,13 @@ class SensorInput(BaseModel):
 
 class IrrigationPredictionOut(BaseModel):
     farm_id: int
-    irrigation_needed: bool
-    confidence: float
-    duration_min: Optional[int]
-    reason: str
-    model: str = "warif_ensemble_v1"
-    rf_pred: Optional[int] = None
-    xgb_pred: Optional[int] = None
-    lstm_pred: Optional[int] = None
+    irrigation_needed: bool              # Unified decision from Decision Engine
+    confidence: float                     # Unified confidence (0.0-1.0)
+    duration_min: Optional[int]          # Suggested irrigation duration if needed
+    reason: str                           # Unified recommendation reason (Arabic)
+    model: str = "warif_decision_engine_v1"  # Now uses Decision Engine, not raw ML
+    # Note: Individual model predictions (rf_pred, xgb_pred, lstm_pred) are NOT exposed
+    # Users see only ONE unified decision combining ML + external factors
 
 class RetrainResponse(BaseModel):
     status: str
@@ -89,40 +88,54 @@ async def get_irrigation_prediction(
     soil_temp: float = 25.0,
     db: AsyncSession = Depends(get_db),
 ):
-    ensemble = get_ensemble()
-    if ensemble is None:
-        logger.warning("ML ensemble not available, returning 503 Service Unavailable")
-        raise HTTPException(
-            status_code=503,
-            detail="ML model service temporarily unavailable. Models not loaded."
-        )
+    """
+    Returns a UNIFIED irrigation decision from Decision Engine.
+    Integrates:
+    - ML Ensemble (RF + LSTM + XGBoost weighted voting): 50%
+    - Soil moisture analysis: 25%
+    - External weather data: 15%
+    - Time-of-day optimization: 10%
 
+    ⚠️ Users see ONE unified decision only, not ML model opinions!
+    """
     try:
-        features = {
+        from src.services.decision_engine import SmartDecisionEngine
+
+        sensor_data = {
             'soil_moisture': soil_moisture,
-            'soil_temp': soil_temp,
-            'soil_ph': 6.5,
-            'soil_ec': 1.8,
-            'air_temp': air_temp,
-            'humidity': humidity,
-            'co2_ppm': 650.0,
-            'vpd_kpa': 1.0,
-            'growth_stage_encoded': 3,
-            'days_since_transplant': 30,
+            'soil_temperature': soil_temp,
+            'air_temperature': air_temp,
+            'air_humidity': humidity,
         }
-        result = ensemble.predict(features)
-        needed = bool(result['ensemble_pred'] == 1)
+
+        engine = SmartDecisionEngine()
+        recommendations = await engine.analyze(sensor_data)
+
+        # Filter for irrigation recommendations only
+        irrigation_recs = [r for r in recommendations if r.category == 'irrigation']
+
+        if irrigation_recs:
+            # Use the most urgent/relevant irrigation recommendation
+            best_rec = max(irrigation_recs, key=lambda r: (r.severity == 'urgent', r.confidence))
+            irrigation_needed = best_rec.severity in ['urgent', 'warning']
+            confidence = best_rec.confidence
+            reason = best_rec.message
+        else:
+            # No irrigation recommendation = system is in optimal state
+            irrigation_needed = False
+            confidence = 0.95
+            reason = "لا يحتاج ري - المحمية في الحالة المثالية"
 
         pred_out = IrrigationPredictionOut(
             farm_id=farm_id,
-            irrigation_needed=needed,
-            confidence=result['confidence'],
-            duration_min=15 if needed else None,
-            reason="يحتاج ري" if needed else "لا يحتاج ري",
-            model=result.get('model_version', 'warif_ensemble_v1'),
-            rf_pred=result.get('rf_pred'),
-            xgb_pred=result.get('xgb_pred'),
-            lstm_pred=result.get('lstm_pred'),
+            irrigation_needed=irrigation_needed,
+            confidence=confidence,
+            duration_min=15 if irrigation_needed else None,
+            reason=reason,
+            model="warif_decision_engine_v1",
+            rf_pred=None,           # ← Not exposed to user!
+            xgb_pred=None,          # ← Not exposed to user!
+            lstm_pred=None,         # ← Not exposed to user!
         )
         await _save_prediction(db, farm_id, pred_out)
         return pred_out
@@ -130,7 +143,7 @@ async def get_irrigation_prediction(
         logger.error(f"Error during irrigation prediction: {e}")
         raise HTTPException(
             status_code=500,
-            detail="Failed to compute irrigation prediction"
+            detail="Failed to compute unified irrigation decision"
         )
 
 

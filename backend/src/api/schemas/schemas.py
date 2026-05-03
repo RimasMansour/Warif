@@ -214,6 +214,51 @@ class AlertOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Professional Presentation Schemas (للعرض الاحترافي في الداشبورد) ──────
+
+class AlertPresentation(BaseModel):
+    """إنذار بصيغة احترافية مفهومة للمزارع"""
+    icon: str  # 🚨 | ⚠️ | 🔔
+    title: str  # "رطوبة التربة منخفضة جداً"
+    severity: str  # "critical" | "warning" | "info"
+
+    # المعلومات الأساسية (بدون أرقام معقدة)
+    current_value: str  # "رطوبة التربة: 25%"
+    expected_value: str  # "الحد المقبول: 40-70%"
+    difference: str  # "أقل من الحد بـ 15%"
+
+    # الإجراء المطلوب
+    action: str  # "قم بتفعيل الري الآن"
+    urgency: str  # "فوري" | "خلال ساعة" | "قريباً"
+
+    # معلومات إضافية
+    reason: Optional[str] = None  # "النبات يحتاج للماء..."
+    timestamp: Optional[str] = None
+
+
+class RecommendationPresentation(BaseModel):
+    """توصية بصيغة احترافية مفهومة للمزارع"""
+    icon: str  # 💡 | 📈 | 🎯
+    title: str  # "زيادة الري تدريجياً"
+
+    # التحليل المبني على البيانات
+    data_insight: str  # "رطوبة التربة قريبة من الحد الأدنى"
+    reason: str  # لماذا هذا مهم؟
+
+    # الاقتراح العملي
+    suggestion: str  # "أضف فترة ري إضافية كل يومين"
+    benefit: Optional[str] = None  # "توفير 30% من المياه"
+
+    # الوقت
+    timing: str  # "على الفور" | "خلال 24 ساعة"
+
+    # معلومات إضافية
+    priority: str = "normal"  # "high" | "normal" | "low"
+    category: str = "general"  # "irrigation" | "cooling" | "health"
+
+    model_config = {"from_attributes": True}
+
+
 # ── Command ────────────────────────────────────────────────────────────────
 
 class CommandIn(BaseModel):

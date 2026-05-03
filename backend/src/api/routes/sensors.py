@@ -200,10 +200,30 @@ async def ingest_sensor_reading(
         if device_obj and device_obj.farm_id:
             try:
                 from src.services.decision_engine import SmartDecisionEngine
-                from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity
+                from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus
 
                 engine = SmartDecisionEngine()
-                smart_recs = await engine.analyze(full_sensor_data)
+
+                # استخدم القرار الذكي الشامل (مع Anomaly Detection + Risk Assessment)
+                intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, device_obj.farm_id)
+
+                # Log the intelligence report
+                logger.info(f"[DIGITAL_TWIN] Farm {device_obj.farm_id}: {intelligence_report['overall_intelligence']['status']}")
+                logger.debug(f"Risk Level: {intelligence_report['overall_intelligence']['risk_level']}")
+
+                # Handle anomalies
+                for anomaly in intelligence_report.get('anomalies', []):
+                    if anomaly['severity'] in ['critical', 'high']:
+                        anomaly_message = f"🚨 شذوذ: {anomaly['sensor']} - {anomaly['description']}"
+                        db.add(Alert(
+                            sensor_type=anomaly['sensor'],
+                            message=anomaly_message,
+                            severity=AlertSeverity.critical if anomaly['severity'] == 'critical' else AlertSeverity.warning,
+                            status=AlertStatus.open,
+                            farm_id=device_obj.farm_id if hasattr(device_obj, 'farm_id') else None,
+                        ))
+
+                smart_recs = intelligence_report['recommendations']
 
                 cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
                 sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}

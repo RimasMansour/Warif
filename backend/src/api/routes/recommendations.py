@@ -8,11 +8,13 @@ from src.db.session import get_db
 from src.db.models.models import Recommendation, Farm
 from src.api.schemas.schemas import RecommendationOut
 from src.core.security import get_current_user
+from src.services.presentation_formatter import PresentationFormatter
 
 router = APIRouter()
+formatter = PresentationFormatter()
 
 
-@router.get("/{farm_id}", response_model=List[RecommendationOut])
+@router.get("/{farm_id}", response_model=List[dict])
 async def list_recommendations(
     farm_id: int,
     category: Optional[str] = Query(None, description="irrigation | temperature | humidity | soil | general"),
@@ -39,7 +41,35 @@ async def list_recommendations(
         q = q.where(Recommendation.is_read == False)
 
     result = await db.execute(q)
-    return result.scalars().all()
+    recommendations = result.scalars().all()
+
+    # تنسيق احترافي للبيانات
+    professional_recs = []
+    for rec in recommendations:
+        # تنسيق مخصص حسب نوع التوصية
+        formatted = formatter.format_recommendation(
+            rec_type=f"{rec.category}" if rec.category else "general",
+            data_insight=rec.reasoning or rec.message,
+            category=rec.category or "general"
+        )
+
+        professional_recs.append({
+            "id": rec.id,
+            "title": formatted.title,
+            "data_insight": formatted.data_insight,
+            "reason": formatted.reason,
+            "suggestion": formatted.suggestion,
+            "benefit": formatted.benefit,
+            "timing": formatted.timing,
+            "priority": formatted.priority,
+            "category": formatted.category,
+            "is_read": rec.is_read,
+            "created_at": rec.created_at.isoformat() if rec.created_at else None,
+            "severity": rec.severity,
+            "message": rec.message,
+        })
+
+    return professional_recs
 
 
 @router.post("/{farm_id}/mark-read/{recommendation_id}", response_model=RecommendationOut)
