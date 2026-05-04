@@ -379,8 +379,8 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
 
     sensor_device = next((d for d in devices if d.type == "sensor"), devices[0])
 
-    # Send readings via HTTP (triggers Decision Engine + Recommendations)
-    sensors_to_send = [
+    # Write readings directly to Database (no HTTP needed)
+    sensors_to_save = [
         ("air_temperature",  round(state["internal_temp"], 2),   "C"),
         ("air_humidity",     round(state["internal_hum"], 2),    "%"),
         ("soil_temperature", round(state["soil_temp"], 2),       "C"),
@@ -390,15 +390,16 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         ("power_usage",      round(energy_consumed * 1000, 3),   "Wh"),
     ]
 
-    for stype, val, unit in sensors_to_send:
-        try:
-            requests.post(
-                "http://localhost:8000/api/v1/sensors",
-                json={"device_id": sensor_device.device_id, "sensor_type": stype, "value": val, "unit": unit},
-                timeout=2
-            )
-        except Exception:
-            pass
+    # Save directly to Database
+    for stype, val, unit in sensors_to_save:
+        reading = SensorReading(
+            device_id=sensor_device.device_id,
+            sensor_type=stype,
+            value=val,
+            unit=unit,
+            timestamp=datetime.now()
+        )
+        db.add(reading)
 
     print(
         f"[{datetime.now().strftime('%H:%M:%S')}] Farm {fid} ({crop_type}) | "
