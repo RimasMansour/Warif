@@ -793,20 +793,6 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                     </p>
                   )}
                   
-                          </p>
-                        </div>
-                      </div>
-                      <div className={`text-xs font-black px-2.5 py-1 rounded-full ${
-                        device.status === 'active' 
-                          ? 'bg-emerald-100 text-emerald-700' 
-                          : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        {device.status === 'active' 
-                          ? (isEn ? 'Connected' : 'متصل') 
-                          : (isEn ? 'Offline' : 'غير متصل')}
-                      </div>
-                    </div>
-                  ))}
                 </div>
 
                 {/* Structured Footer */}
