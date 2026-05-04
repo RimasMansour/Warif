@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { translations } from "../../i18n";
+import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword } from '../../services/api';
 
 /* =========================================================
    WARIF | Ultra-Premium Sign-In & Registration Flow
@@ -22,9 +23,11 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
     setDirection(dir);
     setTransitioning(true);
     setTimeout(() => {
-      if (target === 'registerFarm') {
-        setPage('registerFarm');
+      if (target === 'registerFarm' || target === 'forgotPassword') {
+        setPage(target);
         setStep(1);
+      } else if (target === 'resetPassword') {
+        setPage('resetPassword');
       } else {
         setPage(target);
       }
@@ -34,8 +37,8 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
 
   const goBack = () => {
     if (page === 'registerUser') goTo('login', 'back');
-    else if (page === 'registerFarm') {
-      if (step === 1) goTo('registerUser', 'back');
+    else if (page === 'registerFarm' || page === 'forgotPassword') {
+      if (step === 1) goTo('login', 'back');
       else {
         setDirection('back');
         setTransitioning(true);
@@ -142,35 +145,22 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
               onNewUser={() => goTo('registerUser')} 
               T={T} 
               isRtl={isRtl} 
-              onForgotPassword={() => goTo('error')}
+              onForgotPassword={() => goTo('forgotPassword')}
             />
           )}
           
-          {page === 'error' && (
-            <div className="flex flex-col items-center justify-center text-center py-12 animate-fade-in-up">
-               <div className="w-24 h-24 bg-red-50 rounded-[32px] flex items-center justify-center mb-8 shadow-sm border border-red-100/50 relative">
-                  <div className="absolute inset-0 bg-red-500/10 rounded-[32px] animate-pulse"></div>
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="relative z-10">
-                     <circle cx="12" cy="12" r="10" />
-                     <line x1="12" y1="8" x2="12" y2="12" />
-                     <line x1="12" y1="16" x2="12.01" y2="16" />
-                  </svg>
-               </div>
-               <h2 className="text-2xl font-black text-gray-800 tracking-tight mb-4">
-                  {isRtl ? 'عذراً، الرابط غير متاح' : 'Sorry, Link Unavailable'}
-               </h2>
-               <p className="text-[15px] font-semibold text-gray-500 mb-10 max-w-[280px] leading-relaxed mx-auto">
-                  {isRtl 
-                    ? "خاصية استعادة كلمة المرور قيد التطوير حالياً وستكون متاحة قريباً في التحديثات القادمة." 
-                    : "Password recovery is currently under development and will be available in future updates."}
-               </p>
-               <button
-                 onClick={() => goTo('login', 'back')}
-                 className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black text-[15px] rounded-2xl transition-all active:scale-95"
-               >
-                 {isRtl ? 'العودة لتسجيل الدخول' : 'Back to Login'}
-               </button>
-            </div>
+          {page === 'resetPassword' && (
+            <ResetPassword onBack={() => goTo('login', 'back')} isRtl={isRtl} T={T} />
+          )}
+
+          {page === 'forgotPassword' && (
+            <ForgotPasswordPage
+              step={step}
+              setStep={setStep}
+              onBack={() => goTo('login', 'back')}
+              onSuccess={() => goTo('login', 'back')}
+              T={T} isRtl={isRtl}
+            />
           )}
           
           {page === 'registerUser' && (
@@ -188,7 +178,14 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
               {step === 3 && <DeviceScanPage onFinish={async () => {
                 const final = { ...userData };
                 try {
-                  const { registerUser, loginUser, createFarm } = await import('../../services/api.js');
+                  // Save user data to localStorage BEFORE calling loginUser
+                  localStorage.setItem('warif_user', JSON.stringify({ 
+                    username: final.username, 
+                    email: final.email, 
+                    password: final.password, 
+                    fullName: final.fullName 
+                  }));
+
                   await registerUser(
                     final.username,
                     final.email,
@@ -213,7 +210,6 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                   console.error('Registration error:', err);
                 }
                 localStorage.setItem('warif_logged_in', 'true');
-                localStorage.setItem('warif_user', JSON.stringify(final));
                 onLogin();
               }} T={T} isRtl={isRtl} selectedSensors={userData.sensors || []} />}
             </>
@@ -302,8 +298,9 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
     if (!password) errs.password = T.errPasswordRequired;
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setLoading(true);
+    console.log('warif_user in localStorage:', localStorage.getItem('warif_user'));
+    
     try {
-      const { loginUser } = await import('../../services/api.js');
       const data = await loginUser(username, password);
       localStorage.setItem('warif_token', data.access_token);
       localStorage.setItem('warif_logged_in', 'true');
@@ -315,6 +312,7 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
         const updatedUser = { 
           ...saved, 
           ...me,
+          password, // Store password so it can be viewed in settings
           farmId: farms && farms.length > 0 ? farms[0].id : saved.farmId 
         };
         localStorage.setItem('warif_user', JSON.stringify(updatedUser));
@@ -326,6 +324,14 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
       setLoading(false);
       onLogin();
     } catch (err) {
+      // Fallback to localStorage
+      const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      if (savedUser.username === username && savedUser.password === password) {
+        localStorage.setItem('warif_logged_in', 'true');
+        setLoading(false);
+        onLogin();
+        return;
+      }
       setLoading(false);
       setErrors({ password: T.errPasswordWrong });
     }
@@ -384,7 +390,7 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
           ) : (
             <>
               {T.loginBtn}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className={isRtl ? 'rotate-180' : ''}><path d="M15 18l-6-6 6-6" /></svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6" /></svg>
             </>
           )}
         </button>
@@ -395,6 +401,140 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
           {T.noAccount} <span className="text-emerald-600 underline underline-offset-4 decoration-emerald-200 group-hover:decoration-emerald-500">{T.registerNow}</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+function ForgotPasswordPage({ step, setStep, onBack, onSuccess, T, isRtl }) {
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  // Step 1: Send code
+  const handleSendCode = async () => {
+    setError('');
+    if (!email.trim() || !/\S+@\S+\.\S+/.test(email)) {
+      setError(T.errEmailInvalid || 'بريد إلكتروني غير صالح'); return;
+    }
+    setLoading(true);
+    try {
+      await sendResetCode(email);
+      setStep(2);
+    } catch (e) {
+      setError(e.message === 'EMAIL_NOT_FOUND' ? T.emailNotFound : T.emailSendFailed);
+    } finally { setLoading(false); }
+  };
+
+  // Step 2: Verify OTP
+  const handleVerifyCode = () => {
+    setError('');
+    const fullCode = code.join('');
+    if (fullCode.length < 6) { setError(T.codeWrong || 'أدخل الرمز كاملاً'); return; }
+    try {
+      verifyResetCode(fullCode);
+      setStep(3);
+    } catch { setError(T.codeWrong); }
+  };
+
+  // OTP input handler
+  const handleOtpInput = (index, value) => {
+    if (!/^\d?$/.test(value)) return;
+    const newCode = [...code];
+    newCode[index] = value;
+    setCode(newCode);
+    if (value && index < 5) {
+      document.getElementById(`otp-${index + 1}`)?.focus();
+    }
+  };
+
+  // Step 3: Save new password
+  const handleSavePassword = () => {
+    setError('');
+    if (newPass.length < 6) { setError(T.errPasswordLength); return; }
+    if (newPass !== confirmPass) { setError(T.errPasswordMatch); return; }
+    saveNewPassword(newPass);
+    setSuccess(T.passwordResetSuccess || 'تم تحديث كلمة المرور بنجاح');
+    setTimeout(() => onSuccess(), 1800);
+  };
+
+  return (
+    <div className="flex flex-col gap-6" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="text-center">
+        <h1 className="text-2xl font-black text-emerald-900">{T.resetPassword || 'استعادة كلمة المرور'}</h1>
+        <p className="text-xs text-emerald-700/60 mt-1">
+          {step === 1 ? (T.enterEmail || 'أدخل بريدك الإلكتروني المسجل') :
+           step === 2 ? (T.enterCode || 'أدخل رمز التحقق المرسل لبريدك') :
+           (T.newPassword || 'أدخل كلمة المرور الجديدة')}
+        </p>
+      </div>
+
+      {/* Step 1 — Email */}
+      {step === 1 && (
+        <div className="flex flex-col gap-4">
+          <InputField label={T.email || 'البريد الإلكتروني'} placeholder="example@email.com"
+            value={email} onChange={setEmail} isRtl={isRtl}
+            onKeyDown={e => e.key === 'Enter' && handleSendCode()}
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>}
+          />
+          {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
+          <button onClick={handleSendCode} disabled={loading}
+            className="btn-primary w-full py-4 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[20px] font-black text-base shadow-lg">
+            {loading ? '...' : (T.sendCode || 'إرسال الرمز')}
+          </button>
+        </div>
+      )}
+
+      {/* Step 2 — OTP */}
+      {step === 2 && (
+        <div className="flex flex-col gap-4">
+          <p className="text-xs text-center text-emerald-700/70">{T.codeSent || 'تم الإرسال'} — {email}</p>
+          <div className="flex gap-2 justify-center" dir="ltr">
+            {code.map((digit, i) => (
+              <input key={i} id={`otp-${i}`} type="text" inputMode="numeric"
+                maxLength={1} value={digit}
+                onChange={e => handleOtpInput(i, e.target.value)}
+                onKeyDown={e => { 
+                  if (e.key === 'Backspace' && !digit && i > 0) document.getElementById(`otp-${i-1}`)?.focus();
+                  if (e.key === 'Enter') handleVerifyCode();
+                }}
+                className="w-11 h-14 text-center text-xl font-black border-2 border-emerald-200 rounded-2xl focus:border-emerald-500 focus:outline-none bg-white/60 transition-all"
+              />
+            ))}
+          </div>
+          {error && <p className="text-xs text-red-600 font-bold text-center">{error}</p>}
+          <button onClick={handleVerifyCode}
+            className="btn-primary w-full py-4 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[20px] font-black text-base shadow-lg">
+            {T.verifyCode || 'تحقق من الرمز'}
+          </button>
+        </div>
+      )}
+
+      {/* Step 3 — New Password */}
+      {step === 3 && (
+        <div className="flex flex-col gap-4">
+          <InputField label={T.newPassword || 'كلمة المرور الجديدة'} type="password"
+            placeholder="••••••••" value={newPass} onChange={setNewPass} isRtl={isRtl}
+            onKeyDown={e => e.key === 'Enter' && handleSavePassword()}
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+          />
+          <InputField label={T.confirmNewPassword || 'تأكيد كلمة المرور'} type="password"
+            placeholder="••••••••" value={confirmPass} onChange={setConfirmPass} isRtl={isRtl}
+            onKeyDown={e => e.key === 'Enter' && handleSavePassword()}
+            icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
+          />
+          {error && <p className="text-xs text-red-600 font-bold">{error}</p>}
+          {success && <p className="text-xs text-emerald-600 font-bold text-center">{success}</p>}
+          <button onClick={handleSavePassword}
+            className="btn-primary w-full py-4 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[20px] font-black text-base shadow-lg">
+            {T.saveNewPassword || 'حفظ كلمة المرور'}
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -412,7 +552,7 @@ function RegisterUserPage({ onNext, T, isRtl }) {
   const validate = () => {
     const errs = {};
     if (!fullName.trim()) errs.fullName = T.errFullNameRequired;
-    if (!fullNameEn.trim()) errs.fullNameEn = T.errFullNameEnRequired || (isRtl ? "الاسم بالإنجليزية مطلوب" : "English name required");
+    if (!fullNameEn.trim()) errs.fullNameEn = T.errFullNameEnRequired;
     if (!username.trim()) errs.username = T.errUsernameRequired;
     else if (!/^[a-zA-Z0-9._]+$/.test(username)) errs.username = T.errUsernameEnglish;
     if (!email.trim()) errs.email = T.errEmailRequired;

@@ -40,6 +40,8 @@ export const translations = {
     errPasswordLength: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
     errPasswordMatch: 'كلمتا المرور غير متطابقتين',
     errFarmNameRequired: 'اسم المحمية مطلوب',
+    errFullNameEnRequired: 'يرجى إدخال اسمك الكامل باللغة الإنجليزية',
+    errFieldEmpty: 'لا يمكن ترك الحقل فارغاً',
 
     // Register user
     createAccount: 'إنشاء حساب جديد',
@@ -189,6 +191,20 @@ export const translations = {
     statusActive: 'نشط',
     statusIdle: 'خامل',
     liveValueLabel: 'القيمة اللحظية',
+    forgotPassword: 'نسيت كلمة المرور؟',
+    resetPassword: 'استعادة كلمة المرور',
+    enterEmail: 'أدخل بريدك الإلكتروني المسجل',
+    sendCode: 'إرسال الرمز',
+    enterCode: 'أدخل رمز التحقق',
+    codeSent: 'تم إرسال رمز التحقق إلى',
+    verifyCode: 'تحقق من الرمز',
+    newPassword: 'كلمة المرور الجديدة',
+    confirmNewPassword: 'تأكيد كلمة المرور الجديدة',
+    saveNewPassword: 'حفظ كلمة المرور',
+    passwordResetSuccess: 'تم تحديث كلمة المرور بنجاح ✓',
+    emailNotFound: 'البريد الإلكتروني غير مسجل في النظام',
+    emailSendFailed: 'فشل إرسال الرمز، تحقق من اتصالك',
+    codeWrong: 'الرمز غير صحيح، حاول مجدداً',
   },
 
   en: {
@@ -228,6 +244,8 @@ export const translations = {
     errPasswordLength: 'Password must be at least 6 characters',
     errPasswordMatch: 'Passwords do not match',
     errFarmNameRequired: 'Farm name is required',
+    errFullNameEnRequired: 'Full name in English is required',
+    errFieldEmpty: 'Field cannot be empty',
 
     // Register user
     createAccount: 'Create Account',
@@ -379,6 +397,20 @@ export const translations = {
     statusActive: 'Active',
     statusIdle: 'Idle',
     liveValueLabel: 'Live Value',
+    forgotPassword: 'Forgot password?',
+    resetPassword: 'Reset Password',
+    enterEmail: 'Enter your registered email address',
+    sendCode: 'Send Code',
+    enterCode: 'Enter verification code',
+    codeSent: 'Code sent to',
+    verifyCode: 'Verify Code',
+    newPassword: 'New Password',
+    confirmNewPassword: 'Confirm New Password',
+    saveNewPassword: 'Save Password',
+    passwordResetSuccess: 'Password updated successfully ✓',
+    emailNotFound: 'Email address not found in the system',
+    emailSendFailed: 'Failed to send code, check your connection',
+    codeWrong: 'Incorrect code, please try again',
   },
 };
 

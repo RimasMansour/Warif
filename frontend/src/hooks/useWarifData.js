@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { fetchWithRetry, getAuthHeaders, apiConfig } from '../config/api'
+import { triggerFanControl } from '../services/api'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -32,9 +33,18 @@ export function triggerManualIrrigation() {
   simState.irrigationActive = true;
   setTimeout(() => { simState.irrigationActive = false; }, 30000); // Auto off after 30s
 }
-export function triggerManualCooling() {
-  console.log('[Warif] Manual cooling requested - simulator handles fan automatically at 33°C')
-  return Promise.resolve({ status: 'acknowledged' })
+export async function triggerManualCooling(action = "start") {
+  console.log(`[Warif] Manual cooling requested: ${action}`);
+  try {
+    // We try to find a device_id from latest sensors if possible, or use a default/generic one
+    // In a real scenario, this would be the specific actuator ID for this farm.
+    const device_id = "GATEWAY_MASTER"; 
+    const res = await triggerFanControl(device_id, action);
+    return res;
+  } catch (err) {
+    console.error("Failed to trigger cooling:", err);
+    throw err;
+  }
 }
 
 export function useLatestSensors(intervalMs = 10000) {

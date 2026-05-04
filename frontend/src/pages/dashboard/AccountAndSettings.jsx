@@ -12,11 +12,13 @@ import {
   Account_SensorIcon 
 } from './DashboardShared';
 import { guides } from './GuidesContent';
+import { updateUser } from '../../services/api';
 
 export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLogout, onNameUpdate, sensors: propSensors, onSensorsChange, language: currentLang, onLanguageChange }) {
 
   const [page, setPage] = useState(initialPage);
   const [showToast, setShowToast] = useState(false);
+  const [showPasswordDraft, setShowPasswordDraft] = useState(false);
 
   const triggerToast = () => {
     setShowToast(true);
@@ -68,11 +70,13 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
     fullNameEn: savedUser.fullNameEn || "Admin User",
     username: savedUser.username || "admin",
     email: savedUser.email || "example@warif.sa",
-    password: "********",
+    password: savedUser.password || "********",
   });
 
   const [editingField, setEditingField] = useState(null);
   const [draftValue, setDraftValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   const [activeFarm, setActiveFarm] = useState(0);
   const [showUnifiedGuide, setShowUnifiedGuide] = useState(false);
   const userLang = lang || 'ar';
@@ -91,6 +95,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
   function openEdit(fieldKey) {
     setEditingField(fieldKey);
     setDraftValue(profile[fieldKey] || "");
+    setShowPasswordDraft(false);
   }
 
   function closeEdit() {
@@ -100,15 +105,27 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
 
   function saveEdit() {
     if (!editingField) return;
-    const newValue = draftValue.trim() || profile[editingField];
-    setProfile((p) => ({ ...p, [editingField]: newValue }));
+    const newValue = draftValue.trim();
+    
+    // Validation
+    if (!newValue) {
+      setErrorMsg(translations[lang].errFieldEmpty);
+      return;
+    }
+    if (editingField === 'email' && !/\S+@\S+\.\S+/.test(newValue)) {
+      setErrorMsg(translations[lang].errEmailInvalid);
+      return;
+    }
 
+    setErrorMsg("");
+    setProfile((p) => ({ ...p, [editingField]: newValue }));
     const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
     localStorage.setItem('warif_user', JSON.stringify({ ...saved, [editingField]: newValue }));
-
+    
     if ((editingField === 'fullName' || editingField === 'fullNameEn') && onNameUpdate) {
       onNameUpdate(newValue, editingField === 'fullNameEn');
     }
+    
     triggerToast();
     closeEdit();
   }
@@ -196,7 +213,6 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     <div className={isRtl ? 'text-right' : 'text-left'}>
                       <h2 className="text-xl font-black text-gray-800">{profile.fullName}</h2>
                       <p className="text-sm font-bold text-gray-400 mt-1">{profile.email}</p>
-                      <div className={`mt-2 text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 py-0.5 px-2 rounded-lg border border-emerald-100 w-max`}>{T.admin}</div>
                     </div>
                   </div>
                 </Account_Card>
@@ -210,7 +226,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     <Account_EditableField T={translations[lang]} isRtl={isRtl} label={translations[lang].fullNameEn} value={profile.fullNameEn} onEdit={() => openEdit("fullNameEn")} />
                     <Account_EditableField T={translations[lang]} isRtl={isRtl} label={T.username} value={profile.username} onEdit={() => openEdit("username")} />
                     <Account_EditableField T={translations[lang]} isRtl={isRtl} label={T.email} value={profile.email} onEdit={() => openEdit("email")} />
-                    <Account_EditableField T={translations[lang]} isRtl={isRtl} label={T.password} value={profile.password} onEdit={() => openEdit("password")} />
+                    <Account_EditableField T={translations[lang]} isRtl={isRtl} label={T.password} value="********" onEdit={() => openEdit("password")} />
                   </div>
                 </Account_Card>
               </div>
@@ -363,16 +379,44 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
           <div className={`bg-white rounded-3xl shadow-2xl border border-gray-100 w-[420px] max-w-[92vw] p-6 animate-modal-in ${isEn ? 'text-left' : 'text-right'}`}>
             <h3 className="text-[16px] font-black text-gray-800 mb-6">{T.updateData}</h3>
             <div className="flex flex-col gap-4">
-              <input
-                value={draftValue}
-                onChange={(e) => setDraftValue(e.target.value)}
-                type={editingField === "password" ? "password" : "text"}
-                className={`w-full px-4 py-3 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all font-bold ${isEn ? 'text-left' : 'text-right'}`}
-                placeholder={T.placeholder}
-                autoFocus
-              />
+              <div className="relative">
+                <input
+                  value={draftValue}
+                  onChange={(e) => { setDraftValue(e.target.value); setErrorMsg(""); }}
+                  onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
+                  type={editingField === 'password' ? (showPasswordDraft ? 'text' : 'password') : 'text'}
+                  className={`w-full px-4 py-3 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all font-bold ${isEn ? 'text-left' : 'text-right'} ${editingField === 'password' ? (isRtl ? 'pl-12' : 'pr-12') : ''}`}
+                  placeholder={T.placeholder}
+                  autoFocus
+                />
+                {editingField === 'password' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordDraft(v => !v)}
+                    className={`absolute top-1/2 -translate-y-1/2 ${isRtl ? 'left-3' : 'right-3'} text-gray-400 hover:text-emerald-600 transition-colors p-1`}
+                  >
+                    {showPasswordDraft ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
+              {errorMsg && <p className="text-[11px] font-bold text-red-500 mt-1">{errorMsg}</p>}
               <div className={`flex gap-2 mt-2 ${isEn ? 'flex-row-reverse' : ''}`}>
-                 <button onClick={saveEdit} className="flex-1 py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-200 transition-all active:scale-95">{T.save}</button>
+                 <button 
+                  onClick={saveEdit} 
+                  disabled={loading}
+                  className={`flex-1 py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2 ${loading ? 'opacity-70' : ''}`}
+                 >
+                   {loading && <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>}
+                   {T.save}
+                 </button>
                  <button onClick={closeEdit} className="px-6 py-3 bg-gray-50 text-gray-500 rounded-2xl font-black text-sm hover:bg-gray-100 transition-all">{T.cancel}</button>
               </div>
             </div>
@@ -391,6 +435,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                   <input
                     value={sensorModal.name}
                     onChange={(e) => setSensorModal(m => ({ ...m, name: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && saveSensorModal()}
                     className={`w-full px-4 py-3 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 outline-none font-bold ${isEn ? 'text-left' : 'text-right'}`}
                   />
                </div>
@@ -399,6 +444,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                   <input
                     value={sensorModal.type}
                     onChange={(e) => setSensorModal(m => ({ ...m, type: e.target.value }))}
+                    onKeyDown={(e) => e.key === 'Enter' && saveSensorModal()}
                     className={`w-full px-4 py-3 rounded-2xl border border-gray-200 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 outline-none font-bold ${isEn ? 'text-left' : 'text-right'}`}
                   />
                </div>

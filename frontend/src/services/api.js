@@ -120,11 +120,71 @@ export const getIrrigationResources = async (farm_id) => {
   })
 }
 
-export const triggerFanControl = async (farm_id, action = "start") => {
-  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/irrigation/resources/${farm_id}`, {
-    headers: getAuthHeaders()
+export const triggerFanControl = async (device_id, action = "start") => {
+  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/commands`, {
+    method: "POST",
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      device_id,
+      command: action === "start" ? "FAN_ON" : "FAN_OFF",
+      payload: JSON.stringify({ speed: 100 })
+    })
   })
 }
+
+// User Profile
+export const updateUser = async (userData) => {
+  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {
+    method: "PUT",
+    headers: getAuthHeaders(),
+    body: JSON.stringify(userData)
+  })
+}
+
+// Step 1: Send OTP to email via EmailJS
+export const sendResetCode = async (email) => {
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  if (!savedUser.email || savedUser.email !== email) {
+    throw new Error('EMAIL_NOT_FOUND');
+  }
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  localStorage.setItem('warif_reset_code', code);
+  localStorage.setItem('warif_reset_email', email);
+
+  const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      service_id: 'service_8j5wqpl',
+      template_id: 'template_u8zt5as',
+      user_id: 'G-oMnZWX9pcO2F2Mo',
+      template_params: {
+        to_email: email,
+        reset_code: code,
+        user_name: savedUser.fullName || savedUser.username || 'المستخدم'
+      }
+    })
+  });
+  if (!response.ok) throw new Error('EMAIL_SEND_FAILED');
+  return true;
+};
+
+// Step 2: Verify OTP code
+export const verifyResetCode = (code) => {
+  const stored = localStorage.getItem('warif_reset_code');
+  if (!stored || stored !== code.trim()) throw new Error('CODE_WRONG');
+  return true;
+};
+
+// Step 3: Save new password
+export const saveNewPassword = (newPassword) => {
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  savedUser.password = newPassword;
+  localStorage.setItem('warif_user', JSON.stringify(savedUser));
+  localStorage.removeItem('warif_reset_code');
+  localStorage.removeItem('warif_reset_email');
+  return true;
+};
 
 // Recommendations
 export const getRecommendations = async (farm_id, category = null) => {
