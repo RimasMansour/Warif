@@ -552,11 +552,18 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
   const { data: apiRecs } = useRecommendations(farmId);
 
   // Format recommendations professionally
+  const getShortSuggestion = (text) => {
+    if (!text) return '';
+    const words = text.split(' ');
+    return words.slice(0, 3).join(' ');
+  };
+
   const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs.slice(0, 2).map((r, idx) => ({
     id: r.id || idx,
-    title: r.title || r.message?.slice(0, 45) || 'توصية',
+    title: r.message || r.title?.replace(/💡\s*/g, '') || 'توصية',
     data_insight: r.data_insight || r.reasoning || r.message || '',
     suggestion: r.suggestion || r.message || '',
+    shortSuggestion: getShortSuggestion(r.suggestion || r.message || ''),
     reason: r.reason || r.reasoning || '',
     priority: r.priority === 'high' ? 'high' : 'normal',
     category: r.category || 'general',
@@ -607,23 +614,23 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
                   </h4>
                 </div>
 
-                {/* البيانات والتحليل */}
+                {/* التحليل */}
                 {rec.data_insight && (
-                  <div className={`rounded-lg p-2.5 bg-white/60 border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="text-[11px] text-gray-600 leading-relaxed font-medium">
-                      <span className="font-bold text-gray-800">{isEn ? 'Analysis:' : 'التحليل:'}</span> {rec.data_insight}
+                  <div className="flex flex-col gap-2">
+                    <div className="text-[13px] font-black text-gray-800">{isEn ? 'Analysis' : 'التحليل'}</div>
+                    <div className={`rounded-lg p-3 bg-white/60 border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}>
+                      <div className="text-[12px] text-gray-600 leading-relaxed font-medium">
+                        {rec.data_insight}
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* الاقتراح */}
+                {/* التوصية */}
                 {rec.suggestion && (
-                  <div className={`bg-gradient-to-r ${rec.priority === 'high' ? 'from-blue-100 to-blue-50' : 'from-emerald-100 to-emerald-50'} rounded-lg p-3 border ${rec.priority === 'high' ? 'border-blue-200' : 'border-emerald-200'}`}>
-                    <div className={`${isRtl ? 'text-right' : 'text-left'}`}>
-                      <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">{isEn ? 'Suggestion' : 'الاقتراح'}:</div>
-                      <div className={`text-[13px] font-black ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                        {rec.suggestion}
-                      </div>
+                  <div className={`rounded-lg p-3 bg-white/60 border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}>
+                    <div className="text-[12px] text-gray-600 leading-relaxed font-medium">
+                      <span className="font-bold text-emerald-700">{isEn ? 'Recommendation:' : 'التوصية:'}</span> {rec.suggestion}
                     </div>
                   </div>
                 )}
