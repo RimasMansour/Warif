@@ -150,15 +150,18 @@ async def chat(request: ChatRequest = Body(...)):
 @router.get("/health", response_model=HealthResponse, summary="Chatbot health check")
 async def health():
     """Check if ChromaDB and Groq are connected and working."""
-    from src.chatbot.rag_pipeline import _collection, _groq_client
+    from src.chatbot.rag_pipeline import get_collection, get_groq_client
 
+    chroma_col   = get_collection()
+    groq_client  = get_groq_client()
+    
     chroma_ok    = False
     vector_count = 0
-    groq_ok      = _groq_client is not None
+    groq_ok      = groq_client is not None
 
-    if _collection is not None:
+    if chroma_col is not None:
         try:
-            vector_count = _collection.count()
+            vector_count = chroma_col.count()
             chroma_ok    = True
         except Exception as e:
             logger.warning(f"ChromaDB health check failed: {e}")

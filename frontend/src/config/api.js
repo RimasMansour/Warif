@@ -40,11 +40,12 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
   const retryDelay = options.retryDelay ?? config.retryDelay
   const timeout = options.timeout ?? config.timeout
 
+  let timeoutId;
   try {
     debugLog(`Fetching: ${url}`)
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), timeout)
+    timeoutId = setTimeout(() => controller.abort(), timeout)
 
     const response = await fetch(url, {
       ...options,
@@ -66,7 +67,7 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
     debugLog(`Success: ${url}`, data)
     return data
   } catch (error) {
-    clearTimeout(timeoutId)
+    if (timeoutId) clearTimeout(timeoutId)
 
     if (error.name === 'AbortError') {
       error = new ApiError(`Request timeout (${timeout}ms)`, 408)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { translations } from "../../i18n";
-import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword } from '../../services/api';
+import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword, createFarm } from '../../services/api';
 
 /* =========================================================
    WARIF | Ultra-Premium Sign-In & Registration Flow
@@ -14,6 +14,8 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
   const [step, setStep] = useState(1);
   const [userData, setUserData] = useState({});
   const [transitioning, setTransitioning] = useState(false);
+  const [registerError, setRegisterError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [direction, setDirection] = useState('forward');
   const lang = propLang || 'ar';
   const T = translations[lang];
@@ -177,23 +179,22 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
               {step === 2 && <SensorSelectionStep onNext={(data) => { setUserData(d => ({ ...d, ...data })); nextStep(); }} T={T} />}
               {step === 3 && <DeviceScanPage onFinish={async () => {
                 const final = { ...userData };
+                setRegisterError('');
+                setIsSubmitting(true);
                 try {
-                  // Save user data to localStorage BEFORE calling loginUser
-                  localStorage.setItem('warif_user', JSON.stringify({ 
-                    username: final.username, 
-                    email: final.email, 
-                    password: final.password, 
-                    fullName: final.fullName 
-                  }));
-
+                  // 1. Attempt to register on backend
                   await registerUser(
                     final.username,
                     final.email,
                     final.password,
                     lang
                   );
+
+                  // 2. If registration success, login to get token
                   const loginData = await loginUser(final.username, final.password);
                   localStorage.setItem('warif_token', loginData.access_token);
+
+                  // 3. Create initial farm
                   const farmTypeMap = {
                     'محمية (مغلقة)': 'greenhouse',
                     'Greenhouse (Closed)': 'greenhouse',
@@ -202,16 +203,33 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                   };
                   const farmType = farmTypeMap[final.farmType] || 'greenhouse';
                   const farmData = await createFarm(final.farmName, farmType, final.cropType);
-                  if (farmData?.id) {
-                    const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-                    localStorage.setItem('warif_user', JSON.stringify({ ...saved, farmId: farmData.id }));
-                  }
+                  
+                  // 4. Save metadata locally
+                  localStorage.setItem('warif_user', JSON.stringify({ 
+                    username: final.username, 
+                    email: final.email, 
+                    password: final.password, 
+                    fullName: final.fullName,
+                    farmId: farmData?.id || null
+                  }));
+
+                  localStorage.setItem('warif_logged_in', 'true');
+                  setIsSubmitting(false);
+                  onLogin();
                 } catch (err) {
                   console.error('Registration error:', err);
+                  setIsSubmitting(false);
+                  // Extract error message from API response if available
+                  const msg = err.details?.detail || err.message || 'فشل الاتصال بالخادم';
+                  setRegisterError(msg);
                 }
-                localStorage.setItem('warif_logged_in', 'true');
-                onLogin();
-              }} T={T} isRtl={isRtl} selectedSensors={userData.sensors || []} />}
+              }} 
+              T={T} 
+              isRtl={isRtl} 
+              selectedSensors={userData.sensors || []} 
+              isLoading={isSubmitting}
+              error={registerError}
+              />}
             </>
           )}
         </div>
@@ -452,13 +470,17 @@ function ForgotPasswordPage({ step, setStep, onBack, onSuccess, T, isRtl }) {
   };
 
   // Step 3: Save new password
-  const handleSavePassword = () => {
+  const handleSavePassword = async () => {
     setError('');
     if (newPass.length < 6) { setError(T.errPasswordLength); return; }
     if (newPass !== confirmPass) { setError(T.errPasswordMatch); return; }
-    saveNewPassword(newPass);
-    setSuccess(T.passwordResetSuccess || 'تم تحديث كلمة المرور بنجاح');
-    setTimeout(() => onSuccess(), 1800);
+    try {
+      await saveNewPassword(newPass);
+      setSuccess(T.passwordResetSuccess || 'تم تحديث كلمة المرور بنجاح');
+      setTimeout(() => onSuccess(), 1800);
+    } catch (err) {
+      setError(T.errUpdatePassword || 'فشل تحديث كلمة المرور');
+    }
   };
 
   return (
@@ -785,7 +807,7 @@ function SensorSelectionStep({ onNext, T }) {
 }
 
 /* ----------------------------- DEVICE SCAN ----------------------------- */
-function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
+function DeviceScanPage({ onFinish, T, isRtl, selectedSensors, isLoading, error }) {
   const [permissions, setPermissions] = useState({ wifi: true, bluetooth: false, location: false });
   const [selectedDevice, setSelectedDevice] = useState('');
   const [deviceName, setDeviceName] = useState('');
@@ -951,10 +973,24 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors }) {
         />
       </div>
 
-      <button onClick={() => onFinish({ sensors: selectedSensors, linkedDevice: selectedDevice, deviceName, wifi: selectedWifi })} 
-        className={`btn-primary w-full py-4 rounded-[24px] font-black text-lg transition-all duration-500
-                   ${selectedDevice ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 grow-animation' : 'bg-emerald-800 text-white shadow-xl shadow-emerald-900/10'}`}>
-        {selectedDevice ? T.connectAndEnter : T.skipAndEnter}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-[18px] text-xs font-bold flex items-center gap-2 animate-shake">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+          {error}
+        </div>
+      )}
+
+      <button 
+        onClick={() => !isLoading && onFinish({ sensors: selectedSensors, linkedDevice: selectedDevice, deviceName, wifi: selectedWifi })} 
+        disabled={isLoading}
+        className={`btn-primary w-full py-4 rounded-[24px] font-black text-lg transition-all duration-500 flex items-center justify-center gap-3
+                   ${isLoading ? 'bg-gray-400 cursor-not-allowed' : 
+                     selectedDevice ? 'bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 grow-animation' : 'bg-emerald-800 text-white shadow-xl shadow-emerald-900/10'}`}>
+        {isLoading ? (
+          <svg className="animate-spin h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+        ) : (
+          selectedDevice ? T.connectAndEnter : T.skipAndEnter
+        )}
       </button>
     </div>
   );

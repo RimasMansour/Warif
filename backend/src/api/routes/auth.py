@@ -142,3 +142,46 @@ async def update_me(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    body: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    email = body.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+        
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="EMAIL_NOT_FOUND")
+        
+    # Here we would normally generate OTP and send via email.
+    # For now, we will return success so the frontend can proceed with its EmailJS logic if needed,
+    # but at least we've verified the user exists in DB.
+    return {"status": "ok", "message": "User found"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    email = body.get("email")
+    new_password = body.get("new_password")
+    
+    if not email or not new_password:
+        raise HTTPException(status_code=400, detail="Email and new password are required")
+        
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user.password_hash = hash_password(new_password)
+    await db.commit()
+    return {"status": "ok", "message": "Password updated successfully"}

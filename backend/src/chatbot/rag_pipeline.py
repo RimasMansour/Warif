@@ -89,21 +89,32 @@ def _init_groq() -> Groq:
     return Groq(api_key=GROQ_API_KEY)
 
 
-# Module-level singletons — initialized independently so one failure doesn't break the other
-try:
-    _collection = _init_chroma()
-except Exception as e:
-    logger.error(f"ChromaDB init failed: {e}")
-    _collection = None
+_collection = None
+_groq_client = None
 
-try:
-    _groq_client = _init_groq()
-except Exception as e:
-    logger.error(f"Groq init failed: {e}")
-    _groq_client = None
+def get_collection():
+    """Lazy initialization of ChromaDB collection."""
+    global _collection
+    if _collection is None:
+        try:
+            _collection = _init_chroma()
+            logger.info("ChromaDB collection initialized successfully.")
+        except Exception as e:
+            logger.error(f"ChromaDB init failed: {e}")
+            _collection = None
+    return _collection
 
-if _collection and _groq_client:
-    logger.info("RAG pipeline initialized successfully.")
+def get_groq_client():
+    """Lazy initialization of Groq client."""
+    global _groq_client
+    if _groq_client is None:
+        try:
+            _groq_client = _init_groq()
+            logger.info("Groq client initialized successfully.")
+        except Exception as e:
+            logger.error(f"Groq init failed: {e}")
+            _groq_client = None
+    return _groq_client
 
 
 # ── Retrieval ──────────────────────────────────────────────────────────────────
@@ -112,10 +123,11 @@ def retrieve(query: str, n_results: int = 4) -> tuple[list, list, list]:
     Retrieve top-k relevant chunks from ChromaDB for a given query.
     Returns (documents, metadatas, distances).
     """
-    if _collection is None:
+    col = get_collection()
+    if col is None:
         raise RuntimeError("ChromaDB collection not initialized.")
 
-    results = _collection.query(
+    results = col.query(
         query_texts=[query],
         n_results=n_results
     )
@@ -212,7 +224,10 @@ def ask(
             distances   : list — retrieval distances (lower = more relevant)
             sensor_used : bool — whether sensor data was included
     """
-    if _collection is None or _groq_client is None:
+    col = get_collection()
+    groq_client = get_groq_client()
+
+    if col is None or groq_client is None:
         return {
             "answer"      : "Chatbot service is not initialized. Check server logs.",
             "sources"     : [],
@@ -234,7 +249,7 @@ def ask(
 
     # Step 3: Call Groq API
     try:
-        response = _groq_client.chat.completions.create(
+        response = groq_client.chat.completions.create(
             model       = GROQ_MODEL,
             messages    = messages,
             max_tokens  = max_tokens,

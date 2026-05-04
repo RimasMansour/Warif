@@ -141,12 +141,21 @@ export const updateUser = async (userData) => {
   })
 }
 
-// Step 1: Send OTP to email via EmailJS
+// Step 1: Verify email in backend + Send OTP via EmailJS
 export const sendResetCode = async (email) => {
-  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
-  if (!savedUser.email || savedUser.email !== email) {
-    throw new Error('EMAIL_NOT_FOUND');
+  // Check if email exists in DB first
+  try {
+    await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+  } catch (err) {
+    if (err.status === 404) throw new Error('EMAIL_NOT_FOUND');
+    throw err;
   }
+
+  // If found, generate local code and send via EmailJS
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   localStorage.setItem('warif_reset_code', code);
   localStorage.setItem('warif_reset_email', email);
@@ -161,7 +170,7 @@ export const sendResetCode = async (email) => {
       template_params: {
         to_email: email,
         reset_code: code,
-        user_name: savedUser.fullName || savedUser.username || 'المستخدم'
+        user_name: 'مزارع وريف' // Generic since we don't have full name yet
       }
     })
   });
@@ -176,11 +185,17 @@ export const verifyResetCode = (code) => {
   return true;
 };
 
-// Step 3: Save new password
-export const saveNewPassword = (newPassword) => {
-  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
-  savedUser.password = newPassword;
-  localStorage.setItem('warif_user', JSON.stringify(savedUser));
+// Step 3: Save new password to backend
+export const saveNewPassword = async (newPassword) => {
+  const email = localStorage.getItem('warif_reset_email');
+  if (!email) throw new Error('RESET_SESSION_EXPIRED');
+
+  await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, new_password: newPassword })
+  });
+
   localStorage.removeItem('warif_reset_code');
   localStorage.removeItem('warif_reset_email');
   return true;

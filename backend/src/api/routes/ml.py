@@ -133,9 +133,6 @@ async def get_irrigation_prediction(
             duration_min=15 if irrigation_needed else None,
             reason=reason,
             model="warif_decision_engine_v1",
-            rf_pred=None,           # ← Not exposed to user!
-            xgb_pred=None,          # ← Not exposed to user!
-            lstm_pred=None,         # ← Not exposed to user!
         )
         await _save_prediction(db, farm_id, pred_out)
         return pred_out

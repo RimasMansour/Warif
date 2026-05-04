@@ -82,6 +82,11 @@ class User(Base):
     is_active    = Column(Boolean, default=True)
     created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
+    # Password Reset
+    otp_code     = Column(String(6), nullable=True)
+    otp_expiry   = Column(DateTime(timezone=True), nullable=True)
+    reset_token  = Column(String(256), nullable=True)
+
     farms = relationship("Farm", back_populates="user")
 
     def __repr__(self):
