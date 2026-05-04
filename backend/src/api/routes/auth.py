@@ -77,6 +77,8 @@ async def register(
 
     user = User(
         username=body.username,
+        full_name=body.full_name,
+        full_name_en=body.full_name_en,
         email=body.email,
         password_hash=hash_password(body.password),
         language=body.language or "ar",
@@ -135,6 +137,12 @@ async def update_me(
                 detail="Email already registered",
             )
         user.email = body.email
+
+    if body.full_name:
+        user.full_name = body.full_name
+    
+    if body.full_name_en:
+        user.full_name_en = body.full_name_en
 
     if body.language:
         user.language = body.language

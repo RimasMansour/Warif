@@ -20,6 +20,8 @@ class TokenOut(BaseModel):
 
 class UserRegisterIn(BaseModel):
     username: str = Field(..., min_length=2, max_length=64)
+    full_name: Optional[str] = Field(None, max_length=128)
+    full_name_en: Optional[str] = Field(None, max_length=128)
     email:    str = Field(..., max_length=128)
     password: str = Field(..., min_length=6)
     language: Optional[str] = "ar"
@@ -28,6 +30,8 @@ class UserRegisterIn(BaseModel):
 class UserOut(BaseModel):
     id:         int
     username:   str
+    full_name:  Optional[str] = None
+    full_name_en: Optional[str] = None
     email:      str
     language:   str
     role:       str
@@ -39,6 +43,8 @@ class UserOut(BaseModel):
 
 class UserUpdateIn(BaseModel):
     username: Optional[str] = Field(None, min_length=2, max_length=64)
+    full_name: Optional[str] = Field(None, max_length=128)
+    full_name_en: Optional[str] = Field(None, max_length=128)
     email:    Optional[str] = Field(None, max_length=128)
     language: Optional[str] = None
 

@@ -13,11 +13,18 @@ export const loginUser = async (username, password) => {
   })
 }
 
-export const registerUser = async (username, email, password, language = "ar") => {
+export const registerUser = async (username, email, password, fullName = "", fullNameEn = "", language = "ar") => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, email, password, language })
+    body: JSON.stringify({ 
+      username, 
+      email, 
+      password, 
+      language,
+      full_name: fullName,
+      full_name_en: fullNameEn
+    })
   })
 }
 
