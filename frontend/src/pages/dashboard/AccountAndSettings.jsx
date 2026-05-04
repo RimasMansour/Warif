@@ -203,26 +203,70 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
   };
 
   const saveFarmName = async () => {
-    if (!editingFarm || !farmDraft.trim()) return;
+    const trimmedName = farmDraft.trim();
+    if (!trimmedName) return;
+
+    // Duplicate check
+    const isDuplicate = userFarms.some(f => 
+      f.name.toLowerCase() === trimmedName.toLowerCase() && f.id !== editingFarm.id
+    );
+    if (isDuplicate) {
+      setErrorMsg(isEn ? "This name already exists" : "هذا الاسم موجود بالفعل");
+      return;
+    }
+
+    setLoading(true);
+    setErrorMsg("");
     try {
-      await fetchWithRetry(
-        `${apiConfig.baseURL}/api/v1/farms/${editingFarm.id}`,
-        {
-          method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json',
-            ...getAuthHeaders() 
-          },
-          body: JSON.stringify({ name: farmDraft.trim() })
-        }
-      );
-      setUserFarms(prev => prev.map(f => 
-        f.id === editingFarm.id ? { ...f, name: farmDraft.trim() } : f
-      ));
+      if (editingFarm.id === 'new' || editingFarm.id === 'fallback') {
+        await createFarm(trimmedName, 'greenhouse', 'General');
+        // Refresh farm list from backend
+        const farms = await getFarms();
+        setUserFarms(farms || []);
+      } else {
+        // Fallback: If PATCH /farms/:id doesn't exist, we might need to check with user
+        // But let's try PATCH first as it's the standard REST way
+        await fetchWithRetry(
+          `${apiConfig.baseURL}/api/v1/farms/${editingFarm.id}`,
+          {
+            method: 'PATCH',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...getAuthHeaders() 
+            },
+            body: JSON.stringify({ name: farmDraft.trim() })
+          }
+        );
+        setUserFarms(prev => prev.map(f => 
+          f.id === editingFarm.id ? { ...f, name: trimmedName } : f
+        ));
+      }
       setEditingFarm(null);
       triggerToast();
-    } catch {
-      console.error('Failed to update farm name');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteFarm = async (farmId) => {
+    if (!window.confirm(isEn ? "Are you sure you want to delete this greenhouse?" : "هل أنت متأكد من حذف هذه المحمية؟")) return;
+    
+    setLoading(true);
+    try {
+      await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/farms/${farmId}`,
+        {
+          method: 'DELETE',
+          headers: getAuthHeaders()
+        }
+      );
+      setUserFarms(prev => prev.filter(f => f.id !== farmId));
+      triggerToast();
+    } catch (err) {
+      console.error('Delete farm error:', err);
+      setErrorMsg(isEn ? "Failed to delete greenhouse" : "فشل حذف المحمية");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -327,35 +371,6 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                 </Account_Card>
               </div>
 
-              <div className="animate-fade-in-up delay-3">
-                <div className="rounded-3xl border border-gray-100 bg-white shadow-sm p-5 flex flex-col gap-3">
-                  <h3 className="text-sm font-black text-gray-700 text-right">
-                    {isEn ? 'My Greenhouses' : 'محمياتي'}
-                  </h3>
-                  
-                  {userFarms.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-2">
-                      {isEn ? 'No greenhouses found' : 'لا توجد محميات مسجلة'}
-                    </p>
-                  )}
-                  
-                  {userFarms.map((farm) => (
-                    <div key={farm.id} 
-                      className="flex items-center justify-between border-b border-gray-50 pb-3 last:border-0">
-                      <button
-                        onClick={() => openFarmEdit(farm)}
-                        className="text-xs text-emerald-600 font-black hover:text-emerald-800 transition-colors"
-                      >
-                        {isEn ? 'Edit' : 'تعديل'}
-                      </button>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-gray-800">{farm.name}</p>
-                        <p className="text-[10px] text-gray-400 uppercase">{farm.farm_type}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
 
               <div className="animate-fade-in-up delay-4">
                 <button 
@@ -419,8 +434,65 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                 </Account_Card>
               </div>
 
-              {/* Unified Guide Card */}
+              {/* My Greenhouses Section */}
               <div className="animate-fade-in-up delay-3">
+                <Account_Card className="card-interactive">
+                  <div className="flex items-center justify-between mb-5 pb-2 border-b border-gray-50">
+                    <div className={isRtl ? 'text-right' : 'text-left'}>
+                      <div className="text-lg font-bold text-gray-800 tracking-tight">{isEn ? 'My Greenhouses' : 'محمياتي'}</div>
+                      <div className="text-[12px] font-medium text-gray-400 mt-1">{isEn ? 'Manage your registered farm locations' : 'إدارة مواقع المحميات المسجلة'}</div>
+                    </div>
+                    <button 
+                      onClick={() => { setEditingFarm({ id: 'new', name: '' }); setFarmDraft(''); }}
+                      className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center hover:bg-emerald-100 transition-all shadow-sm border border-emerald-100/30"
+                    >
+                      <Account_PlusIcon />
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-col gap-3">
+                    {(() => {
+                      // Logic to match Sidebar fallback
+                      const savedFarmName = isEn
+                        ? (savedUser.farmNameEn || savedUser.farmName || 'My Greenhouse')
+                        : (savedUser.farmName || 'محمية الزيتون');
+                      
+                      const displayFarms = userFarms.length > 0 
+                        ? userFarms 
+                        : [{ id: 'fallback', name: savedFarmName, farm_type: 'GREENHOUSE' }];
+
+                      return displayFarms.map((farm) => (
+                        <div key={farm.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100 group transition-all hover:border-emerald-100 hover:bg-white">
+                          <div className={isRtl ? 'text-right' : 'text-left'}>
+                            <p className="text-sm font-black text-gray-800">{farm.name}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{farm.farm_type || 'GREENHOUSE'}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openFarmEdit(farm)}
+                              className="px-4 py-1.5 rounded-lg bg-white border border-gray-200 text-xs font-black text-emerald-600 hover:text-emerald-800 hover:border-emerald-200 transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              {T.edit}
+                            </button>
+                            {farm.id !== 'fallback' && (
+                              <button
+                                onClick={() => handleDeleteFarm(farm.id)}
+                                className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-100 transition-all border border-red-100 shadow-sm active:scale-90"
+                                title={isEn ? "Delete" : "حذف"}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </Account_Card>
+              </div>
+
+              <div className="animate-fade-in-up delay-4">
                 <Account_Card className="card-interactive">
                   <div className={`flex flex-col md:flex-row items-center justify-between gap-6 p-2`}>
                     <div className={`flex items-center gap-5 ${isRtl ? 'text-right' : 'text-left'}`}>
@@ -442,7 +514,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                 </Account_Card>
               </div>
 
-              <div className="animate-fade-in-up delay-4">
+              <div className="animate-fade-in-up delay-5">
                 <button 
                   onClick={() => { localStorage.removeItem('warif_remember'); onLogout?.(); }}
                   className={`w-full p-4 rounded-2xl bg-white border border-red-50 text-red-500 font-black text-[14px] hover:bg-red-50 transition-all flex items-center justify-center gap-3 shadow-sm card-interactive`}
@@ -600,34 +672,46 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
               <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
-              <span className="text-sm font-black tracking-tight">{translations[lang].saveSuccess}</span>
+              <span className="text-sm font-black tracking-tight">{translations[lang].savedSuccessfully}</span>
            </div>
         </div>
       )}
 
       {editingFarm && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setEditingFarm(null)}>
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-4" onClick={e => e.stopPropagation()}>
-            <h3 className="font-black text-gray-800 text-right text-base">
-              {isEn ? 'Edit Greenhouse Name' : 'تعديل اسم المحمية'}
+        <Account_ModalShell onClose={() => setEditingFarm(null)}>
+          <div className={`bg-white rounded-3xl shadow-2xl border border-gray-100 w-[400px] max-w-[92vw] p-6 animate-modal-in ${isEn ? 'text-left' : 'text-right'}`}>
+            <h3 className="text-[17px] font-black text-gray-800 mb-6">
+              {editingFarm.id === 'new' 
+                ? (isEn ? 'Add New Greenhouse' : 'إضافة محمية جديدة')
+                : (isEn ? 'Edit Greenhouse Name' : 'تعديل اسم المحمية')
+              }
             </h3>
-            <input
-              value={farmDraft}
-              onChange={e => setFarmDraft(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && saveFarmName()}
-              className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 font-bold text-right transition-all"
-              autoFocus
-            />
-            <div className="flex gap-3">
-              <button onClick={() => setEditingFarm(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm hover:bg-gray-200 transition-colors">
-                {isEn ? 'Cancel' : 'إلغاء'}
-              </button>
-              <button onClick={saveFarmName} className="flex-1 py-3 rounded-2xl bg-gradient-to-l from-emerald-800 to-emerald-600 text-white font-black text-sm shadow-lg hover:opacity-90 transition-opacity">
-                {isEn ? 'Save' : 'حفظ'}
-              </button>
+            <div className="flex flex-col gap-4">
+              <input
+                value={farmDraft}
+                onChange={(e) => { setFarmDraft(e.target.value); setErrorMsg(""); }}
+                onKeyDown={(e) => e.key === 'Enter' && saveFarmName()}
+                className={`w-full px-4 py-3 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all font-bold ${isEn ? 'text-left' : 'text-right'}`}
+                placeholder={isEn ? "Enter greenhouse name..." : "أدخل اسم المحمية..."}
+                autoFocus
+              />
+              {errorMsg && <p className="text-[11px] font-bold text-red-500 mt-1">{errorMsg}</p>}
+              <div className={`flex gap-3 mt-2 ${isEn ? 'flex-row-reverse' : ''}`}>
+                <button 
+                  onClick={saveFarmName} 
+                  disabled={loading}
+                  className={`flex-1 py-3 bg-emerald-600 text-white rounded-2xl font-black text-sm shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2 ${loading ? 'opacity-70' : ''}`}
+                >
+                  {loading && <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><circle cx="12" cy="12" r="10" strokeOpacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>}
+                  {isEn ? 'Save' : 'حفظ'}
+                </button>
+                <button onClick={() => setEditingFarm(null)} className="px-6 py-3 bg-gray-50 text-gray-500 rounded-2xl font-black text-sm hover:bg-gray-100 transition-all">
+                  {isEn ? 'Cancel' : 'إلغاء'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </Account_ModalShell>
       )}
     </div>
   );

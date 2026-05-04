@@ -40,6 +40,7 @@ export const translations = {
     errPasswordLength: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل',
     errPasswordMatch: 'كلمتا المرور غير متطابقتين',
     errFarmNameRequired: 'اسم المحمية مطلوب',
+    errFarmNameExists: 'هذا الاسم موجود بالفعل، اختر اسماً آخر',
     errFullNameEnRequired: 'يرجى إدخال اسمك الكامل باللغة الإنجليزية',
     errFieldEmpty: 'لا يمكن ترك الحقل فارغاً',
 
@@ -245,6 +246,7 @@ export const translations = {
     errPasswordLength: 'Password must be at least 6 characters',
     errPasswordMatch: 'Passwords do not match',
     errFarmNameRequired: 'Farm name is required',
+    errFarmNameExists: 'This name already exists, choose another',
     errFullNameEnRequired: 'Full name in English is required',
     errFieldEmpty: 'Field cannot be empty',
     errUsernameTaken: 'Username is already taken, try another',

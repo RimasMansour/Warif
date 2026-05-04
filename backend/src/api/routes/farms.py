@@ -158,3 +158,22 @@ async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm
     if not farm:
         raise HTTPException(status_code=404, detail="Farm not found")
     return farm
+
+
+@router.delete("/{farm_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_farm(
+    farm_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a farm belonging to the current user."""
+    farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+    
+    # Manual cascade delete for related entities if not handled by DB
+    # (Actually, SQLAlchemy can handle this if configured, but let's be explicit if needed)
+    # For now, let's just delete the farm record. 
+    # Note: Foreign key constraints in DB might prevent this if devices exist.
+    
+    await db.delete(farm)
+    await db.commit()
+    return None

@@ -697,12 +697,18 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           {/* Sensors & Hardware Inventory Modal */}
           {showSensorsPopup && (
             <Account_ModalShell onClose={() => setShowSensorsPopup(false)} isRtl={isRtl}>
-              <div className="bg-white rounded-[40px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[450px] max-w-[95vw] max-h-[85vh] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
+              <div className="bg-white rounded-[24px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[450px] max-w-[95vw] max-h-[85vh] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
                 
                 {/* Clean White Header with Icon */}
-                <div className="pt-8 px-6 flex flex-col items-center shrink-0">
+                <div className="pt-8 px-6 flex flex-col items-center shrink-0 relative">
+                  <button 
+                    onClick={() => setShowSensorsPopup(false)}
+                    className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all`}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
                   <div className="animate-float">
-                    <div className="w-16 h-16 rounded-[24px] bg-emerald-50 flex items-center justify-center shadow-sm mb-3 border border-emerald-100/50">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center shadow-sm mb-3 border border-emerald-100/50">
                       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="10" />
                         <line x1="2" y1="12" x2="22" y2="12" />
@@ -730,34 +736,43 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                         <div className="text-[12px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100/50 pb-2 flex items-center justify-between">
                           <span>{isEn ? "Environment & Monitoring Sensors" : "حساسات البيئة والمراقبة"}</span>
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
                           {devices.filter(d => d.type === 'sensor').map(device => {
-                            const isSoil = device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة');
-                            const isTemp = device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار');
-                            const isHum = device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب');
+                            const nameLower = device.name?.toLowerCase() || '';
+                            const isSoil = nameLower.includes('soil') || nameLower.includes('تربة');
+                            const isTemp = nameLower.includes('temp') || nameLower.includes('حرار');
+                            const isHum = nameLower.includes('hum') || nameLower.includes('رطوب');
                             
-                            const val = isSoil ? `${sharedSensors?.soil || 0}%` :
-                                       isTemp ? `${sharedSensors?.temp || 0}°C` :
-                                       isHum ? `${sharedSensors?.humidity || 0}%` : '';
+                            const val = isSoil ? `${sharedSensors?.soil_moisture || 0}%` :
+                                       isTemp ? `${sharedSensors?.air_temperature || 0}°C` :
+                                       isHum ? `${sharedSensors?.air_humidity || 0}%` : '';
                             
-                            const iconBg = isSoil ? 'bg-emerald-50' : isTemp ? 'bg-orange-50' : isHum ? 'bg-blue-50' : 'bg-gray-50';
-                            const iconColor = isSoil ? 'text-emerald-600' : isTemp ? 'text-orange-500' : isHum ? 'text-blue-500' : 'text-gray-400';
+                            const iconBg = isTemp ? 'bg-orange-50 border-orange-100/30' : isHum ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
+                            const iconColor = isTemp ? 'text-[#F97316]' : isHum ? 'text-[#0EA5E9]' : 'text-[#059669]';
                             
                             return (
-                              <div key={device.id} className="flex items-center justify-between group/device">
-                                <div className={`flex items-center gap-4 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
-                                  <div className={`w-12 h-12 rounded-full ${iconBg} flex items-center justify-center transition-all group-hover/device:shadow-md border border-white`}>
-                                    {isSoil ? <PlantSoilIcon className={iconColor} /> :
-                                     isTemp ? <TempSunIcon className={iconColor} /> :
-                                     isHum ? <AirHumidityIcon className={iconColor} /> :
-                                     <PlantSoilIcon className={iconColor} />}
+                              <div key={device.id} className="flex items-center justify-between p-3.5 bg-white/60 hover:bg-white rounded-[22px] border border-transparent hover:border-gray-100 hover:shadow-sm transition-all group/device">
+                                <div className={`flex items-center gap-4`}>
+                                  <div className={`w-12 h-12 rounded-2xl ${iconBg} border flex items-center justify-center transition-all group-hover/device:scale-105`}>
+                                    {isTemp ? (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}><path d="M14 14.7V3a2 2 0 0 0-4 0v11.7a4.5 4.5 0 1 0 4 0z"/></svg>
+                                    ) : isHum ? (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}>
+                                        <path d="M12 22c4.4 0 8-3.6 8-8 0-6-8-12-8-12S4 8 4 14c0 4.4 3.6 8 8 8z" />
+                                        <path d="M2 13h5c1 0 1 1 2 1s1-1 2-1h2" />
+                                        <path d="M2 17h5c1 0 1 1 2 1s1-1 2-1h2" />
+                                        <path d="M2 9h5c1 0 1 1 2 1s1-1 2-1h2" />
+                                      </svg>
+                                    ) : (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}><path d="M4 20c0-3 3-4 8-4s8 1 8 4"/><path d="M12 16V8"/><path d="M12 8c-2-2-5-2-5 0 0 3 3 4 5 4"/><path d="M12 8c2-2 5-2 5 0 0 3-3 4-5 4"/></svg>
+                                    )}
                                   </div>
                                   <div className={isRtl ? 'text-right' : 'text-left'}>
-                                    <p className="text-[15px] font-black text-gray-800">{device.name}</p>
-                                    <p className="text-[11px] font-bold text-gray-400">{isEn ? "Real-time analysis" : "تحليل فوري"}</p>
+                                    <p className="text-[15px] font-black text-gray-800 leading-tight">{device.name}</p>
+                                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">{isTemp ? (isEn ? "Air Temperature" : "درجة الحرارة") : isHum ? (isEn ? "Air Humidity" : "رطوبة الهواء") : (isEn ? "Real-time analysis" : "تحليل فوري")}</p>
                                   </div>
                                 </div>
-                                <div className="text-lg font-black text-gray-700 tracking-tighter">{val}</div>
+                                <div className="text-lg font-black tracking-tighter" style={{ color: iconColor }}>{val}</div>
                               </div>
                             );
                           })}
@@ -769,33 +784,39 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                         <div className="text-[12px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100/50 pb-2 flex items-center justify-between">
                           <span>{isEn ? "Control & Operation Equipment" : "معدات التحكم والتشغيل"}</span>
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2">
                           {devices.filter(d => d.type === 'actuator').map(device => {
-                            const isPump = device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') || device.name?.toLowerCase().includes('valve');
-                            const isCool = device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد');
+                            const nameLower = device.name?.toLowerCase() || '';
+                            const isPump = nameLower.includes('pump') || nameLower.includes('مضخ') || nameLower.includes('valve');
+                            const isCool = nameLower.includes('fan') || nameLower.includes('مروح') || nameLower.includes('cool') || nameLower.includes('تبريد');
                             
                             const isActive = device.status === 'active';
                             const statusText = isActive ? (isEn ? "Working" : "تعمل") : (isEn ? "Idle" : "خامل");
                             
-                            const iconBg = isPump ? 'bg-blue-50' : isCool ? 'bg-emerald-50' : 'bg-gray-50';
-                            const iconColor = isPump ? 'text-blue-600' : isCool ? 'text-emerald-600' : 'text-gray-400';
+                            const iconBg = isPump ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
+                            const iconColor = isPump ? 'text-[#0EA5E9]' : 'text-[#059669]';
                             
                             return (
-                              <div key={device.id} className="flex items-center justify-between group/device">
-                                <div className={`flex items-center gap-4 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
-                                  <div className={`w-12 h-12 rounded-full ${iconBg} flex items-center justify-center transition-all group-hover/device:shadow-md border border-white`}>
-                                    {isPump ? <IrrigationSmartIcon className={iconColor} /> :
-                                     isCool ? <WindSharedIcon className={iconColor} /> :
-                                     <IrrigationSmartIcon className={iconColor} />}
+                              <div key={device.id} className="flex items-center justify-between p-3.5 bg-white/60 hover:bg-white rounded-[22px] border border-transparent hover:border-gray-100 hover:shadow-sm transition-all group/device">
+                                <div className={`flex items-center gap-4`}>
+                                  <div className={`w-12 h-12 rounded-2xl ${iconBg} border flex items-center justify-center transition-all group-hover/device:scale-105`}>
+                                    {isPump ? (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5s-3 3.5-3 5.5a7 7 0 0 0 7 7z"/></svg>
+                                    ) : (
+                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}>
+                                        <path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" />
+                                        <path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" />
+                                        <path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" />
+                                        <path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" />
+                                      </svg>
+                                    )}
                                   </div>
                                   <div className={isRtl ? 'text-right' : 'text-left'}>
-                                    <p className="text-[15px] font-black text-gray-800">{device.name}</p>
-                                    <p className="text-[11px] font-bold text-gray-400">{isEn ? "System Unit" : "وحدة نظام"}</p>
+                                    <p className="text-[15px] font-black text-gray-800 leading-tight">{device.name}</p>
+                                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">{isPump ? (isEn ? "Water Pump" : "مضخة مياه") : (isEn ? "Fan" : "مروحة")}</p>
                                   </div>
                                 </div>
-                                <div className={`text-[14px] font-black ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>
-                                  {statusText}
-                                </div>
+                                <div className={`text-[14px] font-black ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{statusText}</div>
                               </div>
                             );
                           })}
@@ -829,13 +850,19 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           {/* ===== NEW: Premium Manual Irrigation Modal (Full Screen Overlay) ===== */}
           {showManualIrrigation && (
             <Account_ModalShell onClose={() => setShowManualIrrigation(false)} isRtl={isRtl}>
-              <div className="bg-white rounded-[40px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[380px] max-w-[95vw] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
+              <div className="bg-white rounded-[24px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[380px] max-w-[95vw] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
                 
                 {/* Reverted Header Style - Clean White with Icon at Top */}
-                <div className="pt-8 px-6 flex flex-col items-center">
+                <div className="pt-8 px-6 flex flex-col items-center relative">
+                  <button 
+                    onClick={() => setShowManualIrrigation(false)}
+                    className={`absolute top-4 ${isRtl ? 'left-4' : 'right-4'} p-2 rounded-xl text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all`}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
                   <div className="animate-float">
-                    <div className="w-16 h-16 rounded-[24px] bg-emerald-50 flex items-center justify-center shadow-sm mb-3 border border-emerald-100/50">
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center shadow-sm mb-3 border border-blue-100/50">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
                       </svg>
                     </div>
@@ -932,8 +959,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
                 {/* Success Overlay */}
                 {irrigationSuccess && (
-                  <div className="absolute inset-0 bg-white z-[60] flex flex-col items-center justify-center p-10 text-center animate-fade-in rounded-[40px]">
-                    <div className="w-24 h-24 bg-emerald-50 rounded-[32px] flex items-center justify-center mb-6 animate-scale-bounce shadow-xl border border-emerald-100/50">
+                  <div className="absolute inset-0 bg-white z-[60] flex flex-col items-center justify-center p-10 text-center animate-fade-in rounded-[24px]">
+                    <div className="w-24 h-24 bg-emerald-50 rounded-2xl flex items-center justify-center mb-6 animate-scale-bounce shadow-xl border border-emerald-100/50">
                       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
