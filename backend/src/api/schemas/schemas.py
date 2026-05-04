@@ -14,6 +14,8 @@ class LoginIn(BaseModel):
 class TokenOut(BaseModel):
     access_token: str
     token_type:   str = "bearer"
+    farm_id:      Optional[int] = None
+    username:     str = ""
 
 
 # ── User ───────────────────────────────────────────────────────────────────

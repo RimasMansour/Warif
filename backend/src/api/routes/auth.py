@@ -50,7 +50,19 @@ async def login(
         "username": user.username,
         "role": user.role.value
     })
-    return TokenOut(access_token=token)
+
+    # Get the user's first farm if exists
+    from src.db.models.models import Farm
+    farm_result = await db.execute(
+        select(Farm.id).where(Farm.user_id == user.id).limit(1)
+    )
+    farm_id = farm_result.scalar_one_or_none()
+
+    return TokenOut(
+        access_token=token,
+        farm_id=farm_id,
+        username=user.username
+    )
 
 
 @router.post("/check-exists")

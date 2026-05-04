@@ -378,7 +378,7 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
           ...saved, 
           ...me,
           password, // Store password so it can be viewed in settings
-          farmId: farms && farms.length > 0 ? farms[0].id : saved.farmId 
+          farmId: data.farm_id || (farms && farms.length > 0 ? farms[0].id : null)
         };
         localStorage.setItem('warif_user', JSON.stringify(updatedUser));
       } catch (e) {
