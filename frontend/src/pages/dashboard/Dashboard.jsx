@@ -738,10 +738,10 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                              device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? <AirHumidityIcon className="text-blue-500" /> :
                              <PlantSoilIcon className="text-emerald-600" />
                           ) : (
-                             device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? <WaterValveIcon className="text-emerald-600" /> :
+                             device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? <IrrigationSmartIcon className="text-emerald-600" /> :
                              device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد') ? <WindSharedIcon className="text-emerald-600" /> :
                              device.name?.toLowerCase().includes('valve') ? <IrrigationSmartIcon className="text-emerald-600" /> :
-                             <WaterValveIcon className="text-emerald-600" />
+                             <IrrigationSmartIcon className="text-emerald-600" />
                           )}
                         </div>
                         <div>
