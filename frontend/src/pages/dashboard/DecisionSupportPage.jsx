@@ -128,8 +128,20 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
     }
   };
 
-  const handleDecision = (id, val) => {
+  const handleDecision = async (id, val) => {
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, status: val } : rec));
+    if (val === 'accepted') {
+      try {
+        const token = localStorage.getItem('warif_token');
+        const API_BASE = import.meta.env.VITE_API_URL || '';
+        await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/mark-read/${id.replace('api-', '')}`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        console.error('[DecisionSupport] Failed to mark recommendation as read:', err);
+      }
+    }
   };
 
   const sections = isEn ? ["This Week", "Last Week"] : ["هذا الأسبوع", "الأسبوع الماضي"];
