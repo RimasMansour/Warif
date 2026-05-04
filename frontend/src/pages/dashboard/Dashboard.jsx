@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useLatestSensors, useAutoAlerts, triggerManualCooling } from "../../hooks/useWarifData";
-import { startManualIrrigation } from "../../services/api";
+import { startManualIrrigation, getMe, getFarms } from "../../services/api";
 import { translations } from "../../i18n";
 import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, AccountAndSettingsPages } from "./DashboardSections";
 import { Footer } from "./Footer";
@@ -94,10 +94,31 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     if (propLang) setLanguage(propLang);
   }, [propLang]);
 
+  const [userFarms, setUserFarms] = useState([]);
+
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-    if (saved.fullName) setUserFullName(saved.fullName);
-    if (saved.fullNameEn) setUserFullNameEn(saved.fullNameEn);
+    async function loadUser() {
+      try {
+        const data = await getMe();
+        if (data.full_name) setUserFullName(data.full_name);
+        if (data.full_name_en) setUserFullNameEn(data.full_name_en);
+        
+        const farmsData = await getFarms();
+        setUserFarms(farmsData);
+
+        // Also update localStorage
+        const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+        localStorage.setItem('warif_user', JSON.stringify({ 
+          ...saved, 
+          fullName: data.full_name,
+          fullNameEn: data.full_name_en,
+          farms: farmsData
+        }));
+      } catch (err) {
+        console.error("Failed to load user info:", err);
+      }
+    }
+    loadUser();
   }, []);
 
   const T = translations[language];
@@ -214,10 +235,13 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const [irrigationSuccess, setIrrigationSuccess] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
-  const farms = isRtl 
-    ? ["محمية الخضروات", "محمية الفواكه", "محمية الورقيات"]
-    : ["Vegetable Greenhouse", "Fruit Greenhouse", "Leafy Greens"];
-  const currentFarmName = farms[activeFarm];
+  const farms = userFarms.length > 0 
+    ? userFarms.map(f => f.name)
+    : (isRtl 
+        ? ["محمية الخضروات", "محمية الفواكه", "محمية الورقيات"]
+        : ["Vegetable Greenhouse", "Fruit Greenhouse", "Leafy Greens"]
+      );
+  const currentFarmName = farms[activeFarm] || farms[0];
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -505,7 +529,16 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
             data-sidebar
             className={`fixed inset-y-0 ${isRtl ? 'right-0' : 'left-0'} z-[60] transform lg:relative lg:translate-x-0 lg:z-0 transition-transform duration-300 ease-in-out ${showMobileSidebar ? 'translate-x-0' : (isRtl ? 'translate-x-full' : '-translate-x-full')} lg:translate-x-0`}
           >
-            <Sidebar currentPage={page} onGo={(p) => { go(p); setShowMobileSidebar(false); }} T={T} weatherData={weatherData} activeFarm={activeFarm} setActiveFarm={setActiveFarm} globalAutoMode={globalAutoMode} setGlobalAutoMode={setGlobalAutoMode} />
+            <Sidebar 
+              currentPage={page} 
+              onGo={(p) => { go(p); setShowMobileSidebar(false); }} 
+              T={T} 
+              activeFarm={activeFarm} 
+              setActiveFarm={setActiveFarm} 
+              globalAutoMode={globalAutoMode} 
+              setGlobalAutoMode={setGlobalAutoMode} 
+              farms={farms}
+            />
           </div>
 
           {/* Overlay for mobile sidebar */}

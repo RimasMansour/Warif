@@ -183,10 +183,12 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                 setIsSubmitting(true);
                 try {
                   // 1. Attempt to register on backend
-                  await registerUser(
+                  const registerResponse = await registerUser(
                     final.username,
                     final.email,
                     final.password,
+                    final.fullName,
+                    final.fullNameEn,
                     lang
                   );
 

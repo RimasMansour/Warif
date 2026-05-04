@@ -9,7 +9,7 @@ import {
   IrrigationSmartIcon 
 } from './DashboardShared';
 
-export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globalAutoMode, setGlobalAutoMode }) {
+export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globalAutoMode, setGlobalAutoMode, farms: propFarms }) {
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isRtl = lang === 'ar';
@@ -22,9 +22,9 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globa
     { label: T.recommendations, icon: "list", page: "dss" },
   ];
 
-  const farms = isRtl 
+  const farms = propFarms || (isRtl 
     ? ["محمية الخضروات", "محمية الفواكه", "محمية الورقيات"]
-    : ["Vegetable Greenhouse", "Fruit Greenhouse", "Leafy Greens"];
+    : ["Vegetable Greenhouse", "Fruit Greenhouse", "Leafy Greens"]);
 
   return (
     <div className={`w-64 bg-white flex flex-col flex-shrink-0 h-full shadow-2xl lg:shadow-none ${isRtl ? 'border-l' : 'border-r'} border-gray-100/60`}>

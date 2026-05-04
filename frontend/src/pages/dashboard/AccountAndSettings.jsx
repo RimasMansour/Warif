@@ -12,7 +12,8 @@ import {
   Account_SensorIcon 
 } from './DashboardShared';
 import { guides } from './GuidesContent';
-import { updateUser } from '../../services/api';
+import { updateUser, getMe } from '../../services/api';
+import { useEffect } from 'react';
 
 export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLogout, onNameUpdate, sensors: propSensors, onSensorsChange, language: currentLang, onLanguageChange }) {
 
@@ -64,14 +65,31 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
     langDesc: isEn ? "Change interface and logic language" : "تغيير لغة الواجهة والمنطق",
   };
 
-  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
   const [profile, setProfile] = useState({
-    fullName: savedUser.fullName || (isEn ? "Admin User" : "منصور الزهراني"),
-    fullNameEn: savedUser.fullNameEn || "Admin User",
-    username: savedUser.username || "admin",
-    email: savedUser.email || "example@warif.sa",
-    password: savedUser.password || "********",
+    fullName: "",
+    fullNameEn: "",
+    username: "",
+    email: "",
+    password: "********",
   });
+
+  useEffect(() => {
+    async function loadProfile() {
+      try {
+        const data = await getMe();
+        setProfile({
+          fullName: data.full_name || "",
+          fullNameEn: data.full_name_en || "",
+          username: data.username || "",
+          email: data.email || "",
+          password: "********",
+        });
+      } catch (err) {
+        console.error("Failed to fetch profile:", err);
+      }
+    }
+    loadProfile();
+  }, []);
 
   const [editingField, setEditingField] = useState(null);
   const [draftValue, setDraftValue] = useState("");
@@ -103,7 +121,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
     setDraftValue("");
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editingField) return;
     const newValue = draftValue.trim();
     
@@ -117,17 +135,36 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
       return;
     }
 
+    setLoading(true);
     setErrorMsg("");
-    setProfile((p) => ({ ...p, [editingField]: newValue }));
-    const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-    localStorage.setItem('warif_user', JSON.stringify({ ...saved, [editingField]: newValue }));
-    
-    if ((editingField === 'fullName' || editingField === 'fullNameEn') && onNameUpdate) {
-      onNameUpdate(newValue, editingField === 'fullNameEn');
+    try {
+      const updateData = {};
+      if (editingField === 'fullName') updateData.full_name = newValue;
+      else if (editingField === 'fullNameEn') updateData.full_name_en = newValue;
+      else updateData[editingField] = newValue;
+
+      const updatedUser = await updateUser(updateData);
+      
+      setProfile((p) => ({ ...p, [editingField]: newValue }));
+      const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      localStorage.setItem('warif_user', JSON.stringify({ 
+        ...saved, 
+        ...updatedUser,
+        fullName: updatedUser.full_name,
+        fullNameEn: updatedUser.full_name_en
+      }));
+      
+      if ((editingField === 'fullName' || editingField === 'fullNameEn') && onNameUpdate) {
+        onNameUpdate(newValue, editingField === 'fullNameEn');
+      }
+      
+      triggerToast();
+      closeEdit();
+    } catch (err) {
+      setErrorMsg(isEn ? "Failed to save changes" : "فشل حفظ التغييرات");
+    } finally {
+      setLoading(false);
     }
-    
-    triggerToast();
-    closeEdit();
   }
 
   function openAddSensor() {

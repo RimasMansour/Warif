@@ -75,6 +75,8 @@ class User(Base):
 
     id           = Column(Integer, primary_key=True, index=True)
     username     = Column(String(64), unique=True, nullable=False, index=True)
+    full_name    = Column(String(128), nullable=True)
+    full_name_en = Column(String(128), nullable=True)
     email        = Column(String(128), unique=True, nullable=False)
     password_hash= Column(String(256), nullable=False)
     language     = Column(String(4), default="ar")
