@@ -594,8 +594,17 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
         </Account_ModalShell>
       )}
       {/* Success Toast */}
+      {showToast && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-toast-in">
+           <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-md border border-white/20">
+              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span className="text-sm font-black tracking-tight">{translations[lang].saveSuccess}</span>
+           </div>
         </div>
       )}
+
       {editingFarm && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setEditingFarm(null)}>
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-4" onClick={e => e.stopPropagation()}>
