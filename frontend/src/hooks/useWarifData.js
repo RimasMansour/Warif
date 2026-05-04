@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { fetchWithRetry, getAuthHeaders, apiConfig } from '../config/api'
-import { triggerFanControl } from '../services/api'
+import { triggerFanControl, getFarms } from '../services/api'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -417,4 +417,35 @@ export function useIrrigationResources(farmId, intervalMs = 15000) {
   }, [fetch_data, intervalMs, farmId])
 
   return { data, loading }
+}
+
+export function useDevices() {
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const farms = await getFarms();
+        if (!farms || farms.length === 0) { setLoading(false); return; }
+        const farmId = farms[0].id;
+        const res = await fetchWithRetry(
+          `${apiConfig.baseURL}/api/v1/farms/${farmId}/devices`,
+          { headers: getAuthHeaders() }
+        );
+        setDevices(Array.isArray(res) ? res : []);
+      } catch { setDevices([]); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, []);
+
+  const counts = {
+    sensors: devices.filter(d => ['soil','temperature','humidity','light'].includes(d.type)).length,
+    pumps: devices.filter(d => d.type === 'pump').length,
+    cooling: devices.filter(d => ['fan','cooler','cooling'].includes(d.type)).length,
+    total: devices.length,
+  };
+
+  return { devices, counts, loading };
 }

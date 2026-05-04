@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { useLatestSensors, useAutoAlerts, triggerManualCooling } from "../../hooks/useWarifData";
+import { useLatestSensors, useAutoAlerts, triggerManualCooling, useDevices } from "../../hooks/useWarifData";
 import { startManualIrrigation, getMe, getFarms } from "../../services/api";
 import { translations } from "../../i18n";
 import { apiConfig } from "../../config/api";
@@ -282,6 +282,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       { id: "A1", name: "وحدة التكييف", type: "مكيف", value: "خامل", status: "normal" },
     ];
   });
+
+  const { devices, counts, loading: devicesLoading } = useDevices();
 
   // ── Real sensor data from API ──────────────────────────────
   const { data: liveSensors } = useLatestSensors(10000);
@@ -569,6 +571,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                 onAlertAccept={handleAlertAccept}
                 onAlertReject={handleAlertReject}
                 onAlertFeedback={handleAlertFeedback}
+                devices={devices}
+                devicesLoading={devicesLoading}
               />
             ) : page === "dss" ? (
               <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} globalAutoMode={globalAutoMode} sharedSensors={liveSensors} />
@@ -700,31 +704,47 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
                 {/* List Content Area */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar bg-gray-50/30 p-4">
-                  {/* Category: Monitoring Sensors */}
-                  <div className="mb-6">
-                    <div className={`flex items-center gap-2 px-2 mb-3 ${isRtl ? 'flex-row' : 'flex-row-reverse justify-end'}`}>
-                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Environmental Sensors' : 'حساسات البيئة والمراقبة'}</span>
-                      <div className="h-[1px] flex-1 bg-gray-100" />
+                  {devicesLoading && (
+                    <p className="text-center text-gray-400 text-sm py-4 animate-pulse">
+                      {isEn ? 'Loading devices...' : 'جاري تحميل الأجهزة...'}
+                    </p>
+                  )}
+                  
+                  {!devicesLoading && devices.length === 0 && (
+                    <p className="text-center text-gray-400 text-sm py-8">
+                      {isEn ? 'No devices registered yet' : 'لا توجد أجهزة مسجلة بعد'}
+                    </p>
+                  )}
+                  
+                  {!devicesLoading && devices.map(device => (
+                    <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-lg">
+                          {device.type === 'soil' ? '🌱' :
+                           device.type === 'temperature' ? '🌡️' :
+                           device.type === 'humidity' ? '💧' :
+                           device.type === 'pump' ? '⚙️' :
+                           device.type === 'fan' || device.type === 'cooling' ? '🌀' :
+                           device.type === 'cooler' ? '❄️' : '📡'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-gray-800">{device.name}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase">
+                            {device.type}
+                          </p>
+                        </div>
+                      </div>
+                      <div className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                        device.is_active 
+                          ? 'bg-emerald-100 text-emerald-700' 
+                          : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {device.is_active 
+                          ? (isEn ? 'Connected' : 'متصل') 
+                          : (isEn ? 'Offline' : 'غير متصل')}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      {connectedSensors.filter(s => ['رطوبة التربة', 'درجة الحرارة', 'رطوبة الهواء'].includes(s.type)).map((s, i) => (
-                        <DeviceRow key={i} s={s} T={T} isEn={isEn} isRtl={isRtl} />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Category: Control Actuators */}
-                  <div className="mb-4">
-                    <div className={`flex items-center gap-2 px-2 mb-3 ${isRtl ? 'flex-row' : 'flex-row-reverse justify-end'}`}>
-                      <span className="text-xs font-black text-gray-400 uppercase tracking-widest">{isEn ? 'Control & Actuators' : 'معدات التحكّم والتشغيل'}</span>
-                      <div className="h-[1px] flex-1 bg-gray-100" />
-                    </div>
-                    <div className="space-y-2">
-                      {connectedSensors.filter(s => !['رطوبة التربة', 'درجة الحرارة', 'رطوبة الهواء'].includes(s.type)).map((s, i) => (
-                        <DeviceRow key={i} s={s} T={T} isEn={isEn} isRtl={isRtl} />
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
 
                 {/* Structured Footer */}

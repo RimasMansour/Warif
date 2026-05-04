@@ -22,7 +22,7 @@ import {
   generateDataForRange,
   getLabelForRange
 } from './dashboardUtils';
-import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
+import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices } from '../../hooks/useWarifData';
 
 // Liquid Wave Animation Styles
 const waveStyles = `
@@ -60,6 +60,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   }
   const { data: localSensors } = useLatestSensors(10000);
   const { data: dashboardData } = useDashboard(farmId);
+  const { devices, counts, loading: devicesLoading } = useDevices();
 
   const livesensors = sharedSensors || localSensors;
 
@@ -719,10 +720,9 @@ function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0 }) {
             </div>
 
             <div className="flex flex-wrap gap-2 justify-center mt-2">
-              <MinimalStat value="4" label={isEn ? 'Sensors' : 'حساسات'} />
-              <MinimalStat value="2" label={isEn ? 'Pumps' : 'مضخات'} />
-              <MinimalStat value="1" label={isEn ? 'Camera' : 'كاميرا'} />
-              <MinimalStat value="6" label={isEn ? 'Cooling' : 'تبريد'} />
+              <MinimalStat value={counts.sensors || 0} label={isEn ? 'Sensors' : 'حساسات'} />
+              <MinimalStat value={counts.pumps || 0} label={isEn ? 'Pumps' : 'مضخات'} />
+              <MinimalStat value={counts.cooling || 0} label={isEn ? 'Cooling' : 'تبريد'} />
             </div>
           </div>
         </div>
