@@ -602,14 +602,9 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
 
                 {/* العنوان */}
                 <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                  <div className="flex-1">
-                    <h4 className={`text-[14px] font-black leading-tight ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                      {rec.title}
-                    </h4>
-                    <div className="text-[10px] font-bold text-gray-500 mt-0.5">
-                      {rec.priority === 'high' ? (isEn ? 'High Priority' : 'أولوية عالية') : (isEn ? 'Normal Priority' : 'أولوية عادية')}
-                    </div>
-                  </div>
+                  <h4 className={`text-[14px] font-black leading-tight ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                    {rec.title}
+                  </h4>
                 </div>
 
                 {/* البيانات والتحليل */}
@@ -633,18 +628,28 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
                   </div>
                 )}
 
-                {/* الأزرار */}
-                <div className={`pt-1 border-t border-gray-100/60 flex items-center justify-between gap-2`}>
-                  <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                    {globalAutoMode ? (isEn ? 'Feedback' : 'تقييمك') : (isEn ? 'Action' : 'إجراء')}
+                {/* الفيدباك - اللايك والدس لايك */}
+                <div className={`pt-2 border-t border-gray-100/60 flex items-center justify-between gap-2`}>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {isEn ? 'Rate this' : 'هل مفيدة؟'}
                   </span>
 
-                  {!globalAutoMode && (
-                    <div className="flex items-center gap-2">
-                      <button onClick={(e) => handleAction(e, rec.id, 'later')} className="px-2.5 py-1 rounded-lg text-[10px] font-bold text-gray-500 hover:bg-gray-100 transition-all uppercase">{isEn ? 'Later' : 'لاحقاً'}</button>
-                      <button onClick={(e) => handleAction(e, rec.id, 'approved')} className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold shadow-md hover:bg-emerald-700 transition-all uppercase">{isEn ? 'Apply' : 'تطبيق'}</button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={(e) => handleAction(e, rec.id, 'dislike')}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all"
+                      title={isEn ? 'Not helpful' : 'غير مفيدة'}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                    </button>
+                    <button
+                      onClick={(e) => handleAction(e, rec.id, 'like')}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+                      title={isEn ? 'Helpful' : 'مفيدة'}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             );

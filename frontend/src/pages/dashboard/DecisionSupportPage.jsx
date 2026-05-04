@@ -229,16 +229,18 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
                               <div className="flex flex-col items-center gap-2">
                                 <div className="flex items-center gap-2">
                                   <button
-                                    onClick={() => handleFeedback(item.id, 'up')}
-                                    className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${item.feedback === 'up' ? 'bg-emerald-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-500 hover:text-emerald-600'}`}
+                                    onClick={() => handleFeedback(item.id, 'down')}
+                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
+                                    title={isEn ? 'Not helpful' : 'غير مفيدة'}
                                   >
-                                    {isEn ? 'Helpful' : 'مفيدة'}
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
                                   </button>
                                   <button
-                                    onClick={() => handleFeedback(item.id, 'down')}
-                                    className={`px-4 py-1.5 rounded-lg text-[11px] font-bold transition-all ${item.feedback === 'down' ? 'bg-red-600 text-white shadow-md' : 'bg-white border border-gray-200 text-gray-500 hover:text-red-600'}`}
+                                    onClick={() => handleFeedback(item.id, 'up')}
+                                    className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
+                                    title={isEn ? 'Helpful' : 'مفيدة'}
                                   >
-                                    {isEn ? 'Not Helpful' : 'غير مفيدة'}
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
                                   </button>
                                 </div>
   
