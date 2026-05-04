@@ -720,12 +720,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                     <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-lg">
-                          {device.type === 'soil' ? '🌱' :
-                           device.type === 'temperature' ? '🌡️' :
-                           device.type === 'humidity' ? '💧' :
-                           device.type === 'pump' ? '⚙️' :
-                           device.type === 'fan' || device.type === 'cooling' ? '🌀' :
-                           device.type === 'cooler' ? '❄️' : '📡'}
+                          {device.type === 'sensor' ? '📡' :
+                           device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? '⚙️' :
+                           device.name?.toLowerCase().includes('valve') ? '🔧' :
+                           device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') ? '🌀' :
+                           device.name?.toLowerCase().includes('cool') ? '❄️' : '📟'}
                         </div>
                         <div>
                           <p className="text-sm font-black text-gray-800">{device.name}</p>
@@ -735,11 +734,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                         </div>
                       </div>
                       <div className={`text-xs font-black px-2.5 py-1 rounded-full ${
-                        device.is_active 
+                        device.status === 'active' 
                           ? 'bg-emerald-100 text-emerald-700' 
                           : 'bg-gray-100 text-gray-400'
                       }`}>
-                        {device.is_active 
+                        {device.status === 'active' 
                           ? (isEn ? 'Connected' : 'متصل') 
                           : (isEn ? 'Offline' : 'غير متصل')}
                       </div>

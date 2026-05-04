@@ -441,10 +441,17 @@ export function useDevices() {
   }, []);
 
   const counts = {
-    sensors: devices.filter(d => ['soil','temperature','humidity','light'].includes(d.type)).length,
-    pumps: devices.filter(d => d.type === 'pump').length,
-    cooling: devices.filter(d => ['fan','cooler','cooling'].includes(d.type)).length,
-    total: devices.length,
+    sensors: devices.filter(d => d.type === 'sensor' && d.status === 'active').length,
+    pumps: devices.filter(d => d.type === 'actuator' && d.status === 'active' &&
+      (d.name?.toLowerCase().includes('pump') ||
+       d.name?.toLowerCase().includes('مضخ'))).length,
+    cooling: devices.filter(d => d.type === 'actuator' && d.status === 'active' &&
+      (d.name?.toLowerCase().includes('fan') ||
+       d.name?.toLowerCase().includes('cool') ||
+       d.name?.toLowerCase().includes('مروح') ||
+       d.name?.toLowerCase().includes('تبريد'))).length,
+    actuators: devices.filter(d => d.type === 'actuator' && d.status === 'active').length,
+    total: devices.filter(d => d.status === 'active').length,
   };
 
   return { devices, counts, loading };
