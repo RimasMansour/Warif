@@ -29,9 +29,25 @@ let simState = {
 };
 
 // Expose manual triggers for UI
-export function triggerManualIrrigation() {
+export async function triggerManualIrrigation(deviceId = 'simulator_001', durationMin = 20) {
   simState.irrigationActive = true;
-  setTimeout(() => { simState.irrigationActive = false; }, 30000); // Auto off after 30s
+  setTimeout(() => { simState.irrigationActive = false; }, durationMin * 60 * 1000);
+  try {
+    const token = localStorage.getItem('warif_token');
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const res = await fetch(`${API_BASE}/api/v1/irrigation/manual`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_id: deviceId, duration_min: durationMin })
+    });
+    if (!res.ok) throw new Error('Irrigation API failed');
+    const data = await res.json();
+    console.log('[Warif] Manual irrigation started via API:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Manual irrigation API error:', err);
+    return null;
+  }
 }
 export async function triggerManualCooling(action = "start") {
   console.log(`[Warif] Manual cooling requested: ${action}`);

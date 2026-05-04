@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
 CHROMA_DB_PATH  = os.getenv("CHROMA_DB_PATH", "./chatbot/chroma_db")
 COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "warif_knowledge")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "paraphrase-multilingual-mpnet-base-v2")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "CAMeL-Lab/bert-base-arabic-camelbert-mix")
 GROQ_MODEL      = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 # ── System prompt ──────────────────────────────────────────────────────────────
