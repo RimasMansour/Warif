@@ -22,7 +22,8 @@ from chromadb.utils import embedding_functions
 from dotenv import load_dotenv
 from groq import Groq
 
-load_dotenv()
+from pathlib import Path
+load_dotenv(Path(__file__).parent / ".env")
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
