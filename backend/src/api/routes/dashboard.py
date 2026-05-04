@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
+import httpx
 
 from src.db.session import get_db
 from src.db.models.models import (
@@ -78,6 +79,19 @@ async def get_dashboard(
         latest_recommendation=latest_rec.message if latest_rec else None,
         timestamp=sensor_map.get("_timestamp"),
     )
+ 
+ 
+@router.get("/weather/current")
+async def get_weather(lat: float, lon: float):
+    """
+    Proxy request to Open-Meteo to avoid CORS issues in some environments.
+    """
+    url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,weather_code,is_day&timezone=auto"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail="Failed to fetch weather from provider")
+        return response.json()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

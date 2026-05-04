@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useLatestSensors, useAutoAlerts, triggerManualCooling } from "../../hooks/useWarifData";
 import { startManualIrrigation, getMe, getFarms } from "../../services/api";
 import { translations } from "../../i18n";
+import { apiConfig } from "../../config/api";
 import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, AccountAndSettingsPages } from "./DashboardSections";
 import { Footer } from "./Footer";
 import { NotFoundPage } from "./NotFoundPage";
@@ -143,8 +144,13 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     localStorage.setItem('warif_user', JSON.stringify({ ...saved, language: lang }));
   }
 
-  const currentDisplayName = (language === 'en' && userFullNameEn) ? userFullNameEn : (userFullName || (isRtl ? 'المستخدم' : 'User'));
-  const firstName = currentDisplayName.split(' ')[0];
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  const displayName = isEn
+    ? (savedUser.fullNameEn || savedUser.full_name_en || savedUser.username || 'User')
+    : (savedUser.fullName || savedUser.full_name || savedUser.username || 'المستخدم');
+  
+  const firstName = displayName.split(' ')[0];
+  const avatarLetter = displayName.trim().charAt(0).toUpperCase();
 
   const [showChat, setShowChat] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -162,10 +168,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   useEffect(() => {
     async function fetchWeather() {
       try {
-        // الإحداثيات الدقيقة للمزرعة بناءً على خرائط جوجل
+        // جلب بيانات الطقس عبر الباكيند (Proxy) لتجنب مشاكل CORS
         const lat = "21.331608";
         const lon = "40.061178";
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,is_day&timezone=auto`);
+        const weatherUrl = `${apiConfig.baseURL}/api/v1/dashboard/weather/current?lat=${lat}&lon=${lon}`;
+        const res = await fetch(weatherUrl);
         const data = await res.json();
         
         let fetchLocName = "مزرعة مكة";
@@ -235,12 +242,14 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const [irrigationSuccess, setIrrigationSuccess] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
+  const savedFarmName = isEn
+    ? (savedUser.farmNameEn || savedUser.farmName || 'My Greenhouse')
+    : (savedUser.farmName || 'محميتي');
+
   const farms = userFarms.length > 0 
     ? userFarms.map(f => f.name)
-    : (isRtl 
-        ? ["محمية الخضروات", "محمية الفواكه", "محمية الورقيات"]
-        : ["Vegetable Greenhouse", "Fruit Greenhouse", "Leafy Greens"]
-      );
+    : [savedFarmName];
+  
   const currentFarmName = farms[activeFarm] || farms[0];
 
   // Close dropdowns on outside click
@@ -489,13 +498,10 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[13px] font-bold text-gray-700 bg-gray-50/80 hover:bg-gray-100 transition-all duration-300 hover:shadow-sm"
                 >
-                  <div className="w-7 h-7 rounded-full bg-[#f0fdf4] border border-[#bbf7d0] flex items-center justify-center">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="8" r="4" />
-                      <path d="M6 20c0-4 3-6 6-6s6 2 6 6" />
-                    </svg>
+                  <div className="w-7 h-7 rounded-full bg-[#f0fdf4] border border-[#bbf7d0] flex items-center justify-center text-[11px] font-black text-emerald-600">
+                    {avatarLetter}
                   </div>
-                  <span className="hidden md:inline">{currentDisplayName}</span>
+                  <span className="hidden md:inline">{displayName}</span>
                   <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" /></svg>
                 </button>
 

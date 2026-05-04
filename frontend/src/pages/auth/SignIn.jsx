@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { translations } from "../../i18n";
-import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword, createFarm } from '../../services/api';
+import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword, createFarm, checkUserExists } from '../../services/api';
 
 /* =========================================================
    WARIF | Ultra-Premium Sign-In & Registration Flow
@@ -13,6 +13,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
   const [page, setPage] = useState('login');
   const [step, setStep] = useState(1);
   const [userData, setUserData] = useState({});
+  const userDataRef = useRef({});
   const [transitioning, setTransitioning] = useState(false);
   const [registerError, setRegisterError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -167,30 +168,54 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
           
           {page === 'registerUser' && (
             <RegisterUserPage
-              onNext={(data) => { setUserData(d => ({ ...d, ...data })); goTo('registerFarm'); }}
+              onNext={(data) => { 
+                setUserData(d => {
+                  const updated = { ...d, ...data };
+                  userDataRef.current = updated;
+                  return updated;
+                }); 
+                goTo('registerFarm'); 
+              }}
               T={T}
               isRtl={isRtl}
+              registerError={registerError}
             />
           )}
           
           {page === 'registerFarm' && (
             <>
-              {step === 1 && <FarmInfoStep onNext={(data) => { setUserData(d => ({ ...d, ...data })); nextStep(); }} T={T} isRtl={isRtl} />}
-              {step === 2 && <SensorSelectionStep onNext={(data) => { setUserData(d => ({ ...d, ...data })); nextStep(); }} T={T} />}
+              {step === 1 && <FarmInfoStep onNext={(data) => { 
+                setUserData(d => {
+                  const updated = { ...d, ...data };
+                  userDataRef.current = updated;
+                  return updated;
+                }); 
+                nextStep(); 
+              }} T={T} isRtl={isRtl} />}
+              {step === 2 && <SensorSelectionStep onNext={(data) => { 
+                setUserData(d => {
+                  const updated = { ...d, ...data };
+                  userDataRef.current = updated;
+                  return updated;
+                }); 
+                nextStep(); 
+              }} T={T} />}
               {step === 3 && <DeviceScanPage onFinish={async () => {
-                const final = { ...userData };
+                const final = { ...userDataRef.current };
+                console.log('final object:', final);
+                console.log('fullName:', final.fullName, 'fullNameEn:', final.fullNameEn);
                 setRegisterError('');
                 setIsSubmitting(true);
                 try {
                   // 1. Attempt to register on backend
-                  const registerResponse = await registerUser(
-                    final.username,
-                    final.email,
-                    final.password,
-                    final.fullName,
-                    final.fullNameEn,
-                    lang
-                  );
+                  const registerResponse = await registerUser({
+                    username: final.username,
+                    email: final.email,
+                    password: final.password,
+                    fullName: final.fullName,
+                    fullNameEn: final.fullNameEn,
+                    language: lang
+                  });
 
                   // 2. If registration success, login to get token
                   const loginData = await loginUser(final.username, final.password);
@@ -212,6 +237,9 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                     email: final.email, 
                     password: final.password, 
                     fullName: final.fullName,
+                    fullNameEn: final.fullNameEn,
+                    farmName: final.farmName,
+                    farmType: final.farmType,
                     farmId: farmData?.id || null
                   }));
 
@@ -221,9 +249,26 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                 } catch (err) {
                   console.error('Registration error:', err);
                   setIsSubmitting(false);
-                  // Extract error message from API response if available
-                  const msg = err.details?.detail || err.message || 'فشل الاتصال بالخادم';
-                  setRegisterError(msg);
+                  
+                  const errorMsg = err.details?.detail || err.message || '';
+                  
+                  if (errorMsg.includes('Email already registered') || 
+                      errorMsg.includes('already registered') ||
+                      errorMsg.includes('username')) {
+                    // Go back to first registration page and show error there
+                    setRegisterError('');
+                    goTo('registerUser', 'back');
+                    
+                    setTimeout(() => {
+                      setRegisterError(
+                        errorMsg.includes('Email') 
+                          ? (lang === 'ar' ? 'البريد الإلكتروني مسجل مسبقاً' : 'Email already registered')
+                          : (lang === 'ar' ? 'اسم المستخدم مستخدم بالفعل' : 'Username already taken')
+                      );
+                    }, 300);
+                  } else {
+                    setRegisterError(errorMsg || 'فشل الاتصال بالخادم');
+                  }
                 }
               }} 
               T={T} 
@@ -564,7 +609,7 @@ function ForgotPasswordPage({ step, setStep, onBack, onSuccess, T, isRtl }) {
 }
 
 /* ----------------------------- REGISTER USER PAGE ----------------------------- */
-function RegisterUserPage({ onNext, T, isRtl }) {
+function RegisterUserPage({ onNext, T, isRtl, registerError }) {
   const [fullName, setFullName] = useState('');
   const [fullNameEn, setFullNameEn] = useState('');
   const [username, setUsername] = useState('');
@@ -572,6 +617,7 @@ function RegisterUserPage({ onNext, T, isRtl }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
 
   const validate = () => {
     const errs = {};
@@ -587,9 +633,31 @@ function RegisterUserPage({ onNext, T, isRtl }) {
     return errs;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const errs = validate();
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+
+    setLoading(true);
+    try {
+      const check = await checkUserExists({ username, email });
+      if (check) {
+        const newErrs = {};
+        if (check.username_taken) {
+          newErrs.username = T.errUsernameTaken || 'اسم المستخدم مستخدم بالفعل';
+        }
+        if (check.email_taken) {
+          newErrs.email = T.errEmailTaken || 'البريد الإلكتروني مسجل مسبقاً';
+        }
+        if (Object.keys(newErrs).length > 0) {
+          setErrors(newErrs);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("Validation check failed:", err);
+    }
+    setLoading(false);
     onNext({ fullName, fullNameEn, username, email, password });
   };
 
@@ -599,6 +667,12 @@ function RegisterUserPage({ onNext, T, isRtl }) {
         <h1 className="text-xl font-black text-emerald-900 tracking-tight">{T.createAccount}</h1>
         <p className="text-xs font-bold text-gray-400 mt-0.5">{T.enterData}</p>
       </div>
+
+      {registerError && (
+        <div className="animate-fade-in-up text-[11px] font-black text-red-600 text-center bg-red-50 border border-red-100 rounded-[20px] px-4 py-3 shadow-sm shadow-red-500/5">
+          ⚠️ {registerError}
+        </div>
+      )}
 
       <div className="flex flex-col gap-4">
         <div className="animate-fade-in-up delay-1">
@@ -636,9 +710,12 @@ function RegisterUserPage({ onNext, T, isRtl }) {
       <div className="animate-fade-in-up delay-7">
         <button
           onClick={handleNext}
-          className="btn-primary w-full py-5 bg-emerald-800 text-white rounded-[24px] font-black text-lg shadow-xl hover:shadow-emerald-900/20 transition-all mt-4 tracking-tight"
+          disabled={loading}
+          className={`btn-primary w-full py-5 bg-emerald-800 text-white rounded-[24px] font-black text-lg shadow-xl hover:shadow-emerald-900/20 transition-all mt-4 tracking-tight flex items-center justify-center gap-3 ${loading ? 'opacity-80' : ''}`}
         >
-          {T.next}
+          {loading ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (T.next || 'التالي')}
         </button>
       </div>
     </div>

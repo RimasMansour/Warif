@@ -5,7 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from src.db.session import get_db
-from src.db.models.models import User
+from src.db.models.models import (
+    User, Farm, Device, Actuator, IrrigationEvent, IrrigationCommand, 
+    Recommendation, SensorReading, Alert, Prediction, DeviceCommand, IrrigationStatus
+)
 from src.core.security import (
     create_access_token,
     verify_password,
@@ -48,6 +51,42 @@ async def login(
         "role": user.role.value
     })
     return TokenOut(access_token=token)
+
+
+@router.post("/check-exists")
+async def check_user_exists(body: dict, db: AsyncSession = Depends(get_db)):
+    username = body.get("username", "")
+    email = body.get("email", "")
+    
+    # Check username
+    res_user = await db.execute(select(User).where(User.username == username))
+    username_taken = res_user.scalar_one_or_none() is not None
+    
+    # Check email
+    res_email = await db.execute(select(User).where(User.email == email))
+    email_taken = res_email.scalar_one_or_none() is not None
+    
+    return {"username_taken": username_taken, "email_taken": email_taken}
+
+
+
+@router.post("/reset-password")
+async def reset_password(body: dict, db: AsyncSession = Depends(get_db)):
+    email = body.get("email", "")
+    new_password = body.get("new_password", "")
+    
+    if not email or not new_password:
+        raise HTTPException(status_code=400, detail="Email and new_password are required")
+    
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.password_hash = hash_password(new_password)
+    await db.commit()
+    return {"message": "Password updated successfully"}
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -152,6 +191,55 @@ async def update_me(
     return user
 
 
+@router.delete("/me")
+async def delete_me(
+    db: AsyncSession = Depends(get_db),
+    token_data: dict = Depends(get_current_user)
+):
+    user_id = int(token_data["sub"])
+    
+    # 1. Get farm IDs
+    farm_res = await db.execute(select(Farm).where(Farm.user_id == user_id))
+    farms = farm_res.scalars().all()
+    farm_ids = [f.id for f in farms]
+
+    if farm_ids:
+        for f_id in farm_ids:
+            # Get device IDs for this farm
+            dev_res = await db.execute(select(Device.device_id).where(Device.farm_id == f_id))
+            device_ids = dev_res.scalars().all()
+
+            if device_ids:
+                # Sensor Readings & Commands
+                await db.execute(delete(SensorReading).where(SensorReading.device_id.in_(device_ids)))
+                await db.execute(delete(DeviceCommand).where(DeviceCommand.device_id.in_(device_ids)))
+                
+                # Actuators
+                act_res = await db.execute(select(Actuator.id).where(Actuator.device_id.in_(device_ids)))
+                actuator_ids = act_res.scalars().all()
+                
+                if actuator_ids:
+                    await db.execute(delete(IrrigationEvent).where(IrrigationEvent.actuator_id.in_(actuator_ids)))
+                    await db.execute(delete(IrrigationCommand).where(IrrigationCommand.actuator_id.in_(actuator_ids)))
+                    await db.execute(delete(Actuator).where(Actuator.id.in_(actuator_ids)))
+
+                await db.execute(delete(Device).where(Device.farm_id == f_id))
+            
+            # Farm-level data
+            await db.execute(delete(Recommendation).where(Recommendation.farm_id == f_id))
+            await db.execute(delete(Alert).where(Alert.farm_id == f_id))
+            await db.execute(delete(Prediction).where(Prediction.farm_id == f_id))
+        
+        # Delete Farms
+        await db.execute(delete(Farm).where(Farm.user_id == user_id))
+
+    # Finally delete User
+    await db.execute(delete(User).where(User.id == user_id))
+    await db.commit()
+    
+    return {"status": "ok", "message": "User and all associated data deleted"}
+
+
 @router.post("/forgot-password")
 async def forgot_password(
     body: dict,
@@ -172,24 +260,3 @@ async def forgot_password(
     # but at least we've verified the user exists in DB.
     return {"status": "ok", "message": "User found"}
 
-
-@router.post("/reset-password")
-async def reset_password(
-    body: dict,
-    db: AsyncSession = Depends(get_db)
-):
-    email = body.get("email")
-    new_password = body.get("new_password")
-    
-    if not email or not new_password:
-        raise HTTPException(status_code=400, detail="Email and new password are required")
-        
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-        
-    user.password_hash = hash_password(new_password)
-    await db.commit()
-    return {"status": "ok", "message": "Password updated successfully"}

@@ -12,7 +12,7 @@ import {
   Account_SensorIcon 
 } from './DashboardShared';
 import { guides } from './GuidesContent';
-import { updateUser, getMe } from '../../services/api';
+import { updateUser, getMe, deleteAccount } from '../../services/api';
 import { useEffect } from 'react';
 
 export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLogout, onNameUpdate, sensors: propSensors, onSensorsChange, language: currentLang, onLanguageChange }) {
@@ -65,12 +65,16 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
     langDesc: isEn ? "Change interface and logic language" : "تغيير لغة الواجهة والمنطق",
   };
 
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+
   const [profile, setProfile] = useState({
-    fullName: "",
-    fullNameEn: "",
-    username: "",
-    email: "",
-    password: "********",
+    fullName: savedUser.fullName || savedUser.full_name || "",
+    fullNameEn: savedUser.fullNameEn || savedUser.full_name_en || "",
+    username: savedUser.username || "",
+    email: savedUser.email || "",
+    password: savedUser.password || "********",
+    farmName: savedUser.farmName || "",
+    farmType: savedUser.farmType || "",
   });
 
   useEffect(() => {
@@ -167,6 +171,22 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
     }
   }
 
+  const handleDeleteAccount = async () => {
+    const ok = confirm(isEn ? "WARNING: This will permanently delete your account and all farm data. This action cannot be undone. Are you sure?" : "تحذير: سيؤدي هذا إلى حذف حسابك وكافة بيانات المزارع بشكل نهائي. لا يمكن التراجع عن هذا الإجراء. هل أنت متأكد؟");
+    if (!ok) return;
+    
+    setLoading(true);
+    try {
+      await deleteAccount();
+      localStorage.clear();
+      onLogout?.();
+    } catch (err) {
+      setErrorMsg(isEn ? "Failed to delete account" : "فشل حذف الحساب");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   function openAddSensor() {
     setSensorModal({ open: true, mode: "add", id: null, name: "", type: "" });
   }
@@ -245,10 +265,10 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                   <div className={`absolute top-0 ${isRtl ? 'right-0 -mr-10' : 'left-0 -ml-10'} w-32 h-32 bg-emerald-50/30 rounded-full blur-3xl -mt-10`} />
                   <div className={`flex items-center gap-5 relative z-10 ${isRtl ? 'text-right' : 'text-left'}`}>
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-400 flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-emerald-200/50">
-                      {profile.fullName?.split(" ").map(w => w[0]).join("").slice(0, 2) || "U"}
+                      {(profile.fullName || profile.username || "U").charAt(0).toUpperCase()}
                     </div>
                     <div className={isRtl ? 'text-right' : 'text-left'}>
-                      <h2 className="text-xl font-black text-gray-800">{profile.fullName}</h2>
+                      <h2 className="text-xl font-black text-gray-800">{profile.fullName || profile.username}</h2>
                       <p className="text-sm font-bold text-gray-400 mt-1">{profile.email}</p>
                     </div>
                   </div>
@@ -266,6 +286,17 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
                     <Account_EditableField T={translations[lang]} isRtl={isRtl} label={T.password} value="********" onEdit={() => openEdit("password")} />
                   </div>
                 </Account_Card>
+              </div>
+
+              <div className="animate-fade-in-up delay-3">
+                <button 
+                  onClick={handleDeleteAccount}
+                  disabled={loading}
+                  className={`w-full p-4 rounded-2xl bg-white border border-red-100 text-red-600 font-black text-[13px] hover:bg-red-50 transition-all flex items-center justify-center gap-3 shadow-sm card-interactive ${loading ? 'opacity-50' : ''}`}
+                >
+                  <Account_TrashIcon />
+                  {isEn ? "Delete Account Permanently" : "حذف الحساب نهائياً"}
+                </button>
               </div>
           </div>
         ) : (

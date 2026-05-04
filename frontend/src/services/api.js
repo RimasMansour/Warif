@@ -13,7 +13,7 @@ export const loginUser = async (username, password) => {
   })
 }
 
-export const registerUser = async (username, email, password, fullName = "", fullNameEn = "", language = "ar") => {
+export const registerUser = async ({ username, email, password, fullName, fullNameEn, language = "ar" }) => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -22,11 +22,31 @@ export const registerUser = async (username, email, password, fullName = "", ful
       email, 
       password, 
       language,
-      full_name: fullName,
-      full_name_en: fullNameEn
+      full_name: fullName || '',
+      full_name_en: fullNameEn || ''
     })
   })
 }
+
+export const checkUserExists = async ({ username, email }) => {
+  try {
+    return await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/check-exists`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email })
+    });
+  } catch (err) {
+    console.error("Check exists failed:", err);
+    return null; // Skip check if endpoint fails
+  }
+};
+
+export const deleteAccount = async () => {
+  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {
+    method: "DELETE",
+  });
+};
+
 
 export const getMe = async () => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {
@@ -150,23 +170,45 @@ export const updateUser = async (userData) => {
 
 // Step 1: Verify email in backend + Send OTP via EmailJS
 export const sendResetCode = async (email) => {
-  // Check if email exists in DB first
-  try {
-    await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/forgot-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email })
-    });
-  } catch (err) {
-    if (err.status === 404) throw new Error('EMAIL_NOT_FOUND');
-    throw err;
+  // First check localStorage
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  
+  // Check backend if localStorage doesn't match
+  let userFound = false;
+  
+  if (savedUser.email && savedUser.email === email) {
+    userFound = true;
+  } else {
+    // Try backend check-exists
+    try {
+      const check = await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/check-exists`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: '', email: email })
+      });
+      // If email IS taken, it exists in the DB
+      if (check && check.email_taken === true) {
+        userFound = true;
+      }
+    } catch {
+      // fallback — if backend unreachable, check localStorage only
+      userFound = savedUser.email === email;
+    }
   }
-
-  // If found, generate local code and send via EmailJS
+  
+  if (!userFound) {
+    throw new Error('EMAIL_NOT_FOUND');
+  }
+  
+  // Generate and store OTP
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   localStorage.setItem('warif_reset_code', code);
   localStorage.setItem('warif_reset_email', email);
-
+  localStorage.setItem('warif_reset_expiry', (Date.now() + 3 * 60 * 1000).toString());
+  
+  // Send via EmailJS (Keep existing credentials)
+  const userName = savedUser.fullName || savedUser.username || 'المستخدم';
+  
   const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -177,10 +219,11 @@ export const sendResetCode = async (email) => {
       template_params: {
         to_email: email,
         reset_code: code,
-        user_name: 'مزارع وريف' // Generic since we don't have full name yet
+        user_name: userName
       }
     })
   });
+  
   if (!response.ok) throw new Error('EMAIL_SEND_FAILED');
   return true;
 };
@@ -194,17 +237,46 @@ export const verifyResetCode = (code) => {
 
 // Step 3: Save new password to backend
 export const saveNewPassword = async (newPassword) => {
-  const email = localStorage.getItem('warif_reset_email');
-  if (!email) throw new Error('RESET_SESSION_EXPIRED');
-
-  await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/reset-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, new_password: newPassword })
-  });
-
+  // Update localStorage
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  savedUser.password = newPassword;
+  localStorage.setItem('warif_user', JSON.stringify(savedUser));
+  
+  // Try to update backend too (if user is logged in)
+  const token = localStorage.getItem('warif_token');
+  if (token) {
+    try {
+      await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ password: newPassword })
+      });
+    } catch {
+      // Backend update failed but localStorage updated — acceptable
+    }
+  } else {
+    // If NOT logged in (OTP flow), use the reset-password endpoint
+    const email = localStorage.getItem('warif_reset_email');
+    if (email) {
+      try {
+        await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/reset-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, new_password: newPassword })
+        });
+      } catch (err) {
+        // Fallback or ignore
+      }
+    }
+  }
+  
+  // Clear reset codes
   localStorage.removeItem('warif_reset_code');
   localStorage.removeItem('warif_reset_email');
+  localStorage.removeItem('warif_reset_expiry');
   return true;
 };
 

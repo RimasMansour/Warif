@@ -191,7 +191,6 @@ export const translations = {
     statusActive: 'نشط',
     statusIdle: 'خامل',
     liveValueLabel: 'القيمة اللحظية',
-    forgotPassword: 'نسيت كلمة المرور؟',
     resetPassword: 'استعادة كلمة المرور',
     enterEmail: 'أدخل بريدك الإلكتروني المسجل',
     sendCode: 'إرسال الرمز',
@@ -205,6 +204,8 @@ export const translations = {
     emailNotFound: 'البريد الإلكتروني غير مسجل في النظام',
     emailSendFailed: 'فشل إرسال الرمز، تحقق من اتصالك',
     codeWrong: 'الرمز غير صحيح، حاول مجدداً',
+    errUsernameTaken: 'اسم المستخدم مستخدم بالفعل، جرب اسماً آخر',
+    errEmailTaken: 'البريد الإلكتروني مسجل مسبقاً',
   },
 
   en: {
@@ -246,6 +247,8 @@ export const translations = {
     errFarmNameRequired: 'Farm name is required',
     errFullNameEnRequired: 'Full name in English is required',
     errFieldEmpty: 'Field cannot be empty',
+    errUsernameTaken: 'Username is already taken, try another',
+    errEmailTaken: 'Email address is already registered',
 
     // Register user
     createAccount: 'Create Account',
