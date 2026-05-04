@@ -127,12 +127,8 @@ async def ingest_sensor_reading(
                 else:
                     message = f"انحراف طفيف في {label} - القيمة الحالية ({value:.1f} {reading.unit}) قريبة من الحد المتوقع ({threshold.warning_max or threshold.warning_min} {reading.unit}). التوصية: مراقبة التطور."
 
-                db.add(Alert(
-                    sensor_type=sensor_type,
-                    message=message,
-                    severity=severity,
-                    status=AlertStatus.open,
-                ))
+                # Alert logic here skipped to avoid duplication (handled by Decision Engine)
+                pass
 
         full_sensor_data = {}
         device_obj = None
@@ -187,12 +183,8 @@ async def ingest_sensor_reading(
                 else:
                     anomaly_msg = f"قراءة استثنائية في {label} - القيمة ({value:.1f} {reading.unit}) غير طبيعية بناءً على البيانات التاريخية. الثقة: {confidence*100:.0f}%. التوصية: تحقق من حالة الحساس."
 
-                db.add(Alert(
-                    sensor_type=sensor_type,
-                    message=anomaly_msg,
-                    severity=anomaly_severity,
-                    status=AlertStatus.open,
-                ))
+                # Alert logic here skipped to avoid duplication (handled by Decision Engine)
+                pass
                 logger.info(f"[ANOMALY DETECTED] {sensor_type}={value} | kNN={knn_result['is_anomaly']} | SVM={svm_result['is_anomaly']}")
         except Exception as anomaly_err:
             logger.warning(f"Anomaly detection skipped: {anomaly_err}")
@@ -214,6 +206,18 @@ async def ingest_sensor_reading(
                 # Handle anomalies
                 for anomaly in intelligence_report.get('anomalies', []):
                     if anomaly['severity'] in ['critical', 'high']:
+                        cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=30)
+                        existing_alert = await db.execute(
+                            select(Alert).where(
+                                Alert.sensor_type == anomaly['sensor'],
+                                Alert.farm_id == (device_obj.farm_id if hasattr(device_obj, 'farm_id') else None),
+                                Alert.status == AlertStatus.open,
+                                Alert.created_at >= cooldown_time
+                            )
+                        )
+                        if existing_alert.scalar_one_or_none() is not None:
+                            continue
+
                         anomaly_message = f"🚨 شذوذ: {anomaly['sensor']} - {anomaly['description']}"
                         db.add(Alert(
                             sensor_type=anomaly['sensor'],

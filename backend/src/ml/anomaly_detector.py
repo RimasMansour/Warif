@@ -44,7 +44,7 @@ class AnomalyDetector:
             'soil_temperature': (-5, 50),      # -5°C to 50°C
             'light_intensity': (0, 120000),      # 0 to 120000 lux
             'water_usage': (0, 1000),          # 0 to 1000 L/day
-            'power_usage': (0, 500),           # 0 to 500 kWh/day
+            'power_usage': (0, 5000),          # 0 to 5000 Wh total
         }
 
         # Expected rate of change (per 10 seconds)
@@ -54,8 +54,8 @@ class AnomalyDetector:
             'soil_moisture': 2.0,      # Max 2% per 10 seconds
             'soil_temperature': 0.5,   # Max 0.5°C per 10 seconds
             'light_intensity': 100.0,  # Max 100 lux per 10 seconds
-            'water_usage': 50.0,       # Max 50 L per 10 seconds
-            'power_usage': 20.0,       # Max 20 kWh per 10 seconds
+            'water_usage': 500.0,      # Max 500 L per 10 seconds (pump can be off = 0)
+            'power_usage': 200.0,      # Max 200 Wh per 10 seconds
         }
 
     def update_history(self, sensor_type: str, value: float, timestamp: datetime):
@@ -180,9 +180,9 @@ class AnomalyDetector:
 
         # Define optimal ranges based on crop needs (tomatoes by default)
         optimal_ranges = {
-            'air_temperature': (18, 27),
-            'air_humidity': (60, 85),
-            'soil_moisture': (55, 70),
+            'air_temperature': (15, 38),
+            'air_humidity': (20, 95),
+            'soil_moisture': (20, 85),
             'soil_temperature': (18, 28),
         }
 

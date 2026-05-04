@@ -186,23 +186,34 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           fullDetails = msg;
         }
 
-        // Build action text from message
-        const actionAr = globalAutoMode
-          ? (isEn ? "System is monitoring automatically." : "النظام يراقب تلقائياً. تم تسجيل التنبيه.")
-          : (isEn ? "Please review this alert and take action." : "يرجى مراجعة هذا التنبيه واتخاذ الإجراء المناسب.");
+        // Extract value from message e.g. (29.8 C)
+        const extractedValue = backendAlert.message?.match(/\(([^)]+)\)/)?.[1] || "";
+
+        // Build reason from message (part after last dot before recommendation)
+        const reasonMatch = backendAlert.message?.split('.')?.[0] || "";
+
+        // Build action based on sensor type
+        const getAction = (sensorType, isEn) => {
+          if (sensorType === 'air_temperature') return isEn ? "Check cooling system and ventilation." : "تحقق من نظام التبريد والتهوية.";
+          if (sensorType === 'air_humidity') return isEn ? "Adjust ventilation to regulate humidity." : "اضبط التهوية لتنظيم الرطوبة.";
+          if (sensorType === 'soil_moisture') return isEn ? "Check irrigation system and soil sensors." : "تحقق من نظام الري وحساسات التربة.";
+          if (sensorType === 'water_tank') return isEn ? "Refill water tank immediately." : "أعد تعبئة خزان المياه فوراً.";
+          if (sensorType === 'water_usage') return isEn ? "Check pump and irrigation valves." : "تحقق من المضخة ومحابس الري.";
+          if (sensorType === 'power_usage') return isEn ? "Check power consumption of devices." : "تحقق من استهلاك الطاقة للأجهزة.";
+          return isEn ? "Review system status and take action." : "راجع حالة النظام واتخذ الإجراء المناسب.";
+        };
 
         return {
           id: backendAlert.id,
           autoMode: globalAutoMode,
-          title: shortTitle,
+          title: shortTitle || (isEn ? "System Alert" : "تنبيه النظام"),
           severity: frontendSeverity,
           sensor: isEn ? sensorNameEn : sensorNameAr,
-          value: (backendAlert.actual_value !== null && backendAlert.actual_value !== undefined) 
-            ? backendAlert.actual_value.toString() 
-            : backendAlert.message?.match(/\(([^)]+)\)/)?.[1] || "",
-          action: actionAr,
+          value: extractedValue,
+          reason: reasonMatch,
+          action: getAction(backendAlert.sensor_type, isEn),
           message: fullDetails,
-          actionType: "system",
+          actionType: backendAlert.sensor_type || "system",
           timestamp: backendAlert.created_at 
             ? new Date(backendAlert.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
             : '',

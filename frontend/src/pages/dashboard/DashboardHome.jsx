@@ -54,7 +54,10 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   const isRtl = !isEn;
 
   // ── Live data from Backend API ─────────────────────────────
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || null;
+  if (!farmId) {
+    console.warn('No farmId found for user');
+  }
   const { data: localSensors } = useLatestSensors(10000);
   const { data: dashboardData } = useDashboard(farmId);
 
