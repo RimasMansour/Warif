@@ -41,6 +41,36 @@ async def list_farms(
         select(Farm).where(Farm.user_id == int(current_user["sub"]))
     )
     return result.scalars().all()
+    
+
+@router.patch("/{farm_id}", response_model=FarmOut)
+async def update_farm(
+    farm_id: int,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Update farm name or details."""
+    result = await db.execute(
+        select(Farm).where(
+            Farm.id == farm_id,
+            Farm.user_id == int(current_user["sub"])
+        )
+    )
+    farm = result.scalar_one_or_none()
+    if not farm:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    
+    if "name" in body:
+        farm.name = body["name"]
+    if "farm_type" in body:
+        farm.farm_type = body["farm_type"]
+    if "crop_type" in body:
+        farm.crop_type = body["crop_type"]
+    
+    await db.commit()
+    await db.refresh(farm)
+    return farm
 
 
 @router.get("/{farm_id}", response_model=FarmOut)

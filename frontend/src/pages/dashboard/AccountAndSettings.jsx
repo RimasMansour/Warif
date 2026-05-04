@@ -12,7 +12,8 @@ import {
   Account_SensorIcon 
 } from './DashboardShared';
 import { guides } from './GuidesContent';
-import { updateUser, getMe, deleteAccount } from '../../services/api';
+import { updateUser, getMe, deleteAccount, getFarms } from '../../services/api';
+import { fetchWithRetry, authHeaders, apiConfig } from '../../config/api';
 import { useEffect } from 'react';
 
 export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLogout, onNameUpdate, sensors: propSensors, onSensorsChange, language: currentLang, onLanguageChange }) {
@@ -20,6 +21,9 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
   const [page, setPage] = useState(initialPage);
   const [showToast, setShowToast] = useState(false);
   const [showPasswordDraft, setShowPasswordDraft] = useState(false);
+  const [userFarms, setUserFarms] = useState([]);
+  const [editingFarm, setEditingFarm] = useState(null);
+  const [farmDraft, setFarmDraft] = useState('');
 
   const triggerToast = () => {
     setShowToast(true);
@@ -88,6 +92,12 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
           email: data.email || "",
           password: "********",
         });
+
+        try {
+          const farms = await getFarms();
+          setUserFarms(farms || []);
+        } catch { setUserFarms([]); }
+
       } catch (err) {
         console.error("Failed to fetch profile:", err);
       }
@@ -184,6 +194,35 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
       setErrorMsg(isEn ? "Failed to delete account" : "فشل حذف الحساب");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openFarmEdit = (farm) => {
+    setEditingFarm(farm);
+    setFarmDraft(farm.name);
+  };
+
+  const saveFarmName = async () => {
+    if (!editingFarm || !farmDraft.trim()) return;
+    try {
+      await fetchWithRetry(
+        `${apiConfig.baseURL}/api/v1/farms/${editingFarm.id}`,
+        {
+          method: 'PATCH',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...authHeaders() 
+          },
+          body: JSON.stringify({ name: farmDraft.trim() })
+        }
+      );
+      setUserFarms(prev => prev.map(f => 
+        f.id === editingFarm.id ? { ...f, name: farmDraft.trim() } : f
+      ));
+      setEditingFarm(null);
+      triggerToast();
+    } catch {
+      console.error('Failed to update farm name');
     }
   };
 
@@ -289,6 +328,36 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
               </div>
 
               <div className="animate-fade-in-up delay-3">
+                <div className="rounded-3xl border border-gray-100 bg-white shadow-sm p-5 flex flex-col gap-3">
+                  <h3 className="text-sm font-black text-gray-700 text-right">
+                    {isEn ? 'My Greenhouses' : 'محمياتي'}
+                  </h3>
+                  
+                  {userFarms.length === 0 && (
+                    <p className="text-xs text-gray-400 text-center py-2">
+                      {isEn ? 'No greenhouses found' : 'لا توجد محميات مسجلة'}
+                    </p>
+                  )}
+                  
+                  {userFarms.map((farm) => (
+                    <div key={farm.id} 
+                      className="flex items-center justify-between border-b border-gray-50 pb-3 last:border-0">
+                      <button
+                        onClick={() => openFarmEdit(farm)}
+                        className="text-xs text-emerald-600 font-black hover:text-emerald-800 transition-colors"
+                      >
+                        {isEn ? 'Edit' : 'تعديل'}
+                      </button>
+                      <div className="text-right">
+                        <p className="text-sm font-black text-gray-800">{farm.name}</p>
+                        <p className="text-[10px] text-gray-400 uppercase">{farm.farm_type}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="animate-fade-in-up delay-4">
                 <button 
                   onClick={handleDeleteAccount}
                   disabled={loading}
@@ -525,14 +594,30 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
         </Account_ModalShell>
       )}
       {/* Success Toast */}
-      {showToast && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[100] animate-toast-in">
-           <div className="bg-emerald-600 text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 backdrop-blur-md border border-white/20">
-              <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
-                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
-              </div>
-              <span className="text-sm font-black tracking-tight">{translations[lang].saveSuccess}</span>
-           </div>
+        </div>
+      )}
+      {editingFarm && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setEditingFarm(null)}>
+          <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl flex flex-col gap-4" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-gray-800 text-right text-base">
+              {isEn ? 'Edit Greenhouse Name' : 'تعديل اسم المحمية'}
+            </h3>
+            <input
+              value={farmDraft}
+              onChange={e => setFarmDraft(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveFarmName()}
+              className="w-full px-4 py-3 rounded-2xl border border-gray-200 focus:outline-none focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 font-bold text-right transition-all"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setEditingFarm(null)} className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-black text-sm hover:bg-gray-200 transition-colors">
+                {isEn ? 'Cancel' : 'إلغاء'}
+              </button>
+              <button onClick={saveFarmName} className="flex-1 py-3 rounded-2xl bg-gradient-to-l from-emerald-800 to-emerald-600 text-white font-black text-sm shadow-lg hover:opacity-90 transition-opacity">
+                {isEn ? 'Save' : 'حفظ'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
