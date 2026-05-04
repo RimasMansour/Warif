@@ -13,7 +13,7 @@ import {
 } from './DashboardShared';
 import { guides } from './GuidesContent';
 import { updateUser, getMe, deleteAccount, getFarms } from '../../services/api';
-import { fetchWithRetry, authHeaders, apiConfig } from '../../config/api';
+import { fetchWithRetry, getAuthHeaders, apiConfig } from '../../config/api';
 import { useEffect } from 'react';
 
 export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLogout, onNameUpdate, sensors: propSensors, onSensorsChange, language: currentLang, onLanguageChange }) {
@@ -211,7 +211,7 @@ export function AccountAndSettingsPages({ initialPage = "profile", onBack, onLog
           method: 'PATCH',
           headers: { 
             'Content-Type': 'application/json',
-            ...authHeaders() 
+            ...getAuthHeaders() 
           },
           body: JSON.stringify({ name: farmDraft.trim() })
         }

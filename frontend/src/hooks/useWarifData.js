@@ -420,7 +420,7 @@ export function useDevices() {
         const farmId = farms[0].id;
         const res = await fetchWithRetry(
           `${apiConfig.baseURL}/api/v1/farms/${farmId}/devices`,
-          { headers: authHeaders() }
+          { headers: getAuthHeaders() }
         );
         setDevices(Array.isArray(res) ? res : []);
       } catch { setDevices([]); }
