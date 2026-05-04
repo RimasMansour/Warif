@@ -18,6 +18,7 @@ formatter = PresentationFormatter()
 async def list_alerts(
     status:   Optional[str] = Query(None, description="open | acknowledged | resolved"),
     severity: Optional[str] = Query(None),
+    farm_id:  Optional[int] = Query(None),
     limit:    int           = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
 ):
@@ -26,6 +27,8 @@ async def list_alerts(
         q = q.where(Alert.status == status)
     if severity:
         q = q.where(Alert.severity == severity)
+    if farm_id:
+        q = q.where(Alert.farm_id == farm_id)
     result = await db.execute(q)
     alerts = result.scalars().all()
 

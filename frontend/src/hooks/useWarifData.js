@@ -150,9 +150,12 @@ export function useAutoAlerts(sensors, globalAutoMode) {
 
   const fetchAlerts = useCallback(async () => {
     try {
+      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      const farmId = userData.farmId;
       const token = localStorage.getItem('warif_token');
       const API_BASE = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${API_BASE}/api/v1/alerts?status=open`, {
+      const url = `${API_BASE}/api/v1/alerts?status=open${farmId ? `&farm_id=${farmId}` : ''}`;
+      const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch alerts");

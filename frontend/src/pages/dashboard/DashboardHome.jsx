@@ -133,7 +133,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
         {/* Top Section: Digital Twin Command Center */}
         <div className="animate-fade-in-up delay-1">
-          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={alerts.length} />
+          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={alerts.length} counts={counts} />
         </div>
 
 
@@ -679,7 +679,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
   );
 }
 
-function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0 }) {
+function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0, counts = {} }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
 
