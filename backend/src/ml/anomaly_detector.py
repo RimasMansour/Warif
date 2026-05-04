@@ -42,7 +42,7 @@ class AnomalyDetector:
             'air_humidity': (0, 100),          # 0% to 100%
             'soil_moisture': (0, 100),         # 0% to 100%
             'soil_temperature': (-5, 50),      # -5°C to 50°C
-            'light_intensity': (0, 2000),      # 0 to 2000 lux
+            'light_intensity': (0, 120000),      # 0 to 120000 lux
             'water_usage': (0, 1000),          # 0 to 1000 L/day
             'power_usage': (0, 500),           # 0 to 500 kWh/day
         }

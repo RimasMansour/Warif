@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import SignIn from './pages/dashboard/SignIn'
+import SignIn from './pages/auth/SignIn'
 import Dashboard from './pages/dashboard/Dashboard'
 
 export default function App() {

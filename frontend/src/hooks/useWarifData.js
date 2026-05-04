@@ -170,16 +170,26 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           fullDetails = msg;
         }
 
+        // Build action text from message
+        const actionAr = globalAutoMode
+          ? (isEn ? "System is monitoring automatically." : "النظام يراقب تلقائياً. تم تسجيل التنبيه.")
+          : (isEn ? "Please review this alert and take action." : "يرجى مراجعة هذا التنبيه واتخاذ الإجراء المناسب.");
+
         return {
           id: backendAlert.id,
           autoMode: globalAutoMode,
           title: shortTitle,
           severity: frontendSeverity,
           sensor: isEn ? sensorNameEn : sensorNameAr,
-          value: backendAlert.actual_value !== null ? backendAlert.actual_value.toString() : "",
+          value: (backendAlert.actual_value !== null && backendAlert.actual_value !== undefined) 
+            ? backendAlert.actual_value.toString() 
+            : backendAlert.message?.match(/\(([^)]+)\)/)?.[1] || "",
+          action: actionAr,
           message: fullDetails,
           actionType: "system",
-          timestamp: new Date(backendAlert.created_at).toLocaleTimeString()
+          timestamp: backendAlert.created_at 
+            ? new Date(backendAlert.created_at).toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+            : '',
         };
       });
       setAlerts(mappedAlerts);

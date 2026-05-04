@@ -153,7 +153,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
             "internal_temp": init_temp,
             "internal_hum": ext_hum,
             "soil_moisture": max(profile["optimal_soil_min"], min(profile["optimal_soil_max"], init_soil)),
-            "soil_temp": ext_temp - 2.0,
+            "soil_temp": ext_temp - 3.0,
             "fan_on": False,
         }
 
@@ -198,9 +198,9 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
 
     # Thermostat with hysteresis
     # Ref: ASHRAE 2021 - recommended greenhouse setpoints
-    if state["internal_temp"] >= 33.0:
+    if state["internal_temp"] >= 32.0:
         state["fan_on"] = True
-    elif state["internal_temp"] <= 30.0:
+    elif state["internal_temp"] <= 28.0:
         state["fan_on"] = False
 
     if state["fan_on"]:
@@ -212,11 +212,86 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         state["internal_hum"] = min(90.0, state["internal_hum"] + 1.0)
     else:
         # Natural heat gain toward outdoor temp + solar gain
+        # Ref: Abdel-Ghany & Kozai (2006)
         if state["internal_temp"] < ext_temp + 2.0:
-            state["internal_temp"] += 0.15
+            heat_gain = 0.15 + (0.3 * (1 - math.cos(time.time() / 3600)))
+            state["internal_temp"] += heat_gain
         state["internal_temp"] += heating_factor
         diff_hum = ext_hum - state["internal_hum"]
-        state["internal_hum"] += (diff_hum * 0.03)
+        state["internal_hum"] += (diff_hum * 0.05)
+
+
+    # === SMART ALERTS GENERATION ===
+    # Ref: Warif System Design Section 4.2.1.3
+    try:
+        from src.db.models.models import Alert, AlertSeverity, AlertStatus
+        from datetime import timezone
+
+        # Heat Stress Alert
+        if state["internal_temp"] > profile["optimal_temp_max"] + 5:
+            heat_exists = await db.execute(
+                select(Alert).where(
+                    Alert.farm_id == fid,
+                    Alert.sensor_type == "air_temperature",
+                    Alert.status == AlertStatus.open
+                )
+            )
+            if not heat_exists.scalar_one_or_none():
+                severity = AlertSeverity.critical if state["internal_temp"] > profile["optimal_temp_max"] + 10 else AlertSeverity.warning
+                db.add(Alert(
+                    farm_id=fid,
+                    sensor_type="air_temperature",
+                    severity=severity,
+                    status=AlertStatus.open,
+                    actual_value=round(state["internal_temp"], 2),
+                    message=f"تنبيه حرارة: درجة الحرارة {state['internal_temp']:.1f}°م تتجاوز الحد الأمثل ({profile['optimal_temp_max']}°م)"
+                ))
+                print(f"[ALERT] Farm {fid} | Heat stress {state['internal_temp']:.1f}°C")
+
+        # Drought Alert
+        if state["soil_moisture"] < profile["optimal_soil_min"] - 15:
+            drought_exists = await db.execute(
+                select(Alert).where(
+                    Alert.farm_id == fid,
+                    Alert.sensor_type == "soil_moisture",
+                    Alert.status == AlertStatus.open
+                )
+            )
+            if not drought_exists.scalar_one_or_none():
+                severity = AlertSeverity.critical if state["soil_moisture"] < profile["optimal_soil_min"] - 20 else AlertSeverity.warning
+                db.add(Alert(
+                    farm_id=fid,
+                    sensor_type="soil_moisture",
+                    severity=severity,
+                    status=AlertStatus.open,
+                    actual_value=round(state["soil_moisture"], 2),
+                    message=f"تنبيه جفاف: رطوبة التربة {state['soil_moisture']:.1f}٪ منخفضة جداً عن الحد الأدنى ({profile['optimal_soil_min']}٪)"
+                ))
+                print(f"[ALERT] Farm {fid} | Drought stress {state['soil_moisture']:.1f}%")
+
+        # High Humidity Alert
+        if state["internal_hum"] > 85:
+            hum_exists = await db.execute(
+                select(Alert).where(
+                    Alert.farm_id == fid,
+                    Alert.sensor_type == "air_humidity",
+                    Alert.status == AlertStatus.open
+                )
+            )
+            if not hum_exists.scalar_one_or_none():
+                db.add(Alert(
+                    farm_id=fid,
+                    sensor_type="air_humidity",
+                    severity=AlertSeverity.warning,
+                    status=AlertStatus.open,
+                    actual_value=round(state["internal_hum"], 2),
+                    message=f"تنبيه رطوبة: رطوبة الهواء {state['internal_hum']:.1f}٪ مرتفعة — خطر الأمراض الفطرية"
+                ))
+                print(f"[ALERT] Farm {fid} | High humidity {state['internal_hum']:.1f}%")
+
+    except Exception as alert_err:
+        print(f"[ALERT ERROR] Farm {fid}: {alert_err}")
+    # === END SMART ALERTS ===
 
     water_consumed = 0.0
     energy_consumed = 0.0
@@ -233,7 +308,9 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     else:
         # Soil drying rate based on temp and crop type
         # Ref: Stanghellini (1987)
-        dry_rate = (state["internal_temp"] / 40.0) * SOIL_DRY_FACTOR * profile["dry_rate_factor"]
+        # Temperature accelerates soil drying (Stanghellini 1987)
+        temp_factor = max(1.0, (state["internal_temp"] - 25) / 10.0)
+        dry_rate = (state["internal_temp"] / 40.0) * SOIL_DRY_FACTOR * profile["dry_rate_factor"] * temp_factor
         state["soil_moisture"] = max(0.0, state["soil_moisture"] - dry_rate)
 
     if state["fan_on"]:
@@ -337,6 +414,15 @@ async def engine_loop():
         try:
             ext_temp, ext_hum, cloudcover, is_day = fetch_makkah_weather()
             lux = calculate_lux(is_day, cloudcover)
+
+            # Add realistic daily temperature variation (Makkah climate)
+            # Ref: Saudi Meteorological Authority - Makkah temperature patterns
+            hour = datetime.now().hour
+            if 6 <= hour <= 18:
+                daily_variance = 8 * math.sin((hour - 6) * math.pi / 12)
+            else:
+                daily_variance = -4
+            ext_temp = max(15.0, min(50.0, ext_temp + daily_variance))
 
             async with AsyncSessionLocal() as db:
                 result = await db.execute(select(Farm))
