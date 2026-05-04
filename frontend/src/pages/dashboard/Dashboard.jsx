@@ -724,32 +724,40 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                   
                   {/* Grouped Content */}
                   {!devicesLoading && devices.length > 0 && (
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-8">
                       {/* Section 1: Sensors */}
                       <div>
-                        <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-50 pb-2">
-                          {isEn ? "Environment & Monitoring Sensors" : "حساسات البيئة والمراقبة"}
+                        <div className="text-[12px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100/50 pb-2 flex items-center justify-between">
+                          <span>{isEn ? "Environment & Monitoring Sensors" : "حساسات البيئة والمراقبة"}</span>
                         </div>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-4">
                           {devices.filter(d => d.type === 'sensor').map(device => {
-                            const val = device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة') ? `${sharedSensors?.soil || 0}%` :
-                                       device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار') ? `${sharedSensors?.temp || 0}°C` :
-                                       device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? `${sharedSensors?.humidity || 0}%` : '';
+                            const isSoil = device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة');
+                            const isTemp = device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار');
+                            const isHum = device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب');
+                            
+                            const val = isSoil ? `${sharedSensors?.soil || 0}%` :
+                                       isTemp ? `${sharedSensors?.temp || 0}°C` :
+                                       isHum ? `${sharedSensors?.humidity || 0}%` : '';
+                            
+                            const iconBg = isSoil ? 'bg-emerald-50' : isTemp ? 'bg-orange-50' : isHum ? 'bg-blue-50' : 'bg-gray-50';
+                            const iconColor = isSoil ? 'text-emerald-600' : isTemp ? 'text-orange-500' : isHum ? 'text-blue-500' : 'text-gray-400';
+                            
                             return (
-                              <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50/50 last:border-0 group/device">
-                                <div className="text-[13px] font-black text-emerald-600/80 w-16">{val}</div>
-                                <div className="flex items-center gap-3 flex-1 justify-end">
-                                  <div className="text-right">
-                                    <p className="text-sm font-black text-gray-800">{device.name}</p>
-                                    <p className="text-[10px] font-medium text-gray-400">{isEn ? "Real-time analysis" : "تحليل فوري"}</p>
+                              <div key={device.id} className="flex items-center justify-between group/device">
+                                <div className={`flex items-center gap-4 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
+                                  <div className={`w-12 h-12 rounded-full ${iconBg} flex items-center justify-center transition-all group-hover/device:shadow-md border border-white`}>
+                                    {isSoil ? <PlantSoilIcon className={iconColor} /> :
+                                     isTemp ? <TempSunIcon className={iconColor} /> :
+                                     isHum ? <AirHumidityIcon className={iconColor} /> :
+                                     <PlantSoilIcon className={iconColor} />}
                                   </div>
-                                  <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center transition-all group-hover/device:bg-white shadow-sm border border-gray-100">
-                                    {device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة') ? <PlantSoilIcon className="text-emerald-600" /> :
-                                     device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار') ? <TempSunIcon className="text-orange-500" /> :
-                                     device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? <AirHumidityIcon className="text-blue-500" /> :
-                                     <PlantSoilIcon className="text-emerald-600" />}
+                                  <div className={isRtl ? 'text-right' : 'text-left'}>
+                                    <p className="text-[15px] font-black text-gray-800">{device.name}</p>
+                                    <p className="text-[11px] font-bold text-gray-400">{isEn ? "Real-time analysis" : "تحليل فوري"}</p>
                                   </div>
                                 </div>
+                                <div className="text-lg font-black text-gray-700 tracking-tighter">{val}</div>
                               </div>
                             );
                           })}
@@ -758,26 +766,35 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
                       {/* Section 2: Actuators */}
                       <div>
-                        <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-50 pb-2">
-                          {isEn ? "Control & Operation Equipment" : "معدات التحكم والتشغيل"}
+                        <div className="text-[12px] font-black text-gray-400 uppercase tracking-widest mb-4 border-b border-gray-100/50 pb-2 flex items-center justify-between">
+                          <span>{isEn ? "Control & Operation Equipment" : "معدات التحكم والتشغيل"}</span>
                         </div>
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-4">
                           {devices.filter(d => d.type === 'actuator').map(device => {
+                            const isPump = device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') || device.name?.toLowerCase().includes('valve');
+                            const isCool = device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد');
+                            
                             const isActive = device.status === 'active';
                             const statusText = isActive ? (isEn ? "Working" : "تعمل") : (isEn ? "Idle" : "خامل");
+                            
+                            const iconBg = isPump ? 'bg-blue-50' : isCool ? 'bg-emerald-50' : 'bg-gray-50';
+                            const iconColor = isPump ? 'text-blue-600' : isCool ? 'text-emerald-600' : 'text-gray-400';
+                            
                             return (
-                              <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50/50 last:border-0 group/device">
-                                <div className={`text-[12px] font-black w-16 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{statusText}</div>
-                                <div className="flex items-center gap-3 flex-1 justify-end">
-                                  <div className="text-right">
-                                    <p className="text-sm font-black text-gray-800">{device.name}</p>
-                                    <p className="text-[10px] font-medium text-gray-400">{isEn ? "System Unit" : "وحدة نظام"}</p>
+                              <div key={device.id} className="flex items-center justify-between group/device">
+                                <div className={`flex items-center gap-4 ${isRtl ? 'flex-row' : 'flex-row-reverse'}`}>
+                                  <div className={`w-12 h-12 rounded-full ${iconBg} flex items-center justify-center transition-all group-hover/device:shadow-md border border-white`}>
+                                    {isPump ? <IrrigationSmartIcon className={iconColor} /> :
+                                     isCool ? <WindSharedIcon className={iconColor} /> :
+                                     <IrrigationSmartIcon className={iconColor} />}
                                   </div>
-                                  <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center transition-all group-hover/device:bg-white shadow-sm border border-gray-100">
-                                    {device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? <IrrigationSmartIcon className="text-emerald-600" /> :
-                                     device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد') ? <WindSharedIcon className="text-emerald-600" /> :
-                                     <IrrigationSmartIcon className="text-emerald-600" />}
+                                  <div className={isRtl ? 'text-right' : 'text-left'}>
+                                    <p className="text-[15px] font-black text-gray-800">{device.name}</p>
+                                    <p className="text-[11px] font-bold text-gray-400">{isEn ? "System Unit" : "وحدة نظام"}</p>
                                   </div>
+                                </div>
+                                <div className={`text-[14px] font-black ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                  {statusText}
                                 </div>
                               </div>
                             );
