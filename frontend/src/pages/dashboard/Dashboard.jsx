@@ -722,32 +722,77 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                     </p>
                   )}
                   
+                  {/* Grouped Content */}
+                  {!devicesLoading && devices.length > 0 && (
+                    <div className="flex flex-col gap-6">
+                      {/* Section 1: Sensors */}
+                      <div>
+                        <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-50 pb-2">
+                          {isEn ? "Environment & Monitoring Sensors" : "حساسات البيئة والمراقبة"}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {devices.filter(d => d.type === 'sensor').map(device => {
+                            const val = device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة') ? `${sharedSensors?.soil || 0}%` :
+                                       device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار') ? `${sharedSensors?.temp || 0}°C` :
+                                       device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? `${sharedSensors?.humidity || 0}%` : '';
+                            return (
+                              <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50/50 last:border-0 group/device">
+                                <div className="text-[13px] font-black text-emerald-600/80 w-16">{val}</div>
+                                <div className="flex items-center gap-3 flex-1 justify-end">
+                                  <div className="text-right">
+                                    <p className="text-sm font-black text-gray-800">{device.name}</p>
+                                    <p className="text-[10px] font-medium text-gray-400">{isEn ? "Real-time analysis" : "تحليل فوري"}</p>
+                                  </div>
+                                  <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center transition-all group-hover/device:bg-white shadow-sm border border-gray-100">
+                                    {device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة') ? <PlantSoilIcon className="text-emerald-600" /> :
+                                     device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار') ? <TempSunIcon className="text-orange-500" /> :
+                                     device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? <AirHumidityIcon className="text-blue-500" /> :
+                                     <PlantSoilIcon className="text-emerald-600" />}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Section 2: Actuators */}
+                      <div>
+                        <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 border-b border-gray-50 pb-2">
+                          {isEn ? "Control & Operation Equipment" : "معدات التحكم والتشغيل"}
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {devices.filter(d => d.type === 'actuator').map(device => {
+                            const isActive = device.status === 'active';
+                            const statusText = isActive ? (isEn ? "Working" : "تعمل") : (isEn ? "Idle" : "خامل");
+                            return (
+                              <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50/50 last:border-0 group/device">
+                                <div className={`text-[12px] font-black w-16 ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{statusText}</div>
+                                <div className="flex items-center gap-3 flex-1 justify-end">
+                                  <div className="text-right">
+                                    <p className="text-sm font-black text-gray-800">{device.name}</p>
+                                    <p className="text-[10px] font-medium text-gray-400">{isEn ? "System Unit" : "وحدة نظام"}</p>
+                                  </div>
+                                  <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center transition-all group-hover/device:bg-white shadow-sm border border-gray-100">
+                                    {device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? <IrrigationSmartIcon className="text-emerald-600" /> :
+                                     device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد') ? <WindSharedIcon className="text-emerald-600" /> :
+                                     <IrrigationSmartIcon className="text-emerald-600" />}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
                   {!devicesLoading && devices.length === 0 && (
                     <p className="text-center text-gray-400 text-sm py-8">
                       {isEn ? 'No devices registered yet' : 'لا توجد أجهزة مسجلة بعد'}
                     </p>
                   )}
                   
-                  {!devicesLoading && devices.map(device => (
-                    <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center transition-all group-hover/device:bg-white shadow-sm border border-gray-100">
-                          {device.type === 'sensor' ? (
-                             device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة') ? <PlantSoilIcon className="text-emerald-600" /> :
-                             device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار') ? <TempSunIcon className="text-orange-500" /> :
-                             device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? <AirHumidityIcon className="text-blue-500" /> :
-                             <PlantSoilIcon className="text-emerald-600" />
-                          ) : (
-                             device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? <IrrigationSmartIcon className="text-emerald-600" /> :
-                             device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد') ? <WindSharedIcon className="text-emerald-600" /> :
-                             device.name?.toLowerCase().includes('valve') ? <IrrigationSmartIcon className="text-emerald-600" /> :
-                             <IrrigationSmartIcon className="text-emerald-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-black text-gray-800">{device.name}</p>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase">
-                            {device.type}
                           </p>
                         </div>
                       </div>
