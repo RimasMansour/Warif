@@ -6,7 +6,19 @@ import { apiConfig } from "../../config/api";
 import { Sidebar, DashboardHome, DecisionSupportPage, IrrigationPage, MicroclimatePage, SoilRootDataPage, AccountAndSettingsPages } from "./DashboardSections";
 import { Footer } from "./Footer";
 import { NotFoundPage } from "./NotFoundPage";
-import { WeatherIcon, Account_ModalShell, BellAlertIcon, AlertsPanel } from "./DashboardShared";
+import { 
+  SensorTopBar, 
+  WeatherIcon, 
+  Account_ModalShell,
+  BellAlertIcon, 
+  AlertsPanel,
+  PlantSoilIcon,
+  TempSunIcon,
+  AirHumidityIcon,
+  WaterValveIcon,
+  WindSharedIcon,
+  IrrigationSmartIcon
+} from './DashboardShared';
 
 const DeviceRow = ({ s, T, isEn, isRtl }) => (
   <div className="flex items-center justify-between p-3.5 rounded-[22px] bg-white border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all duration-300 group">
@@ -719,12 +731,18 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                   {!devicesLoading && devices.map(device => (
                     <div key={device.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center text-lg">
-                          {device.type === 'sensor' ? '📡' :
-                           device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? '⚙️' :
-                           device.name?.toLowerCase().includes('valve') ? '🔧' :
-                           device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') ? '🌀' :
-                           device.name?.toLowerCase().includes('cool') ? '❄️' : '📟'}
+                        <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center transition-all group-hover/device:bg-white shadow-sm border border-gray-100">
+                          {device.type === 'sensor' ? (
+                             device.name?.toLowerCase().includes('soil') || device.name?.toLowerCase().includes('تربة') ? <PlantSoilIcon className="text-emerald-600" /> :
+                             device.name?.toLowerCase().includes('temp') || device.name?.toLowerCase().includes('حرار') ? <TempSunIcon className="text-orange-500" /> :
+                             device.name?.toLowerCase().includes('hum') || device.name?.toLowerCase().includes('رطوب') ? <AirHumidityIcon className="text-blue-500" /> :
+                             <PlantSoilIcon className="text-emerald-600" />
+                          ) : (
+                             device.name?.toLowerCase().includes('pump') || device.name?.toLowerCase().includes('مضخ') ? <WaterValveIcon className="text-emerald-600" /> :
+                             device.name?.toLowerCase().includes('fan') || device.name?.toLowerCase().includes('مروح') || device.name?.toLowerCase().includes('cool') || device.name?.toLowerCase().includes('تبريد') ? <WindSharedIcon className="text-emerald-600" /> :
+                             device.name?.toLowerCase().includes('valve') ? <IrrigationSmartIcon className="text-emerald-600" /> :
+                             <WaterValveIcon className="text-emerald-600" />
+                          )}
                         </div>
                         <div>
                           <p className="text-sm font-black text-gray-800">{device.name}</p>
