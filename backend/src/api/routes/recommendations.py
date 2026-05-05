@@ -1,14 +1,20 @@
 # backend/src/api/routes/recommendations.py
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, Integer
+from pydantic import BaseModel
 
 from src.db.session import get_db
 from src.db.models.models import Recommendation, Farm
 from src.api.schemas.schemas import RecommendationOut
 from src.core.security import get_current_user
 from src.services.presentation_formatter import PresentationFormatter
+
+
+class FeedbackRequest(BaseModel):
+    helpful: bool
+
 
 router = APIRouter()
 formatter = PresentationFormatter()
@@ -119,6 +125,110 @@ async def mark_all_read(
 
     await db.commit()
     return {"marked_read": len(recs)}
+
+
+@router.post("/{farm_id}/feedback/{recommendation_id}")
+async def submit_recommendation_feedback(
+    farm_id: int,
+    recommendation_id: int,
+    feedback: FeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    يحفظ فيدباك المستخدم على التوصية (مفيدة أم لا).
+    هذا الفيدباك يُستخدم في نظام التعلم المستمر.
+
+    Request body: {"helpful": true/false}
+    """
+    from datetime import datetime, timezone
+
+    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+
+    result = await db.execute(
+        select(Recommendation).where(
+            Recommendation.id == recommendation_id,
+            Recommendation.farm_id == farm_id,
+        )
+    )
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    # حفظ الفيدباك
+    rec.helpful = feedback.helpful
+    rec.feedback_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(rec)
+
+    # تسجيل في FeedbackLearningBridge لحساب الدقة
+    try:
+        from src.ml.feedback_integration import FeedbackLearningBridge
+        bridge = FeedbackLearningBridge(db)
+        accuracy = await bridge.calculate_feedback_accuracy(farm_id, days=7)
+        print(f"[Feedback] التوصية {recommendation_id}: {'✅ مفيدة' if feedback.helpful else '❌ غير مفيدة'}")
+        print(f"[Stats] المزرعة {farm_id}: دقة = {accuracy['overall_accuracy']:.1f}%")
+    except Exception as e:
+        print(f"[Warning] خطأ في تسجيل الفيدباك: {e}")
+
+    return {
+        "id": rec.id,
+        "helpful": rec.helpful,
+        "feedback_at": rec.feedback_at.isoformat() if rec.feedback_at else None,
+        "message": "Feedback recorded successfully"
+    }
+
+
+@router.get("/{farm_id}/feedback-stats")
+async def get_feedback_stats(
+    farm_id: int,
+    days: int = 7,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    يعيد إحصائيات الفيدباك على التوصيات.
+    مفيد لقياس تحسن دقة النموذج.
+    """
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import func
+
+    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+
+    # حساب من كم يوم
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # إجمالي التوصيات مع فيدباك
+    result = await db.execute(
+        select(
+            func.count(Recommendation.id).label("total"),
+            func.sum(func.cast(Recommendation.helpful, Integer)).label("helpful_count"),
+            func.count(
+                Recommendation.id
+            ).filter(Recommendation.helpful == False).label("not_helpful_count")
+        ).where(
+            Recommendation.farm_id == farm_id,
+            Recommendation.helpful.isnot(None),
+            Recommendation.feedback_at >= since
+        )
+    )
+
+    row = result.scalar_one()
+    total = row.total or 0
+    helpful = row.helpful_count or 0
+    not_helpful = row.not_helpful_count or 0
+
+    accuracy = (helpful / total * 100) if total > 0 else 0
+
+    return {
+        "days": days,
+        "total_feedback": total,
+        "helpful": helpful,
+        "not_helpful": not_helpful,
+        "accuracy_percentage": round(accuracy, 2),
+        "pending_feedback": "عدد التوصيات التي لم تحصل على فيدباك بعد"
+    }
 
 
 async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm:

@@ -1,4 +1,5 @@
 # backend/src/api/main.py
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,6 +48,82 @@ app.include_router(commands.router,        prefix="/api/v1/commands",        tag
 app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
 # app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])  # Disabled temporarily
+
+# ── Startup Events ────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup_monitoring():
+    """بدء نظام المراقبة 24/7 عند تشغيل الخادم"""
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from src.ml.feedback_integration import FeedbackLearningBridge
+    from src.db.models.models import Farm
+    from sqlalchemy import select
+
+    async def continuous_monitoring():
+        """المراقبة المستمرة للفيدباك والدقة"""
+        print("\n" + "="*70)
+        print("🚀 نظام المراقبة 24/7 بدأ")
+        print("   يراقب الفيدباك والدقة كل دقيقة واحدة")
+        print("="*70 + "\n")
+
+        while True:
+            try:
+                engine = create_async_engine(
+                    settings.DATABASE_URL,
+                    echo=False,
+                )
+
+                async_session_maker = sessionmaker(
+                    engine, class_=AsyncSession, expire_on_commit=False
+                )
+
+                async with async_session_maker() as db:
+                    # جلب قائمة المزارع
+                    result = await db.execute(select(Farm))
+                    farms = result.scalars().all()
+
+                    for farm in farms:
+                        try:
+                            bridge = FeedbackLearningBridge(db)
+
+                            # حساب الدقة على آخر 7 أيام
+                            stats = await bridge.calculate_feedback_accuracy(farm.id, days=7)
+                            accuracy = stats['overall_accuracy']
+                            total = stats['total_feedback']
+
+                            if total == 0:
+                                continue
+
+                            # 🚨 حالة الطوارئ: الدقة < 80%
+                            if accuracy < 80:
+                                print(f"\n⚠️  [EMERGENCY] المزرعة {farm.id}: دقة التوصيات = {accuracy:.1f}%")
+                                print(f"   {stats['by_category']}")
+                                print(f"   بحاجة لإعادة تدريب فورية!")
+
+                            # ⚠️ تحذير: الدقة 80-85%
+                            elif accuracy < 85:
+                                print(f"\n⚠️  [WARNING] المزرعة {farm.id}: دقة = {accuracy:.1f}%")
+                                print(f"   مجدولة إعادة تدريب...")
+
+                            # ✅ عادي: الدقة > 85%
+                            else:
+                                print(f"✅ المزرعة {farm.id}: دقة = {accuracy:.1f}% | {total} فيدباك")
+
+                        except Exception as e:
+                            print(f"❌ خطأ مراقبة المزرعة {farm.id}: {e}")
+
+                await engine.dispose()
+
+                # انتظر دقيقة واحدة قبل الفحص التالي
+                await asyncio.sleep(60)
+
+            except Exception as e:
+                print(f"❌ خطأ في دورة المراقبة: {e}")
+                await asyncio.sleep(60)
+
+    # بدء المراقبة كـ background task
+    asyncio.create_task(continuous_monitoring())
+
 
 # ── Health ────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"])

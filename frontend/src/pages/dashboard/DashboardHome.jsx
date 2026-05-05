@@ -615,10 +615,30 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
   const [showThanksIds, setShowThanksIds] = useState([]);
   const [recommendationStatus, setRecommendationStatus] = useState({});
 
-  const handleFeedback = (id, type) => {
+  const handleFeedback = async (id, type) => {
+    // تحديث الواجهة المحلية فوراً
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
+
+    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
+    try {
+      const helpful = type === 'up';
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/v1/recommendations/${farmId}/feedback/${id}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          },
+          body: JSON.stringify({ helpful })
+        }
+      );
+      if (!response.ok) console.error('Failed to save feedback');
+    } catch (err) {
+      console.error('Error sending feedback:', err);
+    }
   };
 
   const handleRecommendationDecision = (id, decision) => {

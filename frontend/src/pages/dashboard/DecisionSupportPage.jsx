@@ -119,10 +119,34 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     setLocalRecs(filtered);
   }, [allRecommendations, globalAutoMode]);
 
-  const handleFeedback = (id, val) => {
+  const handleFeedback = async (id, val) => {
+    // تحديث الواجهة المحلية فوراً
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, feedback: val } : rec));
     if (!showThanksIds.includes(id)) {
       setShowThanksIds(prev => [...prev, id]);
+    }
+
+    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
+    try {
+      const helpful = val === 'up';
+      const recId = id.replace('api-', '');
+      const token = localStorage.getItem('warif_token');
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+
+      const response = await fetch(
+        `${API_BASE}/api/v1/recommendations/${farmId}/feedback/${recId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ helpful })
+        }
+      );
+      if (!response.ok) console.error('Failed to save feedback');
+    } catch (err) {
+      console.error('Error sending feedback:', err);
     }
   };
 
