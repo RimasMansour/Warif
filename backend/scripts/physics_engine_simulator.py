@@ -93,12 +93,12 @@ CROP_PROFILES = {
         "dry_rate_factor": 0.7,
     },
     "default": {
-        "optimal_soil_min": 55,
-        "optimal_soil_max": 70,
-        "optimal_temp_min": 18,
-        "optimal_temp_max": 28,
-        "water_demand": 1.0,
-        "dry_rate_factor": 1.0,
+        "optimal_soil_min": 70,
+        "optimal_soil_max": 80,
+        "optimal_temp_min": 20,
+        "optimal_temp_max": 30,
+        "water_demand": 1.3,
+        "dry_rate_factor": 1.2,
     }
 }
 
