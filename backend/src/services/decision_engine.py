@@ -34,6 +34,50 @@ class SmartDecisionEngine:
     4. Weather API: العوامل الخارجية
     """
 
+    # Category styling: color, icon, border for UI consistency
+    CATEGORY_STYLES = {
+        "irrigation": {
+            "color": "bg-blue-50/20",
+            "border": "border-blue-100/60",
+            "text": "text-blue-700",
+            "iconBg": "bg-blue-100 text-blue-600 border-blue-200/50",
+            "actionBg": "bg-blue-50/50",
+            "actionBorder": "border-blue-100/50",
+            "actionText": "text-blue-800",
+            "borderLeft": "border-l-4 border-l-blue-500",
+        },
+        "temperature": {
+            "color": "bg-amber-50/20",
+            "border": "border-amber-100/60",
+            "text": "text-amber-700",
+            "iconBg": "bg-amber-100 text-amber-600 border-amber-200/50",
+            "actionBg": "bg-amber-50/50",
+            "actionBorder": "border-amber-100/50",
+            "actionText": "text-amber-800",
+            "borderLeft": "border-l-4 border-l-amber-500",
+        },
+        "humidity": {
+            "color": "bg-cyan-50/20",
+            "border": "border-cyan-100/60",
+            "text": "text-cyan-700",
+            "iconBg": "bg-cyan-100 text-cyan-600 border-cyan-200/50",
+            "actionBg": "bg-cyan-50/50",
+            "actionBorder": "border-cyan-100/50",
+            "actionText": "text-cyan-800",
+            "borderLeft": "border-l-4 border-l-cyan-500",
+        },
+        "soil": {
+            "color": "bg-amber-900/10",
+            "border": "border-amber-700/30",
+            "text": "text-amber-800",
+            "iconBg": "bg-amber-100 text-amber-700 border-amber-200/50",
+            "actionBg": "bg-amber-50/30",
+            "actionBorder": "border-amber-100/50",
+            "actionText": "text-amber-900",
+            "borderLeft": "border-l-4 border-l-amber-700",
+        },
+    }
+
     # Class-level cache to prevent duplicate recommendations
     # Key: (farm_id, category) -> Value: (message, severity, timestamp)
     _rec_cache: Dict[Tuple[int, str], Tuple[str, str, datetime]] = {}
@@ -315,6 +359,10 @@ class SmartDecisionEngine:
                     severity="warning",
                     confidence=0.79,
                 ))
+
+        # Filter: Keep only 'normal' severity recommendations (tips for system improvement)
+        # 'warning' and 'urgent' are handled by the Alerts system
+        recommendations = [r for r in recommendations if r.severity == "normal"]
 
         return recommendations
 

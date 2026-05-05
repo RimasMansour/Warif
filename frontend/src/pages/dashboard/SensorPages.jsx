@@ -206,7 +206,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
               <div className="flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                 {recommendations.length > 0 ? (
                   recommendations.map((rec, i) => {
-                    const theme = getRecommendationTheme('climate', rec.text);
+                    const theme = getRecommendationTheme('temperature', rec.text);
                     return (
                       <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} shadow-sm transition-all animate-fade-in`}>
                        <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
