@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  CardShell, 
-  CardTopRow, 
-  TempSunIcon, 
-  AirHumidityIcon, 
-  SoilDropIcon, 
-  DropBadgeIcon, 
-  PlantSoilIcon, 
-  WaterValveIcon, 
+import {
+  CardShell,
+  CardTopRow,
+  TempSunIcon,
+  AirHumidityIcon,
+  SoilDropIcon,
+  DropBadgeIcon,
+  PlantSoilIcon,
+  WaterValveIcon,
   ListIcon,
   WindSharedIcon,
   IrrigationSmartIcon,
-  EmptyState
+  EmptyState,
+  getRecommendationTheme
 } from './DashboardShared';
 import { 
   Donut,
@@ -707,28 +708,37 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
           recommendations.map((rec, idx) => {
             const status = interactedIds[rec.id];
             if (status === 'later') return null;
+            const theme = getRecommendationTheme(rec.category, rec.title);
+
+            const borderRightClass = rec.category === 'irrigation' ? 'border-r-4 border-r-blue-500' :
+                                    rec.category === 'temperature' ? 'border-r-4 border-r-amber-500' :
+                                    rec.category === 'humidity' ? 'border-r-4 border-r-slate-400' :
+                                    'border-r-4 border-r-amber-400';
 
             return (
-              <div key={rec.id} className={`p-3 rounded-[24px] border flex flex-col bg-white shadow-sm transition-all ${
-                rec.priority === 'high'
-                  ? 'border-blue-200 shadow-blue-50/50'
-                  : 'border-emerald-100 shadow-emerald-50/50'
-              }`}>
+              <div key={rec.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
                  <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <h4 className={`text-[13px] font-black leading-tight mb-1 ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                      {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title} {isEn ? 'for' : 'عن'} {getRecSubject(rec.type)}
-                    </h4>
+                    <div className="flex items-start gap-3">
+                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
+                        {theme.icon}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
+                          {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title}
+                        </h4>
+                      </div>
+                    </div>
 
                     {rec.data_insight && (
-                      <div className="bg-gray-50/50 rounded-xl p-2 border border-gray-100/50 mt-1">
+                      <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
                         <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
                         <div className="text-[11px] text-gray-800 leading-relaxed">{rec.data_insight}</div>
                       </div>
                     )}
 
-                    <div className={`${rec.priority === 'high' ? 'bg-blue-50/30 border-blue-100/50' : 'bg-emerald-50/30 border-emerald-100/50'} rounded-xl p-2 border`}>
-                      <div className={`text-[11px] font-bold mb-0.5 ${rec.priority === 'high' ? 'text-blue-800' : 'text-emerald-800'}`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                      <div className="text-[11px] text-gray-800 leading-relaxed">{getRecActionText(rec)}</div>
+                    <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
+                      <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
+                      <div className="text-[11px] text-gray-800 leading-relaxed">{rec.suggestion || getRecActionText(rec)}</div>
                     </div>
 
                     {rec.benefit && (

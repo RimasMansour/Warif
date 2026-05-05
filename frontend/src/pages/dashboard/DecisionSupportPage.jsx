@@ -189,8 +189,12 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                 <div className="flex flex-col gap-4">
                   {weekRecs.map((item, idx) => {
                     const theme = getRecommendationTheme(item.type, item.title);
+                    const borderRightClass = item.type === 'irrigation' ? 'border-r-4 border-r-blue-500' :
+                                            item.type === 'temperature' ? 'border-r-4 border-r-amber-500' :
+                                            item.type === 'humidity' ? 'border-r-4 border-r-slate-400' :
+                                            'border-r-4 border-r-amber-400';
                     return (
-                      <div key={item.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} shadow-sm transition-all animate-fade-in`}>
+                      <div key={item.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
                         <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
                            <div className="flex items-start gap-3">
                               <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>

@@ -113,8 +113,13 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     return apiRecs
       .filter(r => r.category === 'irrigation')
       .map(r => ({
+        id: r.id,
+        type: r.category,
+        title: r.title,
         text: r.message,
-        reasoning: r.reasoning || r.message
+        reasoning: r.reason,
+        suggestion: r.suggestion,
+        benefit: r.benefit
       }));
   }, [apiRecs]);
 
@@ -250,9 +255,13 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
               <div className="mt-6 flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                 {recommendations.length > 0 ? (
                   recommendations.map((rec, i) => {
-                    const theme = getRecommendationTheme(rec.type, rec.text);
+                    const theme = getRecommendationTheme(rec.type, rec.title);
+                    const borderRightClass = rec.type === 'irrigation' ? 'border-r-4 border-r-blue-500' :
+                                            rec.type === 'temperature' ? 'border-r-4 border-r-amber-500' :
+                                            rec.type === 'humidity' ? 'border-r-4 border-r-slate-400' :
+                                            'border-r-4 border-r-amber-400';
                     return (
-                    <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} shadow-sm transition-all animate-fade-in`}>
+                    <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
                        <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
                           <div className="flex items-start gap-3">
                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
@@ -260,7 +269,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                              </div>
                              <div className="flex-1">
                                <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-                                 {isEn ? 'Recommendation:' : 'التوصية:'} {rec.text}
+                                 {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title}
                                </h4>
                              </div>
                           </div>
@@ -274,7 +283,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
 
                           <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
                             <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                            <div className="text-[11px] text-gray-800 leading-relaxed">{rec.text}</div>
+                            <div className="text-[11px] text-gray-800 leading-relaxed">{rec.suggestion}</div>
                           </div>
 
                           {rec.benefit && (

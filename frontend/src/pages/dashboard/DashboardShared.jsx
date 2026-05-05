@@ -524,7 +524,6 @@ function getRecommendationTheme(type, text = "") {
         actionBg: 'bg-blue-50/50',
         actionBorder: 'border-blue-100/50',
         actionText: 'text-blue-800',
-        borderLeft: 'border-l-4 border-l-blue-500',
         icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
       };
     case 'temperature':
@@ -536,32 +535,29 @@ function getRecommendationTheme(type, text = "") {
         actionBg: 'bg-amber-50/50',
         actionBorder: 'border-amber-100/50',
         actionText: 'text-amber-800',
-        borderLeft: 'border-l-4 border-l-amber-500',
         icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
       };
     case 'humidity':
       return {
-        bg: 'bg-cyan-50/20',
-        border: 'border-cyan-100/60',
-        text: 'text-cyan-700',
-        iconBg: 'bg-cyan-100 text-cyan-600 border-cyan-200/50',
-        actionBg: 'bg-cyan-50/50',
-        actionBorder: 'border-cyan-100/50',
-        actionText: 'text-cyan-800',
-        borderLeft: 'border-l-4 border-l-cyan-500',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22c4.4 0 8-3.6 8-8 0-6-8-12-8-12S4 8 4 14c0 4.4 3.6 8 8 8z"/></svg>
+        bg: 'bg-slate-50/50',
+        border: 'border-slate-200/50',
+        text: 'text-slate-600',
+        iconBg: 'bg-slate-50 text-slate-500 border-slate-100/50',
+        actionBg: 'bg-slate-50/40',
+        actionBorder: 'border-slate-100/50',
+        actionText: 'text-slate-700',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
       };
     case 'soil':
     case 'fertilization':
       return {
-        bg: 'bg-amber-900/10',
-        border: 'border-amber-700/30',
-        text: 'text-amber-800',
-        iconBg: 'bg-amber-100 text-amber-700 border-amber-200/50',
-        actionBg: 'bg-amber-50/30',
+        bg: 'bg-amber-50/50',
+        border: 'border-amber-200/50',
+        text: 'text-amber-600',
+        iconBg: 'bg-amber-50 text-amber-500 border-amber-100/50',
+        actionBg: 'bg-amber-50/40',
         actionBorder: 'border-amber-100/50',
-        actionText: 'text-amber-900',
-        borderLeft: 'border-l-4 border-l-amber-700',
+        actionText: 'text-amber-700',
         icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20c0-3 3-4 8-4s8 1 8 4"/><path d="M12 16V8"/><path d="M12 8c-2-2-5-2-5 0 0 3 3 4 5 4"/><path d="M12 8c2-2 5-2 5 0 0 3-3 4-5 4"/></svg>
       };
     default:
@@ -573,7 +569,6 @@ function getRecommendationTheme(type, text = "") {
         actionBg: 'bg-emerald-50/30',
         actionBorder: 'border-emerald-100/50',
         actionText: 'text-emerald-800',
-        borderLeft: 'border-l-4 border-l-emerald-500',
         icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
       };
   }
