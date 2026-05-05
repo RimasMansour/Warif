@@ -172,13 +172,13 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           <div className="animate-fade-in-up delay-3">
             <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} crops={crops} />
           </div>
-          <div className="animate-fade-in-up delay-4 flex flex-col">
-            <DashboardAlertsCard 
-              alerts={alerts} 
-              onAccept={onAlertAccept} 
-              onReject={onAlertReject} 
-              onFeedback={onAlertFeedback} 
-              isEn={isEn} 
+          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 h-full self-stretch">
+            <DashboardAlertsCard
+              alerts={alerts}
+              onAccept={onAlertAccept}
+              onReject={onAlertReject}
+              onFeedback={onAlertFeedback}
+              isEn={isEn}
               globalAutoMode={globalAutoMode}
             />
           </div>
@@ -196,9 +196,6 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           </div>
           <div className="animate-fade-in-up delay-6">
             <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} farmId={farmId} />
-          </div>
-          <div className="animate-fade-in-up delay-7">
-            <SoilTrendChart isRtl={!isEn} isEn={isEn} activeFarm={activeFarm} />
           </div>
 
         </div>
@@ -223,7 +220,7 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
+      <div className="flex-1 mt-4 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-3">
         {alerts.length === 0 ? (
           <EmptyState 
             compact={true} 
