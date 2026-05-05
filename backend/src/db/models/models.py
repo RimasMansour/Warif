@@ -68,6 +68,13 @@ class UserRole(str, enum.Enum):
     admin  = "admin"
 
 
+class ActuatorType(str, enum.Enum):
+    irrigation_valve = "irrigation_valve"
+    fan = "fan"
+    cooler = "cooler"
+    heater = "heater"
+
+
 # ── Models ─────────────────────────────────────────────────────────────────
 
 class User(Base):
@@ -141,6 +148,7 @@ class SensorReading(Base):
     sensor_type = Column(String(32), nullable=False)
     value       = Column(Float, nullable=False)
     unit        = Column(String(16))
+    farm_id     = Column(Integer, ForeignKey("farms.id"), nullable=True, index=True)
     timestamp   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True)
 
     device = relationship("Device", back_populates="readings")

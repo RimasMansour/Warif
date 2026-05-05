@@ -22,7 +22,7 @@ import {
   generateDataForRange,
   getLabelForRange
 } from './dashboardUtils';
-import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices } from '../../hooks/useWarifData';
+import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources } from '../../hooks/useWarifData';
 
 // Liquid Wave Animation Styles
 const waveStyles = `
@@ -84,6 +84,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   const { data: localSensors } = useLatestSensors(10000);
   const { data: dashboardData } = useDashboard(farmId);
   const { devices, counts, loading: devicesLoading } = useDevices(farmId);
+  const { data: irrigationResources } = useIrrigationResources(farmId, 15000);
 
   const livesensors = sharedSensors || localSensors;
 
@@ -183,7 +184,14 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
           {/* Row 2: Bottom Aligned Cards */}
           <div className="animate-fade-in-up delay-5">
-            <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} resourceData={resourceData} dashboardData={dashboardData} />
+            <IrrigationGlanceCard 
+              onGo={onGo} 
+              globalAutoMode={globalAutoMode} 
+              activeFarm={activeFarm} 
+              water={irrigationResources?.water_usage_liters ?? 0}
+              power={irrigationResources?.power_usage_kwh ?? 0}
+              dashboardData={dashboardData} 
+            />
           </div>
           <div className="animate-fade-in-up delay-6">
             <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} farmId={farmId} />
@@ -518,7 +526,7 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
   );
 }
 
-function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData, resourceData }) {
+function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData, water, power }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   
   // Get real data from dashboard API
@@ -567,7 +575,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
           <div className="flex flex-col items-center text-center">
             <div className="text-xs text-gray-400 font-bold uppercase mb-1 tracking-tight font-black">{isEn ? 'Daily Consumption' : 'الاستهلاك اليومي'}</div>
             <div className="text-4xl font-black text-gray-800 tracking-tight flex items-baseline gap-1">
-              {Math.round(resourceData?.water ?? 0)} <span className="text-base font-bold text-gray-400">{isEn ? 'L' : 'لتر'}</span>
+              {Math.round(water)} <span className="text-base font-bold text-gray-400">{isEn ? 'L' : 'لتر'}</span>
             </div>
           </div>
         </div>

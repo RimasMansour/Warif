@@ -10,15 +10,20 @@ Scientific References:
 - ASHRAE Fundamentals Handbook (2021) - Evaporative Cooling, Chapter 41
 - Abdel-Ghany & Kozai (2006) - Dynamic modeling of greenhouse temperature
 """
+import os
+import sys
+from pathlib import Path
+
+# Always load from backend directory regardless of where script is run
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
+os.chdir(str(BACKEND_DIR))
+
 import asyncio
 import time
 import requests
-import sys
-import os
 import math
 from datetime import datetime
-
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -132,6 +137,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         last_soil = await db.execute(
             select(SensorReading)
             .where(SensorReading.sensor_type == "soil_moisture")
+            .where(SensorReading.farm_id == fid)
             .order_by(SensorReading.timestamp.desc())
             .limit(1)
         )
@@ -143,6 +149,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         last_temp = await db.execute(
             select(SensorReading)
             .where(SensorReading.sensor_type == "air_temperature")
+            .where(SensorReading.farm_id == fid)
             .order_by(SensorReading.timestamp.desc())
             .limit(1)
         )
@@ -304,7 +311,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         # Soil moisture increase adjusted by crop water demand
         gain = SOIL_MOISTURE_GAIN_PER_TICK * profile["water_demand"]
         state["soil_moisture"] = min(95.0, state["soil_moisture"] + gain)
-        state["soil_temp"] -= 0.05
+        state["soil_temp"] -= 0.05  # irrigation cools soil
     else:
         # Soil drying rate based on temp and crop type
         # Ref: Stanghellini (1987)
@@ -312,6 +319,14 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         temp_factor = max(1.0, (state["internal_temp"] - 25) / 10.0)
         dry_rate = (state["internal_temp"] / 40.0) * SOIL_DRY_FACTOR * profile["dry_rate_factor"] * temp_factor
         state["soil_moisture"] = max(0.0, state["soil_moisture"] - dry_rate)
+
+        # Soil temperature trends toward air temperature gradually
+        # Ref: Stanghellini 1987 - soil thermal conductivity
+        soil_air_diff = state["internal_temp"] - state["soil_temp"]
+        state["soil_temp"] += soil_air_diff * 0.02  # slow thermal equilibrium
+
+    # Clamp soil temp to physical limits
+    state["soil_temp"] = max(10.0, min(50.0, state["soil_temp"]))
 
     if state["fan_on"]:
         energy_consumed += (FAN_POWER_KW / 3600.0) * INTERVAL
@@ -363,43 +378,166 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     if energy_consumed > 0:
         farm.total_energy_kwh += energy_consumed
 
+    # Device IDs based on real hardware
+    DEVICE_MAP = {
+        "soil":     f"soil_sensor_{fid}",
+        "climate":  f"climate_sensor_{fid}",
+        "cooling":  f"cooling_unit_{fid}",
+        "irrigation": f"irrigation_{fid}",
+    }
+
     # Auto-register devices if missing
     devices_result = await db.execute(select(Device).where(Device.farm_id == fid))
     devices = devices_result.scalars().all()
 
     if not devices:
-        print(f"Farm {fid} has no devices. Auto-registering...")
-        dev_sensors = Device(farm_id=fid, device_id=f"sensor_fw_{fid}", name="Main Sensors", type="sensor")
-        dev_pump = Device(farm_id=fid, device_id=f"pump_fw_{fid}", name="Main Pump", type="actuator")
-        db.add(dev_sensors)
-        db.add(dev_pump)
+        print(f"Farm {fid} has no devices. Auto-registering 4 correct devices...")
+        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["soil"], name="حساس التربة", type="sensor"))
+        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["climate"], name="حساس المناخ", type="sensor"))
+        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["cooling"], name="وحدة التبريد", type="actuator"))
+        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["irrigation"], name="محبس الري", type="actuator"))
+        
+        # Add actuators
+        db.add(Actuator(device_id=DEVICE_MAP["cooling"], actuator_type="fan", state="off", power_rating_kw=1.1))
+        db.add(Actuator(device_id=DEVICE_MAP["irrigation"], actuator_type="irrigation_valve", state="off", power_rating_kw=0.0))
+        
         await db.flush()
         await db.commit()
-        devices = [dev_sensors, dev_pump]
-
-    sensor_device = next((d for d in devices if d.type == "sensor"), devices[0])
 
     # Write readings directly to Database (no HTTP needed)
-    sensors_to_save = [
-        ("air_temperature",  round(state["internal_temp"], 2),   "C"),
-        ("air_humidity",     round(state["internal_hum"], 2),    "%"),
-        ("soil_temperature", round(state["soil_temp"], 2),       "C"),
-        ("soil_moisture",    round(state["soil_moisture"], 2),   "%"),
-        ("light_intensity",  round(lux, 1),                      "lux"),
-        ("water_usage",      round(water_consumed, 3),           "L"),
-        ("power_usage",      round(energy_consumed * 1000, 3),   "Wh"),
+    
+    # 1. Soil sensor readings (soil_sensor_{fid})
+    soil_readings = [
+        ("soil_moisture",    round(state["soil_moisture"], 2),  "%"),
+        ("soil_temperature", round(state["soil_temp"], 2),      "C"),
     ]
 
-    # Save directly to Database
-    for stype, val, unit in sensors_to_save:
-        reading = SensorReading(
-            device_id=sensor_device.device_id,
+    # 2. Climate sensor readings (climate_sensor_{fid})
+    climate_readings = [
+        ("air_temperature",  round(state["internal_temp"], 2),  "C"),
+        ("air_humidity",     round(state["internal_hum"], 2),   "%"),
+        ("light_intensity",  round(lux, 1),                     "lux"),
+    ]
+
+    # 3. Irrigation readings (irrigation_{fid})
+    irrigation_readings = [
+        ("water_usage", round(water_consumed, 3), "L"),
+    ]
+
+    # 4. Power readings (cooling_unit_{fid})
+    power_readings = [
+        ("power_usage", round(energy_consumed * 1000, 3), "Wh"),
+    ]
+
+    # Save to Database with correct device mapping and farm_id
+    from datetime import timezone
+
+    for stype, val, unit in soil_readings:
+        db.add(SensorReading(
+            device_id=DEVICE_MAP["soil"],
+            farm_id=fid,
             sensor_type=stype,
             value=val,
             unit=unit,
-            timestamp=datetime.now()
+            timestamp=datetime.now(timezone.utc)
+        ))
+
+    for stype, val, unit in climate_readings:
+        db.add(SensorReading(
+            device_id=DEVICE_MAP["climate"],
+            farm_id=fid,
+            sensor_type=stype,
+            value=val,
+            unit=unit,
+            timestamp=datetime.now(timezone.utc)
+        ))
+
+    for stype, val, unit in irrigation_readings:
+        db.add(SensorReading(
+            device_id=DEVICE_MAP["irrigation"],
+            farm_id=fid,
+            sensor_type=stype,
+            value=val,
+            unit=unit,
+            timestamp=datetime.now(timezone.utc)
+        ))
+
+    for stype, val, unit in power_readings:
+        db.add(SensorReading(
+            device_id=DEVICE_MAP["cooling"],
+            farm_id=fid,
+            sensor_type=stype,
+            value=val,
+            unit=unit,
+            timestamp=datetime.now(timezone.utc)
+        ))
+
+    # ─── DECISION ENGINE INTEGRATION ───
+    # Build sensor data dict for Decision Engine
+    full_sensor_data = {
+        "soil_moisture":    round(state["soil_moisture"], 2),
+        "soil_temperature": round(state["soil_temp"], 2),
+        "air_temperature":  round(state["internal_temp"], 2),
+        "air_humidity":     round(state["internal_hum"], 2),
+        "light_intensity":  round(lux, 1),
+        "water_usage":      round(water_consumed, 3),
+        "power_usage":      round(energy_consumed * 1000, 3),
+    }
+
+    # Call Decision Engine for recommendations and anomaly detection
+    try:
+        from src.services.decision_engine import SmartDecisionEngine
+        from src.db.models.models import Recommendation, Alert, AlertSeverity, AlertStatus
+        from datetime import timezone, timedelta
+        
+        engine = SmartDecisionEngine()
+        intelligence_report = await engine.analyze_with_intelligence(
+            full_sensor_data, fid
         )
-        db.add(reading)
+        
+        # Save recommendations with 5-minute cooldown
+        cooldown_5min = datetime.now(timezone.utc) - timedelta(minutes=5)
+        for rec in intelligence_report.get('recommendations', []):
+            existing = await db.execute(
+                select(Recommendation).where(
+                    Recommendation.farm_id == fid,
+                    Recommendation.message == rec.message,
+                    Recommendation.created_at >= cooldown_5min
+                )
+            )
+            if not existing.scalar_one_or_none():
+                db.add(Recommendation(
+                    farm_id=fid,
+                    message=rec.message,
+                    reasoning=rec.reasoning,
+                    category=rec.category,
+                    severity=rec.severity,
+                    is_read=False,
+                ))
+        
+        # Save alerts with 30-minute cooldown
+        cooldown_30min = datetime.now(timezone.utc) - timedelta(minutes=30)
+        for anomaly in intelligence_report.get('anomalies', []):
+            if anomaly['severity'] in ['critical', 'high']:
+                existing_alert = await db.execute(
+                    select(Alert).where(
+                        Alert.sensor_type == anomaly['sensor'],
+                        Alert.farm_id == fid,
+                        Alert.status == AlertStatus.open,
+                        Alert.created_at >= cooldown_30min
+                    )
+                )
+                if not existing_alert.scalar_one_or_none():
+                    db.add(Alert(
+                        farm_id=fid,
+                        sensor_type=anomaly['sensor'],
+                        message=f"🚨 {anomaly['description']}",
+                        severity=AlertSeverity.critical if anomaly['severity'] == 'critical' 
+                                 else AlertSeverity.warning,
+                        status=AlertStatus.open,
+                    ))
+    except Exception as de_err:
+        print(f"[DE] Farm {fid} decision engine error: {de_err}")
 
     print(
         f"[{datetime.now().strftime('%H:%M:%S')}] Farm {fid} ({crop_type}) | "

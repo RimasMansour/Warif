@@ -70,9 +70,13 @@ export function useLatestSensors(intervalMs = 10000) {
 
   const fetch_data = useCallback(async () => {
     try {
+      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      const farmId = userData.farmId;
+      if (!farmId) return;
+
       let mapped = {}
       try {
-        const res = await fetch(`${API_BASE}/api/v1/sensors/latest`, {
+        const res = await fetch(`${API_BASE}/api/v1/sensors/latest?farm_id=${farmId}`, {
           headers: authHeaders()
         })
         
@@ -119,7 +123,11 @@ export function useSensorHistory(sensor_type, limit = 100) {
   const fetch_data = useCallback(async () => {
     if (!sensor_type) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&limit=${limit}`, {
+      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      const farmId = userData.farmId;
+      if (!farmId) return;
+
+      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`, {
         headers: authHeaders()
       })
       if (res.ok) {
@@ -485,7 +493,10 @@ export function useDevices(providedFarmId = null) {
     pumps: devices.filter(d => d.type === 'actuator' && 
       (d.name?.toLowerCase().includes('pump') ||
        d.name?.toLowerCase().includes('مضخ') ||
-       d.name?.toLowerCase().includes('valve'))).length,
+       d.name?.toLowerCase().includes('valve') ||
+       d.name?.toLowerCase().includes('irrigat') ||
+       d.name?.toLowerCase().includes('محبس') ||
+       d.name?.toLowerCase().includes('ري'))).length,
     cooling: devices.filter(d => d.type === 'actuator' && 
       (d.name?.toLowerCase().includes('fan') ||
        d.name?.toLowerCase().includes('cool') ||

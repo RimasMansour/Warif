@@ -99,14 +99,14 @@ async def trigger_auto_irrigation(
         # Auto-create device if not exists
         device = Device(
             farm_id=farm_id,
-            device_id=f"valve_farm_{farm_id}_auto",
-            name="Auto Irrigation Valve",
+            device_id=f"irrigation_{farm_id}",
+            name="Irrigation",
             type="actuator",
         )
         db.add(device)
         await db.flush()
 
-    device_id = f"valve_farm_{farm_id}_auto"
+    device_id = f"irrigation_{farm_id}"
     actuator = await _get_or_create_actuator(device_id, db)
 
     # Stop any existing active irrigation first
