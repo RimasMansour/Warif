@@ -71,7 +71,7 @@ export const translations = {
 
     // Sensor selection
     selectDevices: 'اختر الأجهزة',
-    step2of3: 'الخطوة ٢ من ٣ — اختر الأجهزة المتوفرة لديك',
+    step2of4: 'الخطوة ٣ من ٤ — اختر الأجهزة المتوفرة لديك',
     sensorTemp: 'حساس الحرارة',
     sensorTempDesc: 'مراقبة درجة الحرارة',
     sensorHumidity: 'حساس الرطوبة',
@@ -82,9 +82,18 @@ export const translations = {
     sensorIrrigationDesc: 'التحكم بالري',
     addLater: 'يمكنك إضافة الأجهزة لاحقاً من الإعدادات',
 
+    // Plant selection
+    selectPlant: 'ماذا ستزرع؟',
+    step2of3_new: 'الخطوة ٢ من ٤ — اختر المحصول الذي ستزرعه لدراسة ظروفه',
+    plantTomatoes: 'طماطم',
+    plantCucumber: 'خيار',
+    plantPepper: 'فلفل',
+    plantHerbs: 'أعشاب',
+    plantOther: 'أخرى',
+
     // Device scan
     pairDevices: 'ربط الأجهزة',
-    step3of3: 'الخطوة ٣ من ٣ — ابحث عن الأجهزة القريبة',
+    step3of4: 'الخطوة ٤ من ٤ — ابحث عن الأجهزة القريبة',
     wifi: 'Wi-Fi',
     bluetooth: 'البلوتوث',
     location: 'الموقع الجغرافي',
@@ -279,7 +288,7 @@ export const translations = {
 
     // Sensor selection
     selectDevices: 'Select Devices',
-    step2of3: 'Step 2 of 3 — Select your available devices',
+    step2of4: 'Step 3 of 4 — Select your available devices',
     sensorTemp: 'Temperature Sensor',
     sensorTempDesc: 'Monitor temperature',
     sensorHumidity: 'Humidity Sensor',
@@ -290,9 +299,18 @@ export const translations = {
     sensorIrrigationDesc: 'Control irrigation',
     addLater: 'You can add devices later from Settings',
 
+    // Plant selection
+    selectPlant: 'What will you grow?',
+    step2of3_new: 'Step 2 of 4 — Select the crop you will grow to study its conditions',
+    plantTomatoes: 'Tomatoes',
+    plantCucumber: 'Cucumber',
+    plantPepper: 'Pepper',
+    plantHerbs: 'Herbs',
+    plantOther: 'Other',
+
     // Device scan
     pairDevices: 'Pair Devices',
-    step3of3: 'Step 3 of 3 — Search for nearby devices',
+    step3of4: 'Step 4 of 4 — Search for nearby devices',
     wifi: 'Wi-Fi',
     bluetooth: 'Bluetooth',
     location: 'Location',

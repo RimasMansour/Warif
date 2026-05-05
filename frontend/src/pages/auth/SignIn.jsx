@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { translations } from "../../i18n";
-import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword, createFarm, checkUserExists } from '../../services/api';
+import { loginUser, registerUser, sendResetCode, verifyResetCode, saveNewPassword, createFarm, checkUserExists, registerDevice } from '../../services/api';
 
 /* =========================================================
    WARIF | Ultra-Premium Sign-In & Registration Flow
@@ -123,7 +123,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
            
            {page === 'registerFarm' && (
             <div className="flex items-center gap-2.5 mt-2 animate-fade-in-up">
-              {[1, 2, 3].map(s => (
+              {[1, 2, 3, 4].map(s => (
                 <div key={s} className="relative group">
                   <div className={`h-1.5 rounded-full transition-all duration-700 ease-in-out ${s === step ? 'w-12 bg-emerald-600 shadow-[0_0_12px_rgba(5,150,105,0.4)]' :
                       s < step ? 'w-4 bg-emerald-300' : 'w-4 bg-gray-200'
@@ -192,7 +192,21 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                 }); 
                 nextStep(); 
               }} T={T} isRtl={isRtl} />}
-              {step === 2 && <SensorSelectionStep onNext={(data) => { 
+              
+              {step === 2 && <PlantSelectionStep 
+                selected={userData.plantType || ['tomatoes']}
+                onNext={(selectedArr) => { 
+                  setUserData(d => {
+                    const updated = { ...d, plantType: selectedArr };
+                    userDataRef.current = updated;
+                    return updated;
+                  }); 
+                  nextStep(); 
+                }} 
+                T={T} 
+              />}
+
+              {step === 3 && <SensorSelectionStep onNext={(data) => { 
                 setUserData(d => {
                   const updated = { ...d, ...data };
                   userDataRef.current = updated;
@@ -200,26 +214,44 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                 }); 
                 nextStep(); 
               }} T={T} />}
-              {step === 3 && <DeviceScanPage onFinish={async () => {
+
+              {step === 4 && <DeviceScanPage onFinish={async () => {
                 const final = { ...userDataRef.current };
-                console.log('final object:', final);
-                console.log('fullName:', final.fullName, 'fullNameEn:', final.fullNameEn);
                 setRegisterError('');
                 setIsSubmitting(true);
+                
+                let registered = false;
+                let loggedIn = false;
+                let farmCreated = false;
+
                 try {
                   // 1. Attempt to register on backend
-                  const registerResponse = await registerUser({
-                    username: final.username,
-                    email: final.email,
-                    password: final.password,
-                    fullName: final.fullName,
-                    fullNameEn: final.fullNameEn,
-                    language: lang
-                  });
+                  try {
+                    await registerUser({
+                      username: final.username,
+                      email: final.email,
+                      password: final.password,
+                      fullName: final.fullName,
+                      fullNameEn: final.fullNameEn,
+                      language: lang
+                    });
+                    registered = true;
+                  } catch (err) {
+                    // If user already exists, it's a "failure" but might be a retry
+                    const errorMsg = err.details?.detail || err.message || '';
+                    if (errorMsg.includes('already registered') || errorMsg.includes('already taken')) {
+                       // Special case: if we are retrying, maybe they are already registered
+                       // We'll try to log in anyway
+                       registered = true; 
+                    } else {
+                       throw err;
+                    }
+                  }
 
                   // 2. If registration success, login to get token
                   const loginData = await loginUser(final.username, final.password);
                   localStorage.setItem('warif_token', loginData.access_token);
+                  loggedIn = true;
 
                   // 3. Create initial farm
                   const farmTypeMap = {
@@ -229,9 +261,48 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                     'Open Farm': 'open_field',
                   };
                   const farmType = farmTypeMap[final.farmType] || 'greenhouse';
-                  const farmData = await createFarm(final.farmName, farmType, final.cropType);
+                  const cropList = Array.isArray(final.plantType) ? final.plantType.join(',') : (final.plantType || final.cropType || 'default');
                   
-                  // 4. Save metadata locally
+                  let farmData = null;
+                  try {
+                    farmData = await createFarm(
+                      final.farmName, 
+                      farmType, 
+                      cropList
+                    );
+                    farmCreated = true;
+                  } catch (farmErr) {
+                    console.error('Farm creation failed during registration:', farmErr);
+                    // We don't throw here, we'll try to proceed with a warning
+                  }
+                  
+                  // 4. Register selected sensors in backend
+                  if (farmCreated && final.sensors && final.sensors.length > 0) {
+                    const sensorNames = {
+                      temp: { name: isRtl ? 'حساس الحرارة' : 'Temperature Sensor', type: 'sensor' },
+                      humidity: { name: isRtl ? 'حساس الرطوبة' : 'Humidity Sensor', type: 'sensor' },
+                      soil: { name: isRtl ? 'حساس التربة' : 'Soil Moisture Sensor', type: 'sensor' },
+                      irrigation: { name: isRtl ? 'مضخة الري' : 'Irrigation Pump', type: 'actuator' }
+                    };
+                    
+                    for (const sKey of final.sensors) {
+                      const sInfo = sensorNames[sKey];
+                      if (sInfo && farmData?.id) {
+                        try {
+                          await registerDevice(
+                            farmData.id, 
+                            `dev_${sKey}_${Math.random().toString(36).substr(2, 5)}`, 
+                            sInfo.name, 
+                            sInfo.type
+                          );
+                        } catch (e) {
+                          console.error(`Failed to register ${sKey}:`, e);
+                        }
+                      }
+                    }
+                  }
+                  
+                  // 5. Save metadata locally
                   localStorage.setItem('warif_user', JSON.stringify({ 
                     username: final.username, 
                     email: final.email, 
@@ -240,7 +311,8 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                     fullNameEn: final.fullNameEn,
                     farmName: final.farmName,
                     farmType: final.farmType,
-                    farmId: farmData?.id || null
+                    farmId: farmData?.id || null,
+                    plantType: final.plantType
                   }));
 
                   localStorage.setItem('warif_logged_in', 'true');
@@ -250,24 +322,27 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                   console.error('Registration error:', err);
                   setIsSubmitting(false);
                   
-                  const errorMsg = err.details?.detail || err.message || '';
+                  let errorMsg = err.details?.detail || err.message || '';
+                  if (errorMsg === 'Failed to fetch' || errorMsg.includes('timeout')) {
+                    errorMsg = lang === 'ar' ? 'انتهت مهلة الاتصال بالخادم. يرجى التحقق من الشبكة والمحاولة مرة أخرى.' : 'Connection timeout. Please check your network and try again.';
+                  }
                   
                   if (errorMsg.includes('Email already registered') || 
                       errorMsg.includes('already registered') ||
                       errorMsg.includes('username')) {
-                    // Go back to first registration page and show error there
+                    
+                    // If they are actually registered but login failed, let them go to login page
                     setRegisterError('');
                     goTo('registerUser', 'back');
-                    
                     setTimeout(() => {
                       setRegisterError(
                         errorMsg.includes('Email') 
-                          ? (lang === 'ar' ? 'البريد الإلكتروني مسجل مسبقاً' : 'Email already registered')
+                          ? (lang === 'ar' ? 'البريد الإلكتروني مسجل مسبقاً. يمكنك تسجيل الدخول.' : 'Email already registered. You can log in instead.')
                           : (lang === 'ar' ? 'اسم المستخدم مستخدم بالفعل' : 'Username already taken')
                       );
                     }, 300);
                   } else {
-                    setRegisterError(errorMsg || 'فشل الاتصال بالخادم');
+                    setRegisterError(errorMsg || (lang === 'ar' ? 'فشل الاتصال بالخادم' : 'Server connection failed'));
                   }
                 }
               }} 
@@ -363,7 +438,6 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
     if (!password) errs.password = T.errPasswordRequired;
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
     setLoading(true);
-    console.log('warif_user in localStorage:', localStorage.getItem('warif_user'));
     
     try {
       const data = await loginUser(username, password);
@@ -398,7 +472,11 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
         return;
       }
       setLoading(false);
-      setErrors({ password: T.errPasswordWrong });
+      const isNetworkError = err.message === 'Failed to fetch';
+      const errorMsg = isNetworkError 
+        ? (lang === 'ar' ? 'فشل الاتصال بالخادم' : 'Cannot connect to server')
+        : T.errPasswordWrong;
+      setErrors({ password: errorMsg });
     }
   };
 
@@ -829,6 +907,67 @@ function FarmInfoStep({ onNext, T, isRtl }) {
           {T.continue}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ----------------------------- PLANT SELECTION ----------------------------- */
+function PlantSelectionStep({ selected: initialSelected, onNext, T }) {
+  const plants = [
+    { name: T.plantTomatoes, key: "tomatoes", icon: "🍅" },
+    { name: T.plantCucumber, key: "cucumber", icon: "🥒" },
+    { name: T.plantPepper, key: "pepper", icon: "🫑" },
+    { name: T.plantHerbs, key: "herbs", icon: "🌿" },
+    { name: T.plantOther, key: "default", icon: "🌱" }
+  ];
+  
+  // Ensure initialSelected is an array
+  const [selected, setSelected] = useState(Array.isArray(initialSelected) ? initialSelected : [initialSelected || 'tomatoes']);
+
+  const togglePlant = (key) => {
+    setSelected(prev => {
+      if (prev.includes(key)) {
+        if (prev.length === 1) return prev; // Keep at least one
+        return prev.filter(k => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
+
+  return (
+    <div className="flex flex-col gap-4 animate-fade-in-up">
+      <div className="text-center mb-2">
+        <h1 className="text-2xl font-black text-emerald-900 tracking-tight">{T.selectPlant}</h1>
+        <p className="text-[12px] font-bold text-gray-400 mt-1">{T.step2of3_new}</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        {plants.map((p, i) => {
+          const isSelected = selected.includes(p.key);
+          return (
+            <button
+              key={p.key} onClick={() => togglePlant(p.key)}
+              className={`flex flex-col items-center gap-1.5 p-5 rounded-[30px] border-2 transition-all duration-500 animate-scale-bounce
+                         ${isSelected 
+                           ? 'bg-white border-emerald-500 shadow-xl shadow-emerald-500/10 ring-4 ring-emerald-500/5' 
+                           : 'bg-gray-50/50 border-gray-100 hover:border-emerald-200 hover:bg-white'}`}
+              style={{ animationDelay: `${i * 100}ms` }}
+            >
+              <div className={`text-4xl mb-1 transition-transform duration-500 ${isSelected ? 'scale-110 rotate-3' : 'scale-90 grayscale opacity-60'}`}>
+                {p.icon}
+              </div>
+              <span className={`text-[15px] font-black transition-colors ${isSelected ? 'text-emerald-900' : 'text-emerald-900/60'}`}>
+                {p.name}
+              </span>
+              <div className={`w-2 h-2 rounded-full mt-1 transition-all duration-500 ${isSelected ? 'bg-emerald-500 scale-100' : 'bg-gray-200 scale-50 opacity-0'}`} />
+            </button>
+          );
+        })}
+      </div>
+
+      <button onClick={() => onNext(selected)} className="btn-primary w-full py-5 bg-emerald-800 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-900/10 transition-all mt-4">
+        {T.continue}
+      </button>
     </div>
   );
 }

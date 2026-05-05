@@ -70,9 +70,13 @@ export function useLatestSensors(intervalMs = 10000) {
 
   const fetch_data = useCallback(async () => {
     try {
+      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      const farmId = userData.farmId;
+      if (!farmId) return;
+
       let mapped = {}
       try {
-        const res = await fetch(`${API_BASE}/api/v1/sensors/latest`, {
+        const res = await fetch(`${API_BASE}/api/v1/sensors/latest?farm_id=${farmId}`, {
           headers: authHeaders()
         })
         
@@ -119,7 +123,11 @@ export function useSensorHistory(sensor_type, limit = 100) {
   const fetch_data = useCallback(async () => {
     if (!sensor_type) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&limit=${limit}`, {
+      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      const farmId = userData.farmId;
+      if (!farmId) return;
+
+      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`, {
         headers: authHeaders()
       })
       if (res.ok) {
@@ -422,39 +430,81 @@ export function useIrrigationResources(farmId, intervalMs = 15000) {
   return { data, loading }
 }
 
-export function useDevices() {
+export function useDevices(providedFarmId = null) {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const farms = await getFarms();
-        if (!farms || farms.length === 0) { setLoading(false); return; }
-        const farmId = farms[0].id;
-        const res = await fetchWithRetry(
-          `${apiConfig.baseURL}/api/v1/farms/${farmId}/devices`,
-          { headers: getAuthHeaders() }
-        );
-        setDevices(Array.isArray(res) ? res : []);
-      } catch { setDevices([]); }
-      finally { setLoading(false); }
+        let farmId = providedFarmId;
+        
+        // 1. If no farmId provided, fetch it from the API
+        if (!farmId) {
+          const farms = await getFarms();
+          if (farms && farms.length > 0) {
+            farmId = farms[0].id;
+          }
+        }
+
+        // 2. If we still don't have a farmId, check localStorage as a last resort
+        if (!farmId) {
+          const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+          farmId = saved.farmId;
+        }
+
+        let results = [];
+        if (farmId) {
+          console.log(`[useDevices] Fetching devices for farm ${farmId}`);
+          const res = await fetchWithRetry(
+            `${apiConfig.baseURL}/api/v1/farms/${farmId}/devices`,
+            { headers: getAuthHeaders() }
+          );
+          results = Array.isArray(res) ? res : [];
+          console.log(`[useDevices] Found ${results.length} devices in DB`);
+        }
+
+        // 3. Fallback to localStorage ONLY if the DB is truly empty for this user
+        if (results.length === 0) {
+          const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
+          if (saved.sensorList && saved.sensorList.length > 0) {
+            console.log(`[useDevices] DB empty, falling back to ${saved.sensorList.length} localStorage sensors`);
+            results = saved.sensorList.map(s => ({
+              id: s.id || `local_${Math.random()}`,
+              name: s.name,
+              type: (s.type?.toLowerCase().includes('sensor') || s.type?.includes('حساس')) ? 'sensor' : 'actuator',
+              status: (s.status === 'normal' || s.status === 'active') ? 'active' : 'inactive',
+              isLocal: true
+            }));
+          }
+        }
+        
+        setDevices(results);
+      } catch (err) { 
+        console.error("[useDevices] Error loading devices:", err);
+        setDevices([]); 
+      } finally { setLoading(false); }
     };
     load();
-  }, []);
+  }, [providedFarmId]);
 
   const counts = {
-    sensors: devices.filter(d => d.type === 'sensor' && d.status === 'active').length,
-    pumps: devices.filter(d => d.type === 'actuator' && d.status === 'active' &&
+    sensors: devices.filter(d => d.type === 'sensor').length,
+    pumps: devices.filter(d => d.type === 'actuator' && 
       (d.name?.toLowerCase().includes('pump') ||
-       d.name?.toLowerCase().includes('مضخ'))).length,
-    cooling: devices.filter(d => d.type === 'actuator' && d.status === 'active' &&
+       d.name?.toLowerCase().includes('مضخ') ||
+       d.name?.toLowerCase().includes('valve') ||
+       d.name?.toLowerCase().includes('irrigat') ||
+       d.name?.toLowerCase().includes('محبس') ||
+       d.name?.toLowerCase().includes('ري'))).length,
+    cooling: devices.filter(d => d.type === 'actuator' && 
       (d.name?.toLowerCase().includes('fan') ||
        d.name?.toLowerCase().includes('cool') ||
        d.name?.toLowerCase().includes('مروح') ||
        d.name?.toLowerCase().includes('تبريد'))).length,
-    actuators: devices.filter(d => d.type === 'actuator' && d.status === 'active').length,
-    total: devices.filter(d => d.status === 'active').length,
+    actuators: devices.filter(d => d.type === 'actuator').length,
+    total: devices.length,
+    activeTotal: devices.filter(d => d.status === 'active').length,
   };
 
   return { devices, counts, loading };

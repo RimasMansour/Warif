@@ -18,13 +18,14 @@ router = APIRouter()
 
 @router.get("", response_model=List[SensorReadingOut])
 async def list_sensor_readings(
+    farm_id:     int           = Query(..., description="Farm ID"),
     device_id:   Optional[str] = Query(None),
     sensor_type: Optional[str] = Query(None),
     limit:       int           = Query(100, le=1000),
     db: AsyncSession = Depends(get_db),
 ):
-    """Return historical sensor readings, most recent first."""
-    q = select(SensorReading).order_by(desc(SensorReading.timestamp)).limit(limit)
+    """Return historical sensor readings, most recent first, filtered by farm."""
+    q = select(SensorReading).where(SensorReading.farm_id == farm_id).order_by(desc(SensorReading.timestamp)).limit(limit)
     if device_id:
         q = q.where(SensorReading.device_id == device_id)
     if sensor_type:
@@ -33,16 +34,21 @@ async def list_sensor_readings(
     return result.scalars().all()
 
 
-@router.get("/latest", response_model=List[SensorLatestOut])
-async def get_latest_readings(db: AsyncSession = Depends(get_db)):
+@router.get("/latest")
+async def get_latest_readings(
+    farm_id: int = Query(..., description="Farm ID"),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Return the single most-recent value for each sensor type,
-    with a computed status (normal / warning / critical).
+    Return the single most-recent value for each sensor type for a specific farm.
     """
-    # Subquery: max timestamp per sensor_type
     from sqlalchemy import func
     sub = (
-        select(SensorReading.sensor_type, func.max(SensorReading.timestamp).label("max_ts"))
+        select(
+            SensorReading.sensor_type,
+            func.max(SensorReading.timestamp).label("max_ts")
+        )
+        .where(SensorReading.farm_id == farm_id)
         .group_by(SensorReading.sensor_type)
         .subquery()
     )
@@ -50,6 +56,7 @@ async def get_latest_readings(db: AsyncSession = Depends(get_db)):
         select(SensorReading)
         .join(sub, (SensorReading.sensor_type == sub.c.sensor_type) &
                    (SensorReading.timestamp == sub.c.max_ts))
+        .where(SensorReading.farm_id == farm_id)
     )
     result = await db.execute(q)
     readings = result.scalars().all()
@@ -103,8 +110,19 @@ async def ingest_sensor_reading(
             "air_humidity":     "رطوبة الهواء",
         }
 
+        # 1. Lookup device to find its farm_id
+        device_obj = None
+        device_id = payload.get("device_id", "unknown")
+        device_result = await db.execute(
+            select(Device).where(Device.device_id == device_id)
+        )
+        device_obj = device_result.scalar_one_or_none()
+        
+        farm_id = device_obj.farm_id if device_obj else None
+
         reading = SensorReading(
-            device_id=payload.get("device_id", "unknown"),
+            device_id=device_id,
+            farm_id=farm_id,
             sensor_type=sensor_type,
             value=value,
             unit=payload.get("unit", ""),

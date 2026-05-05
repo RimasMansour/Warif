@@ -14,7 +14,7 @@ import {
 import { formatLastUpdated } from './dashboardUtils';
 import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
 
-export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, sharedSensors }) {
+export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [showThanksIds, setShowThanksIds] = useState([]);
 
@@ -85,8 +85,6 @@ export function DecisionSupportPage({ onBack, activeFarm, globalAutoMode, shared
     const timer = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: apiRecs, error: recsError } = useRecommendations(farmId);
 
   // Debug: Log recommendations state

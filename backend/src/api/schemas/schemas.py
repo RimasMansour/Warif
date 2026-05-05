@@ -48,6 +48,7 @@ class UserUpdateIn(BaseModel):
     full_name: Optional[str] = Field(None, max_length=128)
     full_name_en: Optional[str] = Field(None, max_length=128)
     email:    Optional[str] = Field(None, max_length=128)
+    password: Optional[str] = Field(None, min_length=6)
     language: Optional[str] = None
 
 

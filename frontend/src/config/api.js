@@ -1,7 +1,7 @@
 // Frontend API Configuration
 // Centralized configuration for all API interactions
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 const REQUEST_TIMEOUT = parseInt(import.meta.env.VITE_REQUEST_TIMEOUT || '30000', 10)
 const RETRY_ATTEMPTS = parseInt(import.meta.env.VITE_API_RETRY_ATTEMPTS || '3', 10)
 const RETRY_DELAY = parseInt(import.meta.env.VITE_API_RETRY_DELAY || '1000', 10)
@@ -70,7 +70,7 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
     if (timeoutId) clearTimeout(timeoutId)
 
     if (error.name === 'AbortError') {
-      error = new ApiError(`Request timeout (${timeout}ms)`, 408)
+      error = new ApiError(`Connection timeout. Please check your internet connection or server status.`, 408)
     }
 
     if (error instanceof ApiError && error.status >= 500 && retries < maxRetries) {
