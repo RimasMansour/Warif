@@ -17,7 +17,8 @@ import {
   AirHumidityIcon,
   WaterValveIcon,
   WindSharedIcon,
-  IrrigationSmartIcon
+  IrrigationSmartIcon,
+  DashboardErrorBoundary
 } from './DashboardShared';
 
 const DeviceRow = ({ s, T, isEn, isRtl }) => (
@@ -121,12 +122,19 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
         // Also update localStorage
         const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-        localStorage.setItem('warif_user', JSON.stringify({ 
+        const updatedUser = { 
           ...saved, 
           fullName: data.full_name,
           fullNameEn: data.full_name_en,
           farms: farmsData
-        }));
+        };
+        
+        if (farmsData && farmsData.length > 0) {
+          updatedUser.farmName = farmsData[0].name;
+          updatedUser.farmId = farmsData[0].id;
+        }
+        
+        localStorage.setItem('warif_user', JSON.stringify(updatedUser));
       } catch (err) {
         console.error("Failed to load user info:", err);
       }
@@ -236,6 +244,17 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     return () => clearInterval(interval);
   }, []);
 
+  const [confirmModal, setConfirmModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    onConfirm: null,
+    danger: false,
+    success: false,
+    iconType: "trash" // trash, logout, sensor
+  });
+  const [loading, setLoading] = useState(false);
+
   // Navigation scaffold
   const [page, setPage] = useState("dashboard");
 
@@ -295,7 +314,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     ];
   });
 
-  const { devices, counts, loading: devicesLoading } = useDevices();
+  const currentFarmId = userFarms[activeFarm]?.id || null;
+  const { devices, counts, loading: devicesLoading } = useDevices(currentFarmId);
 
   // ── Real sensor data from API ──────────────────────────────
   const { data: liveSensors } = useLatestSensors(10000);
@@ -353,6 +373,25 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
     localStorage.setItem('warif_user', JSON.stringify({ ...saved, sensorList: enriched }));
   }
+
+  const handleLogoutWithConfirm = () => {
+    setConfirmModal({
+      open: true,
+      danger: true,
+      iconType: "logout",
+      title: isEn ? "Sign Out" : "تسجيل الخروج",
+      message: isEn ? "Are you sure you want to sign out from Warif?" : "هل أنت متأكد من رغبتك في تسجيل الخروج من وارِف؟",
+      onConfirm: () => {
+        setLoading(true);
+        setTimeout(() => {
+          localStorage.removeItem('warif_remember'); 
+          localStorage.removeItem('warif_logged_in');
+          onLogout?.();
+          setConfirmModal({ open: false, title: "", message: "", onConfirm: null, danger: false, success: false });
+        }, 1000);
+      }
+    });
+  };
 
   const go = (to) => setPage(to);
 
@@ -528,11 +567,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg> {T.settings}
                     </button>
                   <button
-                    onClick={() => { 
-                      localStorage.removeItem('warif_remember'); 
-                      localStorage.removeItem('warif_logged_in');
-                      onLogout(); 
-                    }}
+                    onClick={handleLogoutWithConfirm}
                     className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 border-t border-gray-50 ${isRtl ? 'text-right' : 'text-left'}`}>
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg> {T.logout}
                   </button>
@@ -571,36 +606,62 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
           {/* Content Area */}
           <div className="flex-1 min-h-0 overflow-auto w-full flex flex-col">
-            {page === "dashboard" ? (
-              <DashboardHome 
-                onGo={go} 
-                onSendAI={sendToAI} 
-                globalAutoMode={globalAutoMode} 
-                onOpenAssets={() => setShowSensorsPopup(true)} 
-                activeFarm={activeFarm} 
-                sharedSensors={liveSensors} 
-                alerts={activeAlerts}
-                onAlertAccept={handleAlertAccept}
-                onAlertReject={handleAlertReject}
-                onAlertFeedback={handleAlertFeedback}
-                devices={devices}
-                devicesLoading={devicesLoading}
-              />
-            ) : page === "dss" ? (
-              <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} globalAutoMode={globalAutoMode} sharedSensors={liveSensors} />
-            ) : page === "irrigation" ? (
-              <IrrigationPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} onOpenManual={() => setShowManualIrrigation(true)} sharedSensors={liveSensors} />
-            ) : page === "microclimate" ? (
-              <MicroclimatePage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} sharedSensors={liveSensors} />
-            ) : page === "soil" ? (
-              <SoilRootDataPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} sharedSensors={liveSensors} />
-            ) : page === "profile" ? (
-              <AccountAndSettingsPages initialPage="profile" onBack={() => go("dashboard")} onLogout={onLogout} onNameUpdate={handleNameUpdate} language={language} onLanguageChange={handleLanguageChange} sensors={connectedSensors} onSensorsChange={handleSensorsChange} />
-            ) : page === "settings" ? (
-              <AccountAndSettingsPages initialPage="settings" onBack={() => go("dashboard")} onLogout={onLogout} onNameUpdate={handleNameUpdate} language={language} onLanguageChange={handleLanguageChange} sensors={connectedSensors} onSensorsChange={handleSensorsChange} />
-            ) : (
-              <NotFoundPage onBack={() => go("dashboard")} isEn={isEn} />
-            )}
+            <DashboardErrorBoundary>
+              {page === "dashboard" ? (
+                <DashboardHome 
+                  onGo={go} 
+                  onSendAI={sendToAI} 
+                  globalAutoMode={globalAutoMode} 
+                  onOpenAssets={() => setShowSensorsPopup(true)} 
+                  activeFarm={activeFarm} 
+                  farmId={currentFarmId}
+                  sharedSensors={liveSensors} 
+                  alerts={activeAlerts}
+                  onAlertAccept={handleAlertAccept}
+                  onAlertReject={handleAlertReject}
+                  onAlertFeedback={handleAlertFeedback}
+                  devices={devices}
+                  devicesLoading={devicesLoading}
+                  farmObj={userFarms[activeFarm]}
+                />
+              ) : page === "dss" ? (
+                <DecisionSupportPage onBack={() => go("dashboard")} activeFarm={activeFarm} farmId={currentFarmId} globalAutoMode={globalAutoMode} sharedSensors={liveSensors} />
+              ) : page === "irrigation" ? (
+                <IrrigationPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} farmId={currentFarmId} onOpenManual={() => setShowManualIrrigation(true)} sharedSensors={liveSensors} />
+              ) : page === "microclimate" ? (
+                <MicroclimatePage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} farmId={currentFarmId} sharedSensors={liveSensors} />
+              ) : page === "soil" ? (
+                <SoilRootDataPage onBack={() => go("dashboard")} globalAutoMode={globalAutoMode} activeFarm={activeFarm} farmId={currentFarmId} sharedSensors={liveSensors} />
+              ) : page === "profile" ? (
+                <AccountAndSettingsPages 
+                  initialPage="profile" 
+                  onBack={() => go("dashboard")} 
+                  onLogout={onLogout} 
+                  onNameUpdate={handleNameUpdate} 
+                  language={language} 
+                  onLanguageChange={handleLanguageChange} 
+                  sensors={connectedSensors} 
+                  onSensorsChange={handleSensorsChange}
+                  onFarmsUpdate={setUserFarms}
+                  onActiveFarmChange={setActiveFarm}
+                />
+              ) : page === "settings" ? (
+                <AccountAndSettingsPages 
+                  initialPage="settings" 
+                  onBack={() => go("dashboard")} 
+                  onLogout={onLogout} 
+                  onNameUpdate={handleNameUpdate} 
+                  language={language} 
+                  onLanguageChange={handleLanguageChange} 
+                  sensors={connectedSensors} 
+                  onSensorsChange={handleSensorsChange}
+                  onFarmsUpdate={setUserFarms}
+                  onActiveFarmChange={setActiveFarm}
+                />
+              ) : (
+                <NotFoundPage onBack={() => go("dashboard")} isEn={isEn} />
+              )}
+            </DashboardErrorBoundary>
             
             {/* Global Footer */}
             <Footer isEn={isEn} />
@@ -743,9 +804,9 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                             const isTemp = nameLower.includes('temp') || nameLower.includes('حرار');
                             const isHum = nameLower.includes('hum') || nameLower.includes('رطوب');
                             
-                            const val = isSoil ? `${sharedSensors?.soil_moisture || 0}%` :
-                                       isTemp ? `${sharedSensors?.air_temperature || 0}°C` :
-                                       isHum ? `${sharedSensors?.air_humidity || 0}%` : '';
+                            const val = isSoil ? `${liveSensors?.soil_moisture || 0}%` :
+                                       isTemp ? `${liveSensors?.air_temperature || 0}°C` :
+                                       isHum ? `${liveSensors?.air_humidity || 0}%` : '';
                             
                             const iconBg = isTemp ? 'bg-orange-50 border-orange-100/30' : isHum ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
                             const iconColor = isTemp ? 'text-[#F97316]' : isHum ? 'text-[#0EA5E9]' : 'text-[#059669]';
@@ -977,6 +1038,60 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           )}
         </div>
       </div>
+      {/* Custom Confirmation Modal */}
+      {confirmModal.open && (
+        <Account_ModalShell onClose={() => !confirmModal.success && setConfirmModal({ ...confirmModal, open: false })}>
+          <div className="bg-white rounded-[28px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[400px] max-w-[95vw] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
+            <div className="p-8 flex flex-col items-center text-center">
+              {confirmModal.success ? (
+                <div className="flex flex-col items-center animate-fade-in">
+                  <div className="w-20 h-20 rounded-full bg-emerald-50 text-emerald-500 border border-emerald-100 flex items-center justify-center mb-5 animate-scale-in">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <h3 className="text-xl font-black text-emerald-800 mb-1">{isEn ? 'Success!' : 'تم بنجاح!'}</h3>
+                  <p className="text-[14px] font-bold text-emerald-600/60">{isEn ? 'Action completed' : 'تم تنفيذ الإجراء المطلوب'}</p>
+                </div>
+              ) : (
+                <>
+                  <div className={`w-16 h-16 rounded-2xl ${confirmModal.danger ? 'bg-red-50 text-red-500 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'} border flex items-center justify-center mb-5 animate-bounce-subtle`}>
+                     {confirmModal.iconType === 'logout' ? (
+                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                     ) : confirmModal.iconType === 'sensor' ? (
+                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="12" cy="12" r="3"/><path d="M12 7v-3"/></svg>
+                     ) : (
+                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                     )}
+                  </div>
+                  <h3 className="text-xl font-black text-gray-800 mb-2">{confirmModal.title}</h3>
+                  <p className="text-[14px] font-bold text-gray-400 leading-relaxed px-2">{confirmModal.message}</p>
+                </>
+              )}
+            </div>
+            {!confirmModal.success && (
+              <div className="p-4 bg-gray-50/50 flex gap-3 border-t border-gray-100">
+                <button 
+                  onClick={() => setConfirmModal({ ...confirmModal, open: false })}
+                  className="flex-1 py-3.5 rounded-2xl bg-white border border-gray-200 text-gray-500 font-black text-[13px] hover:bg-gray-50 transition-all active:scale-95"
+                >
+                  {isEn ? "Cancel" : "إلغاء"}
+                </button>
+                <button 
+                  onClick={confirmModal.onConfirm}
+                  disabled={loading}
+                  className={`flex-1 py-3.5 rounded-2xl font-black text-[13px] text-white transition-all active:scale-95 shadow-lg ${confirmModal.danger ? 'bg-red-500 hover:bg-red-600 shadow-red-200' : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200'} ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {loading 
+                    ? (isEn ? "Processing..." : "جاري المعالجة...") 
+                    : confirmModal.iconType === 'logout'
+                      ? (isEn ? "Sign Out" : "تسجيل الخروج")
+                      : (isEn ? "Confirm" : "تأكيد")
+                  }
+                </button>
+              </div>
+            )}
+          </div>
+        </Account_ModalShell>
+      )}
     </>
   );
 }

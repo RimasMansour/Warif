@@ -48,19 +48,42 @@ function LastUpdatedTimer({ seconds, ar, en, isEn }) {
   return <>{formatLastUpdated(localSec, ar, en)}</>;
 }
 
-export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback }) {
+const getCropIcon = (key) => {
+  switch(key) {
+    case 'tomatoes': return "🍅";
+    case 'cucumber': return "🥒";
+    case 'pepper': return "🫑";
+    case 'herbs': return "🌿";
+    default: return "🌱";
+  }
+};
+
+const getCropName = (key, isEn) => {
+  const map = {
+    tomatoes: { ar: "طماطم", en: "Tomatoes" },
+    cucumber: { ar: "خيار", en: "Cucumber" },
+    pepper: { ar: "فلفل", en: "Pepper" },
+    herbs: { ar: "أعشاب", en: "Herbs" },
+    default: { ar: "أخرى", en: "Other" }
+  };
+  const crop = map[key] || map.default;
+  return isEn ? crop.en : crop.ar;
+};
+
+export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, farmId, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback, farmObj }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
   const isRtl = !isEn;
 
+  const crops = useMemo(() => {
+    if (!farmObj?.crop_type) return [];
+    return farmObj.crop_type.split(',').map(c => c.trim()).filter(Boolean);
+  }, [farmObj]);
+
   // ── Live data from Backend API ─────────────────────────────
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || null;
-  if (!farmId) {
-    console.warn('No farmId found for user');
-  }
   const { data: localSensors } = useLatestSensors(10000);
   const { data: dashboardData } = useDashboard(farmId);
-  const { devices, counts, loading: devicesLoading } = useDevices();
+  const { devices, counts, loading: devicesLoading } = useDevices(farmId);
 
   const livesensors = sharedSensors || localSensors;
 
@@ -145,7 +168,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
             <MicroclimateGlanceCard onGo={onGo} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
           </div>
           <div className="animate-fade-in-up delay-3">
-            <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
+            <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} crops={crops} />
           </div>
           <div className="animate-fade-in-up delay-4 flex flex-col">
             <DashboardAlertsCard 
@@ -163,7 +186,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
             <IrrigationGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} resourceData={resourceData} dashboardData={dashboardData} />
           </div>
           <div className="animate-fade-in-up delay-6">
-            <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} />
+            <DSSGlanceCard onGo={onGo} globalAutoMode={globalAutoMode} activeFarm={activeFarm} farmId={farmId} />
           </div>
           <div className="animate-fade-in-up delay-7">
             <SoilTrendChart isRtl={!isEn} isEn={isEn} activeFarm={activeFarm} />
@@ -193,9 +216,13 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
       />
       <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
         {alerts.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
-            <div className="text-[13px] font-bold">{isEn ? 'No active alerts' : 'لا توجد تنبيهات نشطة'}</div>
-          </div>
+          <EmptyState 
+            compact={true} 
+            variant="success"
+            title={isEn ? 'No active alerts' : 'لا توجد تنبيهات نشطة'} 
+            subtitle={isEn ? 'System is stable and operating within optimal parameters.' : 'النظام مستقر ويعمل ضمن النطاق المثالي.'}
+            icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
+          />
         ) : (
           alerts.map((alert, i) => {
             const isRtl = !isEn;
@@ -417,7 +444,7 @@ function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, c
   );
 }
 
-function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp }) {
+function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp, crops = [] }) {
   const soilMoist = apiSoilMoist ?? 0;
   const soilTemp  = apiSoilTemp  ?? 0;
   const isHealthy = soilMoist >= 35 && soilMoist <= 80 && soilTemp >= 18 && soilTemp <= 35;
@@ -463,6 +490,29 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp 
            </div>
         </div>
       </div>
+
+      {/* Modern Multi-Crop Display Section */}
+      {crops.length > 0 && (
+        <div className="mt-5 pt-4 border-t border-gray-100/60 flex flex-col gap-2.5">
+           <div className={`text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 ${isEn ? 'flex-row-reverse' : ''}`}>
+             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+             {isEn ? 'Monitored Crops' : 'المحاصيل المراقبة'}
+           </div>
+           <div className={`flex flex-wrap gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
+              {crops.slice(0, 4).map((crop, idx) => (
+                <div key={crop + idx} className="group/crop flex items-center gap-2 px-2.5 py-1.5 bg-gray-50/80 hover:bg-emerald-50 rounded-xl border border-gray-100/50 hover:border-emerald-100/50 transition-all duration-300">
+                   <span className="text-lg filter group-hover/crop:drop-shadow-sm transition-all">{getCropIcon(crop)}</span>
+                   <span className="text-[12px] font-black text-gray-700 group-hover/crop:text-emerald-800 transition-colors">{getCropName(crop, isEn)}</span>
+                </div>
+              ))}
+              {crops.length > 4 && (
+                <div className="flex items-center justify-center px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100 text-[11px] font-black text-emerald-700">
+                  +{crops.length - 4}
+                </div>
+              )}
+           </div>
+        </div>
+      )}
       </div>
     </CardShell>
   );
@@ -548,11 +598,10 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
   );
 }
 
-function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
+function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const isRtl = !isEn;
   const [interactedIds, setInteractedIds] = useState({});
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: apiRecs } = useRecommendations(farmId);
 
   // Format recommendations professionally
@@ -596,9 +645,12 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
 
       <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
         {recommendations.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
-            <div className="text-[13px] font-bold">{isEn ? 'No active recommendations' : 'لا توجد توصيات نشطة'}</div>
-          </div>
+          <EmptyState 
+            compact={true} 
+            title={isEn ? 'No active recommendations' : 'لا توجد توصيات نشطة'} 
+            subtitle={isEn ? 'The system is monitoring for optimization opportunities.' : 'يقوم النظام بمراقبة الفرص المتاحة لتحسين الأداء.'}
+            icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>}
+          />
         ) : (
           recommendations.map((rec, idx) => {
             const status = interactedIds[rec.id];

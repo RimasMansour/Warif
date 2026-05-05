@@ -70,7 +70,7 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
     if (timeoutId) clearTimeout(timeoutId)
 
     if (error.name === 'AbortError') {
-      error = new ApiError(`Request timeout (${timeout}ms)`, 408)
+      error = new ApiError(`Connection timeout. Please check your internet connection or server status.`, 408)
     }
 
     if (error instanceof ApiError && error.status >= 500 && retries < maxRetries) {

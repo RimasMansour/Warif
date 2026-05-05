@@ -44,6 +44,7 @@ export const checkUserExists = async ({ username, email }) => {
 export const deleteAccount = async () => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {
     method: "DELETE",
+    headers: getAuthHeaders()
   });
 };
 
@@ -170,45 +171,50 @@ export const updateUser = async (userData) => {
 
 // Step 1: Verify email in backend + Send OTP via EmailJS
 export const sendResetCode = async (email) => {
-  // First check localStorage
-  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  if (!email || !email.trim()) throw new Error('EMAIL_NOT_FOUND');
   
-  // Check backend if localStorage doesn't match
   let userFound = false;
-  
-  if (savedUser.email && savedUser.email === email) {
-    userFound = true;
-  } else {
-    // Try backend check-exists
-    try {
-      const check = await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/check-exists`, {
+  let userName = 'المستخدم';
+
+  // ALWAYS check backend first (works for ALL users regardless of localStorage)
+  try {
+    const check = await fetchWithRetry(
+      `${apiConfig.baseURL}/api/v1/auth/check-exists`,
+      {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: '', email: email })
-      });
-      // If email IS taken, it exists in the DB
-      if (check && check.email_taken === true) {
-        userFound = true;
+        body: JSON.stringify({ username: '', email: email.trim().toLowerCase() })
       }
-    } catch {
-      // fallback — if backend unreachable, check localStorage only
-      userFound = savedUser.email === email;
+    );
+    if (check && check.email_taken === true) {
+      userFound = true;
+    }
+  } catch {
+    // Backend unreachable — fallback to localStorage
+    const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+    if (savedUser.email && savedUser.email === email.trim()) {
+      userFound = true;
+      userName = savedUser.fullName || savedUser.username || 'المستخدم';
     }
   }
-  
-  if (!userFound) {
-    throw new Error('EMAIL_NOT_FOUND');
+
+  // Try to get name from localStorage for personalized email
+  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
+  if (savedUser.email === email.trim()) {
+    userName = savedUser.fullName || savedUser.username || userName;
   }
-  
-  // Generate and store OTP
+
+  if (!userFound) throw new Error('EMAIL_NOT_FOUND');
+
+  // Generate OTP
   const code = Math.floor(100000 + Math.random() * 900000).toString();
   localStorage.setItem('warif_reset_code', code);
-  localStorage.setItem('warif_reset_email', email);
-  localStorage.setItem('warif_reset_expiry', (Date.now() + 3 * 60 * 1000).toString());
-  
-  // Send via EmailJS (Keep existing credentials)
-  const userName = savedUser.fullName || savedUser.username || 'المستخدم';
-  
+  localStorage.setItem('warif_reset_email', email.trim());
+  localStorage.setItem('warif_reset_expiry', 
+    (Date.now() + 3 * 60 * 1000).toString()
+  );
+
+  // Send via EmailJS
   const response = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -217,13 +223,13 @@ export const sendResetCode = async (email) => {
       template_id: 'template_u8zt5as',
       user_id: 'G-oMnZWX9pcO2F2Mo',
       template_params: {
-        to_email: email,
+        to_email: email.trim(),
         reset_code: code,
         user_name: userName
       }
     })
   });
-  
+
   if (!response.ok) throw new Error('EMAIL_SEND_FAILED');
   return true;
 };
@@ -247,11 +253,8 @@ export const saveNewPassword = async (newPassword) => {
   if (token) {
     try {
       await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        method: 'PUT',
+        headers: getAuthHeaders(),
         body: JSON.stringify({ password: newPassword })
       });
     } catch {

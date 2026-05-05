@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete, func
 
 from src.db.session import get_db
 from src.db.models.models import (
@@ -75,7 +75,9 @@ async def check_user_exists(body: dict, db: AsyncSession = Depends(get_db)):
     username_taken = res_user.scalar_one_or_none() is not None
     
     # Check email
-    res_email = await db.execute(select(User).where(User.email == email))
+    res_email = await db.execute(
+        select(User).where(func.lower(User.email) == email.lower().strip())
+    )
     email_taken = res_email.scalar_one_or_none() is not None
     
     return {"username_taken": username_taken, "email_taken": email_taken}
@@ -90,7 +92,9 @@ async def reset_password(body: dict, db: AsyncSession = Depends(get_db)):
     if not email or not new_password:
         raise HTTPException(status_code=400, detail="Email and new_password are required")
     
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == email.lower().strip())
+    )
     user = result.scalar_one_or_none()
     
     if not user:
@@ -118,7 +122,7 @@ async def register(
 
     # Check email taken
     result = await db.execute(
-        select(User).where(User.email == body.email)
+        select(User).where(func.lower(User.email) == body.email.lower().strip())
     )
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -167,40 +171,52 @@ async def update_me(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if body.username and body.username != user.username:
-        taken = await db.execute(
-            select(User).where(User.username == body.username)
-        )
-        if taken.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken",
+    print(f"[DEBUG] Updating user {user.id} with body: {body.model_dump(exclude_unset=True)}")
+
+    try:
+        if body.username and body.username != user.username:
+            taken = await db.execute(
+                select(User).where(User.username == body.username)
             )
-        user.username = body.username
+            if taken.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken",
+                )
+            user.username = body.username
 
-    if body.email and body.email != user.email:
-        taken = await db.execute(
-            select(User).where(User.email == body.email)
-        )
-        if taken.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered",
+        if body.email and body.email != user.email:
+            taken = await db.execute(
+                select(User).where(User.email == body.email)
             )
-        user.email = body.email
+            if taken.scalar_one_or_none():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered",
+                )
+            user.email = body.email
 
-    if body.full_name:
-        user.full_name = body.full_name
-    
-    if body.full_name_en:
-        user.full_name_en = body.full_name_en
+        if body.full_name:
+            user.full_name = body.full_name
+        
+        if body.full_name_en:
+            user.full_name_en = body.full_name_en
 
-    if body.language:
-        user.language = body.language
+        if body.language:
+            user.language = body.language
 
-    await db.commit()
-    await db.refresh(user)
-    return user
+        if body.password:
+            user.password_hash = hash_password(body.password)
+            print("[DEBUG] Password updated in database model")
+
+        await db.commit()
+        await db.refresh(user)
+        return user
+    except Exception as e:
+        print(f"[ERROR] Update me failed: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/me")
@@ -261,7 +277,9 @@ async def forgot_password(
     if not email:
         raise HTTPException(status_code=400, detail="Email is required")
         
-    result = await db.execute(select(User).where(User.email == email))
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == email.lower().strip())
+    )
     user = result.scalar_one_or_none()
     
     if not user:

@@ -19,7 +19,7 @@ import { getLabelForRange } from './dashboardUtils';
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
-export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSensors }) {
+export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [activeAction, setActiveAction] = useState("");
   const [fanRunning, setFanRunning] = useState(false);
@@ -131,7 +131,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
   const humSeries = useMemo(() => formatPoints(rawHum), [rawHum, range, isEn]);
   const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range, isEn]);
 
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+
   const { data: apiRecs } = useRecommendations(farmId);
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
@@ -357,7 +357,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, sharedSen
 /* =========================================================
    2. Soil Module (بيئة وصحة التربة)
 ========================================================= */
-export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSensors }) {
+export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -452,7 +452,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, sharedSen
   const soilTempSeries = useMemo(() => formatPoints(rawSoilTemp), [rawSoilTemp, range, isEn]);
   const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range, isEn]);
 
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
+
   const { data: apiRecs } = useRecommendations(farmId);
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];

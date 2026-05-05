@@ -16,7 +16,7 @@ function LastUpdatedTimer({ seconds, ar, en, isEn }) {
   return <div className="text-[12px] text-gray-400 mt-1 font-medium">{formatLastUpdated(localSec, ar, en)}</div>;
 }
 
-export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManual, sharedSensors }) {
+export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onOpenManual, sharedSensors }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
   const isRtl = !isEn;
@@ -65,7 +65,6 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, onOpenManua
 
   const { data: localSensors } = useLatestSensors(10000);
   const livesensors = sharedSensors || localSensors;
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: irrigationData } = useIrrigationStatus(farmId);
   const { data: resourceData } = useIrrigationResources(farmId, 15000);
   const { data: mlPrediction } = useIrrigationPrediction(farmId, livesensors);

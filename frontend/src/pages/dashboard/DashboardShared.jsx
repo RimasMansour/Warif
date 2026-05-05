@@ -12,6 +12,48 @@ function CardShell({ children, className = "", onClick }) {
   );
 }
 
+class DashboardErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Dashboard Module Crash:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
+      return (
+        <div className="w-full h-full min-h-[400px] flex items-center justify-center p-8">
+          <div className="max-w-md w-full bg-white rounded-3xl border border-red-100 p-8 text-center shadow-xl">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <h3 className="text-xl font-black text-gray-800 mb-2">{isEn ? "Something went wrong" : "حدث خطأ غير متوقع"}</h3>
+            <p className="text-sm text-gray-500 font-bold mb-6">
+              {isEn ? "We encountered an error while loading this module. Please try refreshing the page." : "واجهنا مشكلة أثناء تحميل هذا القسم. يرجى محاولة تحديث الصفحة."}
+            </p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="px-6 py-3 bg-emerald-600 text-white rounded-xl font-black hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20 active:scale-95"
+            >
+              {isEn ? "Refresh Page" : "تحديث الصفحة"}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children; 
+  }
+}
+
 export function AutomationToggleCard({ isActive, onToggle, title="الأتمتة الذكية (Intelligent Automation)", description="تفويض الذكاء الاصطناعي للتحكم التلقائي بناءً على تحليل التوأم الرقمي." }) {
   return (
     <div className={`p-4 rounded-xl border transition-all duration-500 mb-4 flex items-center justify-between gap-4 cursor-pointer shadow-sm ${isActive ? 'bg-[#f0fdf4] border-[#bbf7d0]' : 'bg-gray-50 border-gray-200'}`} onClick={() => onToggle(!isActive)}>
@@ -213,14 +255,14 @@ function Account_EditableField({ label, value, onEdit, mono }) {
   const isEn = lang === 'en';
 
   return (
-    <div className="flex items-center justify-between gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-200">
+    <div className="flex items-center justify-between gap-4 p-4 bg-white/50 rounded-2xl border border-gray-100 hover:border-emerald-100 transition-all group">
       <div className={isEn ? "text-left" : "text-right"}>
-        <div className="text-sm text-gray-500">{label}</div>
-        <div className={`text-sm font-medium ${mono ? 'font-mono' : ''}`}>{value}</div>
+        <div className="text-[12px] font-bold text-gray-400 mb-0.5 uppercase tracking-tighter">{label}</div>
+        <div className={`text-[14px] font-black text-gray-800 ${mono ? 'font-mono' : ''}`}>{value}</div>
       </div>
-      <button type="button" onClick={onEdit} className="text-sm font-semibold text-[#2E7D32] hover:text-[#1B5E20] transition-colors duration-200">
-        {isEn ? 'Edit' : 'تعديل'}
-      </button>
+      <Account_IconButton onClick={onEdit} title={isEn ? 'Edit' : 'تعديل'}>
+        <Account_PencilIcon />
+      </Account_IconButton>
     </div>
   );
 }
@@ -230,12 +272,12 @@ function Account_ListRow({ icon, title, subtitle, right }) {
   const isEn = lang === 'en';
 
   return (
-    <div className="flex items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-gray-200">
+    <div className="flex items-center justify-between gap-4 p-4 bg-white/50 rounded-2xl border border-gray-100 hover:border-emerald-100 transition-all">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-2xl bg-[#E8F5E9] flex items-center justify-center flex-shrink-0">{icon}</div>
+        <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100/50 shadow-sm flex items-center justify-center flex-shrink-0">{icon}</div>
         <div className={isEn ? "text-left" : "text-right"}>
-          <div className="text-sm font-semibold text-gray-800">{title}</div>
-          <div className="text-xs text-gray-500">{subtitle}</div>
+          <div className="text-[13px] font-black text-gray-800">{title}</div>
+          <div className="text-[12px] font-bold text-gray-400">{subtitle}</div>
         </div>
       </div>
       {right}
@@ -245,7 +287,18 @@ function Account_ListRow({ icon, title, subtitle, right }) {
 
 function Account_IconButton({ children, title, onClick, danger }) {
   return (
-    <button type="button" onClick={onClick} title={title} className={`w-10 h-10 rounded-2xl border transition flex items-center justify-center ${danger ? 'bg-[#FEE2E2] border-[#FECACA] text-[#B91C1C]' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{children}</button>
+    <button 
+      type="button" 
+      onClick={onClick} 
+      title={title} 
+      className={`w-10 h-10 rounded-2xl border transition flex items-center justify-center active:scale-90
+        ${danger 
+          ? 'bg-[#FEE2E2] border-[#FECACA] text-[#B91C1C] hover:bg-[#FCA5A5]' 
+          : 'bg-emerald-50 border-emerald-100/50 text-emerald-600 shadow-sm hover:bg-emerald-100'
+        }`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -262,7 +315,7 @@ function Account_ModalShell({ children, onClose }) {
 
 function Account_PencilIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "2.5"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
     </svg>
   );
@@ -278,7 +331,7 @@ function Account_TrashIcon(props) {
 
 function Account_PlusIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "2.5"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
     </svg>
   );
@@ -286,7 +339,7 @@ function Account_PlusIcon(props) {
 
 function Account_SensorIcon(props) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E7D32" strokeWidth={props.strokeWidth || "1.7"} strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={props.strokeWidth || "2.5"} strokeLinecap="round" strokeLinejoin="round" {...props}>
       <rect x="4" y="4" width="16" height="16" rx="4" /><circle cx="12" cy="12" r="3" /><path d="M12 7v-3" />
     </svg>
   );
@@ -471,5 +524,6 @@ export {
   WaterValveIcon,
   ListIcon,
   WindSharedIcon,
-  IrrigationSmartIcon
+  IrrigationSmartIcon,
+  DashboardErrorBoundary
 };
