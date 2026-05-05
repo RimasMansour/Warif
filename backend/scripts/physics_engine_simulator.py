@@ -23,7 +23,7 @@ import asyncio
 import time
 import requests
 import math
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -32,7 +32,8 @@ from src.db.session import AsyncSessionLocal
 from src.db.models.models import (
     Farm, Device, Actuator, SensorReading, 
     Recommendation, Alert, AlertSeverity, AlertStatus,
-    IrrigationCommand, IrrigationEvent, IrrigationStatus, IrrigationMode
+    IrrigationCommand, IrrigationEvent, IrrigationStatus, IrrigationMode,
+    DeviceCommand
 )
 
 # --- Engineering Constants (Science-Based) ---
@@ -211,32 +212,112 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
             farm.current_water_level = 0.0
             print(f"[AUTO-STOP] Farm {fid} | Water tank empty → stopped")
 
+    # === CHECK MANUAL COOLING COMMANDS ===
+    manual_fan = False
+    manual_cooler = False
+    manual_override = False
+
+    try:
+        # Check for recent cooling command (last 10 minutes)
+        cutoff_time = datetime.now(timezone.utc) - timedelta(minutes=10)
+        
+        # Check fan command
+        fan_cmd = await db.execute(
+            select(DeviceCommand)
+            .where(DeviceCommand.device_id == f"fan_unit_{fid}")
+            .where(DeviceCommand.issued_at >= cutoff_time)
+            .where(DeviceCommand.status == "pending")
+            .order_by(DeviceCommand.issued_at.desc())
+            .limit(1)
+        )
+        fan_cmd_obj = fan_cmd.scalar_one_or_none()
+        
+        # Check cooler command
+        cooler_cmd = await db.execute(
+            select(DeviceCommand)
+            .where(DeviceCommand.device_id == f"cooling_unit_{fid}")
+            .where(DeviceCommand.issued_at >= cutoff_time)
+            .where(DeviceCommand.status == "pending")
+            .order_by(DeviceCommand.issued_at.desc())
+            .limit(1)
+        )
+        cooler_cmd_obj = cooler_cmd.scalar_one_or_none()
+        
+        if fan_cmd_obj or cooler_cmd_obj:
+            manual_override = True
+            if fan_cmd_obj:
+                import json
+                payload = fan_cmd_obj.payload
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                payload = payload or {}
+                manual_fan = payload.get("fan", False)
+            if cooler_cmd_obj:
+                import json
+                payload = cooler_cmd_obj.payload
+                if isinstance(payload, str):
+                    payload = json.loads(payload)
+                payload = payload or {}
+                manual_cooler = payload.get("cooler", False)
+            
+            # Mark commands as completed
+            if fan_cmd_obj:
+                fan_cmd_obj.status = "completed"
+                fan_cmd_obj.completed_at = datetime.now(timezone.utc)
+            if cooler_cmd_obj:
+                cooler_cmd_obj.status = "completed"
+                cooler_cmd_obj.completed_at = datetime.now(timezone.utc)
+                
+    except Exception as cmd_err:
+        print(f"[ERROR] Manual command check failed for Farm {fid}: {cmd_err}")
+
     # --- Physics Calculations ---
 
     # Solar heating through greenhouse glass
     # Ref: Abdel-Ghany & Kozai (2006) - glass transmittance ~0.7
     heating_factor = (lux / 100000.0) * 0.4
 
-    # === COOLING DECISION LOGIC ===
-    # Goal: FULL COOLING (fan + cooler together)
-    # Trigger: internal_temp >= 32.0 AND humidity < 80%
-    if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
-        state["fan_on"] = True
-        state["cooler_on"] = True
-        state["cooling_on"] = True
+    # === COOLING DECISION ===
+    if manual_override:
+        # Manual mode: user controls everything
+        state["fan_on"] = manual_fan
+        state["cooler_on"] = manual_cooler
+        state["cooling_on"] = manual_fan and manual_cooler
+        
+        # Store manual mode duration (10 min window)
+        state["manual_cooling_until"] = (
+            datetime.now(timezone.utc) + timedelta(minutes=10)
+        ).isoformat()
 
-    # Goal: VENTILATION ONLY (fan only - reduce humidity)  
-    # Trigger: humidity >= 75.0 AND temp < 32.0
-    elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
-        state["fan_on"] = True
-        state["cooler_on"] = False
-        state["cooling_on"] = False
-
-    # Goal: OFF (conditions are good)
-    elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
-        state["fan_on"] = False
-        state["cooler_on"] = False
-        state["cooling_on"] = False
+    else:
+        # Check if still in manual window
+        manual_until = state.get("manual_cooling_until")
+        still_manual = False
+        if manual_until:
+            try:
+                until_dt = datetime.fromisoformat(manual_until)
+                if datetime.now(timezone.utc) < until_dt:
+                    still_manual = True
+            except:
+                pass
+        
+        if not still_manual:
+            # Automatic mode
+            # Full cooling: temp >= 32 AND humidity < 80
+            if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
+                state["fan_on"] = True
+                state["cooler_on"] = True
+                state["cooling_on"] = True
+            # Ventilation only: humidity >= 75 AND temp < 32
+            elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
+                state["fan_on"] = True
+                state["cooler_on"] = False
+                state["cooling_on"] = False
+            # All off: good conditions
+            elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
+                state["fan_on"] = False
+                state["cooler_on"] = False
+                state["cooling_on"] = False
 
     # --- Physics Effects ---
     if state["cooling_on"]:
@@ -272,7 +353,6 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
     # === SMART ALERTS GENERATION ===
     # Ref: Warif System Design Section 4.2.1.3
     try:
-        from datetime import timezone
 
         # Heat Stress Alert
         if state["internal_temp"] > profile["optimal_temp_max"] + 5:
@@ -387,7 +467,6 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
         # Tank monitoring logic
         if farm.water_tank_capacity > 0:
             pct = (farm.current_water_level / farm.water_tank_capacity) * 100
-            from datetime import timezone
 
             if pct <= 5.0:
                 # Auto-Refill
@@ -470,7 +549,6 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
     ]
 
     # 4. Save to Database
-    from datetime import timezone
     for d_id, stype, val, unit in readings_to_save:
         db.add(SensorReading(
             device_id=d_id,
@@ -496,7 +574,6 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
     # Call Decision Engine for recommendations and anomaly detection
     try:
         from src.services.decision_engine import SmartDecisionEngine
-        from datetime import timezone, timedelta
         
         engine = SmartDecisionEngine()
         intelligence_report = await engine.analyze_with_intelligence(

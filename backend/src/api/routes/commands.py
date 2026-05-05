@@ -8,6 +8,7 @@ from src.db.session import get_db
 from src.db.models.models import DeviceCommand
 from src.api.schemas.schemas import CommandIn, CommandOut
 from src.services.mqtt_client import get_mqtt_client
+from src.core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -45,3 +46,52 @@ async def send_command(payload: CommandIn, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return cmd
+@router.post("/cooling", status_code=201)
+async def control_cooling(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    from src.db.models.models import Farm
+    # Get user's first farm
+    result = await db.execute(
+        select(Farm).where(Farm.user_id == int(current_user["sub"]))
+    )
+    farm = result.scalars().first()
+    if not farm:
+        raise HTTPException(status_code=404, detail="No farm found for user")
+    
+    farm_id = farm.id
+    fan_state = payload.get("fan", False)
+    cooler_state = payload.get("cooler", False)
+    
+    import json
+    from datetime import datetime, timezone
+    
+    # Save fan command
+    fan_cmd = DeviceCommand(
+        device_id=f"fan_unit_{farm_id}",
+        command="FAN_ON" if fan_state else "FAN_OFF",
+        payload=json.dumps({"fan": fan_state, "cooler": cooler_state}),
+        status="pending",
+        issued_at=datetime.now(timezone.utc)
+    )
+    db.add(fan_cmd)
+    
+    # Save cooler command
+    cooler_cmd = DeviceCommand(
+        device_id=f"cooling_unit_{farm_id}",
+        command="COOLER_ON" if cooler_state else "COOLER_OFF",
+        payload=json.dumps({"fan": fan_state, "cooler": cooler_state}),
+        status="pending",
+        issued_at=datetime.now(timezone.utc)
+    )
+    db.add(cooler_cmd)
+    await db.commit()
+    
+    return {
+        "success": True,
+        "fan": fan_state,
+        "cooler": cooler_state,
+        "farm_id": farm_id
+    }
