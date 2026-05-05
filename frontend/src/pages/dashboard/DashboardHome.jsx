@@ -552,27 +552,71 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const isRtl = !isEn;
   const [interactedIds, setInteractedIds] = useState({});
+  const [feedback, setFeedback] = useState({});
+  const [showThanksIds, setShowThanksIds] = useState([]);
+  const [recommendationStatus, setRecommendationStatus] = useState({});
+
+  const handleFeedback = (id, type) => {
+    setFeedback(prev => ({ ...prev, [id]: type }));
+    setShowThanksIds(prev => [...prev, id]);
+    setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
+  };
+
+  const handleRecommendationDecision = (id, decision) => {
+    setRecommendationStatus(prev => ({ ...prev, [id]: decision }));
+  };
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || 1;
   const { data: apiRecs } = useRecommendations(farmId);
 
-  // Format recommendations professionally
-  const getShortSuggestion = (text) => {
-    if (!text) return '';
-    const words = text.split(' ');
-    return words.slice(0, 3).join(' ');
-  };
-
   const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs.slice(0, 2).map((r, idx) => ({
     id: r.id || idx,
-    title: r.message || r.title?.replace(/💡\s*/g, '') || 'توصية',
-    data_insight: r.data_insight || r.reasoning || r.message || '',
-    suggestion: r.suggestion || r.message || '',
-    shortSuggestion: getShortSuggestion(r.suggestion || r.message || ''),
-    reason: r.reason || r.reasoning || '',
+    title: r.title || r.message || 'توصية',
+    data_insight: r.data_insight || r.reasoning || '',
+    suggestion: r.suggestion || '',
+    benefit: r.benefit || '',
     priority: r.priority === 'high' ? 'high' : 'normal',
+    severity: r.severity || 'normal',
+    type: r.category || 'general',
     category: r.category || 'general',
     is_read: r.is_read,
   })) : [];
+
+  const getRecSubject = (type) => {
+    switch (type) {
+      case 'irrigation': return isEn ? 'Water efficiency' : 'تقليل الاستهلاك';
+      case 'heat': return isEn ? 'Temperature risk' : 'تنظيم الحرارة';
+      case 'humidity': return isEn ? 'Humidity control' : 'ضبط الرطوبة';
+      case 'climate': return isEn ? 'Climate balance' : 'توازن المناخ';
+      case 'soil': return isEn ? 'Soil health' : 'صحة التربة';
+      default: return isEn ? 'Operational guidance' : 'توجيه المزرعة';
+    }
+  };
+
+  const getRecActionText = (item) => {
+    if (item.suggestion) return item.suggestion;
+    switch (item.type) {
+      case 'irrigation':
+        return isEn
+          ? 'Adjust irrigation settings to conserve water without affecting crop health.'
+          : 'اضبط نظام الري لتوفير الماء دون التأثير على صحة المحصول.';
+      case 'heat':
+        return isEn
+          ? 'Improve shading and ventilation to lower greenhouse temperature.'
+          : 'حسّن التظليل والتهوية لخفض درجة حرارة الصوبة.';
+      case 'humidity':
+        return isEn
+          ? 'Increase airflow and reduce humidity build-up around plants.'
+          : 'زد تدفق الهواء وقلل تراكم الرطوبة حول النباتات.';
+      case 'soil':
+        return isEn
+          ? 'Keep soil moisture steady by reducing over-irrigation.'
+          : 'حافظ على رطوبة التربة عبر تقليل الإفراط في الري.';
+      default:
+        return isEn
+          ? 'Apply the recommended adjustment and monitor results.'
+          : 'طبق التعديل الموصى به ومتابعة النتائج.';
+    }
+  };
 
   const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات مدروسة لتحسين أداء المزرعة";
 
@@ -594,7 +638,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
         />
       </div>
 
-      <div className="flex-1 mt-4 overflow-y-auto max-h-[200px] pr-1 custom-scrollbar flex flex-col gap-3">
+      <div className="flex-1 mt-4 overflow-y-auto max-h-[400px] pr-1 custom-scrollbar flex flex-col gap-3">
         {recommendations.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-80 min-h-[120px]">
             <div className="text-[13px] font-bold">{isEn ? 'No active recommendations' : 'لا توجد توصيات نشطة'}</div>
@@ -611,55 +655,96 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm }) {
                   : 'bg-emerald-50/30 border-emerald-100/50'
               }`}>
 
-                {/* العنوان */}
-                <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                  <h4 className={`text-[14px] font-black leading-tight ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
-                    {rec.title}
-                  </h4>
-                </div>
+                <div className={`flex flex-col lg:flex-row lg:items-start justify-between gap-5 ${isRtl ? 'text-right' : 'text-left'}`}>
+                  
+                  {/* أزرار التقييم على اليسار */}
+                  <div className="flex flex-col items-center gap-3 min-w-[80px]">
+                    <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
+                      {isEn ? 'Rate' : 'تقييم'}
+                    </div>
+                    <div className="flex flex-col items-center gap-2">
+                      <button
+                        onClick={() => handleFeedback(rec.id, 'up')}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
+                        title={isEn ? 'Helpful' : 'مفيدة'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+                      </button>
+                      <button
+                        onClick={() => handleFeedback(rec.id, 'down')}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
+                        title={isEn ? 'Not helpful' : 'غير مفيدة'}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                      </button>
+                    </div>
 
-                {/* التحليل */}
-                {rec.data_insight && (
-                  <div className="flex flex-col gap-2">
-                    <div className="text-[13px] font-black text-gray-800">{isEn ? 'Analysis' : 'التحليل'}</div>
-                    <div className={`rounded-lg p-3 bg-white/60 border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}>
-                      <div className="text-[12px] text-gray-600 leading-relaxed font-medium">
-                        {rec.data_insight}
+                    {/* Feedback Confirmation */}
+                    {showThanksIds.includes(rec.id) && (
+                      <div className="mt-2 text-center text-[8px] font-bold text-emerald-700 animate-fade-in">
+                        {isEn ? 'Thanks!' : 'شكراً!'}
                       </div>
-                    </div>
+                    )}
                   </div>
-                )}
 
-                {/* التوصية */}
-                {rec.suggestion && (
-                  <div className={`rounded-lg p-3 bg-white/60 border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="text-[12px] text-gray-600 leading-relaxed font-medium">
-                      <span className="font-bold text-emerald-700">{isEn ? 'Recommendation:' : 'التوصية:'}</span> {rec.suggestion}
+                  <div className="flex-1">
+                    {/* العنوان */}
+                    <div className={`flex items-start gap-2 mb-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                      <h4 className={`text-[14px] font-black leading-tight text-emerald-700`}>
+                        {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title} {isEn ? 'for' : 'عن'} {getRecSubject(rec.type)}
+                      </h4>
                     </div>
-                  </div>
-                )}
 
-                {/* الفيدباك - اللايك والدس لايك */}
-                <div className={`pt-2 border-t border-gray-100/60 flex items-center justify-between gap-2`}>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    {isEn ? 'Rate this' : 'هل مفيدة؟'}
-                  </span>
+                    {/* التحليل */}
+                    {rec.data_insight && (
+                      <div className="bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50 mb-3">
+                        <div className="text-[12px] font-bold text-gray-800 mb-1">{isEn ? 'Analysis:' : 'التحليل:'}</div>
+                        <div className="text-[12px] text-gray-800 leading-relaxed">{rec.data_insight}</div>
+                      </div>
+                    )}
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => handleAction(e, rec.id, 'dislike')}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all"
-                      title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                    </button>
-                    <button
-                      onClick={(e) => handleAction(e, rec.id, 'like')}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
-                      title={isEn ? 'Helpful' : 'مفيدة'}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                    </button>
+                    {/* التوصية أو الإجراء */}
+                    <div className="bg-emerald-50/30 rounded-2xl p-3 border border-emerald-100/50">
+                      <div className="text-[12px] font-bold text-emerald-800 mb-1">{isEn ? 'Action:' : 'الإجراء:'}</div>
+                      <div className="text-[12px] text-gray-800 leading-relaxed">{getRecActionText(rec)}</div>
+                    </div>
+
+                    {/* النتيجة المتوقعة */}
+                    {rec.benefit && (
+                      <div className="bg-purple-50/30 rounded-2xl p-3 border border-purple-100/50 mt-3">
+                        <div className="text-[12px] font-bold text-purple-800 mb-1">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
+                        <div className="text-[12px] text-gray-800 leading-relaxed">{rec.benefit}</div>
+                      </div>
+                    )}
+
+                    {/* الزرين الإضافية في المود اليدوي */}
+                    {!globalAutoMode && (
+                      <div className="flex flex-col gap-2 mt-4">
+                        <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
+                          {isEn ? 'Execute Now' : 'نفذ الآن'}
+                        </div>
+                        {recommendationStatus[rec.id] ? (
+                          <div className={`px-4 py-2 rounded-xl text-[12px] font-black text-center border ${recommendationStatus[rec.id] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                            {recommendationStatus[rec.id] === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button 
+                              onClick={() => handleRecommendationDecision(rec.id, 'accepted')}
+                              className="flex-1 px-3 py-2 bg-emerald-600 text-white text-[11px] font-black rounded-lg hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                            >
+                              {isEn ? 'Execute' : 'نفذ'}
+                            </button>
+                            <button 
+                              onClick={() => handleRecommendationDecision(rec.id, 'rejected')}
+                              className="flex-1 px-3 py-2 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-lg hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
+                            >
+                              {isEn ? 'Ignore' : 'تجاهل'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

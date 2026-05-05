@@ -17,7 +17,9 @@ Warif ML Pipeline -- الخطوة 3: قاعدة البيانات والـ Contin
 """
 
 import os
-import sqlite3
+import psycopg2
+import psycopg2.extras
+from src.core.config import settings
 import json
 import joblib
 import numpy as np
@@ -60,20 +62,28 @@ class WarifDatabase:
         model_versions   : سجل كل إصدار نموذج مع دقته
     """
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
+    def __init__(self, db_path: str = None):
         self._create_tables()
-        print(f"قاعدة البيانات جاهزة: {db_path}")
+        print("قاعدة البيانات (PostgreSQL) جاهزة")
+
+    def _get_conn(self):
+        return psycopg2.connect(
+            host=settings.DB_HOST,
+            port=settings.DB_PORT,
+            dbname=settings.DB_NAME,
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD
+        )
 
     def _create_tables(self):
         """ينشئ الجداول إذا لم تكن موجودة"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
         # جدول قراءات الـ sensors
         c.execute("""
-            CREATE TABLE IF NOT EXISTS sensor_readings (
-                id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            CREATE TABLE IF NOT EXISTS ml_sensor_readings (
+                id                   SERIAL PRIMARY KEY,
                 timestamp            TEXT NOT NULL,
                 farm_id              TEXT DEFAULT 'greenhouse-01',
                 soil_moisture        REAL,
@@ -96,8 +106,8 @@ class WarifDatabase:
         # نحفظ هنا ما توقعه النموذج وما حدث فعلاً
         # هذا يسمح لنا بقياس الدقة مع مرور الوقت
         c.execute("""
-            CREATE TABLE IF NOT EXISTS predictions (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            CREATE TABLE IF NOT EXISTS ml_predictions (
+                id               SERIAL PRIMARY KEY,
                 timestamp        TEXT NOT NULL,
                 reading_id       INTEGER,
                 model_version    TEXT,
@@ -107,15 +117,15 @@ class WarifDatabase:
                 ensemble_pred    INTEGER,   -- القرار النهائي للـ Ensemble
                 actual_outcome   INTEGER,   -- ما حدث فعلاً (يُحدَّث لاحقاً)
                 is_correct       INTEGER,   -- 1 = صح، 0 = خطأ
-                FOREIGN KEY (reading_id) REFERENCES sensor_readings(id)
+                FOREIGN KEY (reading_id) REFERENCES ml_sensor_readings(id)
             )
         """)
 
         # جدول إصدارات النماذج
         # كل مرة نعيد التدريب نسجل هنا الدقة الجديدة
         c.execute("""
-            CREATE TABLE IF NOT EXISTS model_versions (
-                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            CREATE TABLE IF NOT EXISTS ml_model_versions (
+                id               SERIAL PRIMARY KEY,
                 version          TEXT NOT NULL,
                 trained_at       TEXT NOT NULL,
                 n_training_rows  INTEGER,
@@ -133,16 +143,16 @@ class WarifDatabase:
 
     def save_reading(self, reading: dict) -> int:
         """يحفظ قراءة sensor جديدة ويعيد الـ ID"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
         c.execute("""
-            INSERT INTO sensor_readings
+            INSERT INTO ml_sensor_readings
             (timestamp, farm_id, soil_moisture, soil_temp, soil_ph,
              soil_ec, air_temp, humidity, co2_ppm, vpd_kpa,
              growth_stage_encoded, days_since_transplant,
              irrigation_needed, source)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
         """, (
             reading.get('timestamp', datetime.now().isoformat()),
             reading.get('farm_id', 'greenhouse-01'),
@@ -160,22 +170,22 @@ class WarifDatabase:
             reading.get('source', 'synthetic')
         ))
 
-        reading_id = c.lastrowid
+        reading_id = c.fetchone()[0]
         conn.commit()
         conn.close()
         return reading_id
 
     def save_prediction(self, prediction: dict):
         """يحفظ تنبؤ النموذج"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
         c.execute("""
-            INSERT INTO predictions
+            INSERT INTO ml_predictions
             (timestamp, reading_id, model_version,
              rf_prediction, xgb_prediction, lstm_prediction,
              ensemble_pred, actual_outcome, is_correct)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             datetime.now().isoformat(),
             prediction.get('reading_id'),
@@ -193,15 +203,15 @@ class WarifDatabase:
 
     def save_model_version(self, version_info: dict):
         """يسجل إصدار نموذج جديد بعد إعادة التدريب"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
         c.execute("""
-            INSERT INTO model_versions
+            INSERT INTO ml_model_versions
             (version, trained_at, n_training_rows,
              rf_accuracy, xgb_accuracy, lstm_accuracy,
              ensemble_accuracy, data_source, notes)
-            VALUES (?,?,?,?,?,?,?,?,?)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             version_info['version'],
             datetime.now().isoformat(),
@@ -225,14 +235,14 @@ class WarifDatabase:
             لو الدقة بدأت تنخفض = النموذج لم يعد يناسب البيانات الجديدة
             هذا هو إشارة إعادة التدريب في Continual Learning
         """
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
         c.execute("""
-            SELECT is_correct FROM predictions
+            SELECT is_correct FROM ml_predictions
             WHERE actual_outcome IS NOT NULL
             ORDER BY id DESC
-            LIMIT ?
+            LIMIT %s
         """, (last_n,))
 
         rows = c.fetchall()
@@ -246,10 +256,10 @@ class WarifDatabase:
 
     def get_unlabeled_count(self) -> int:
         """يعيد عدد السجلات الجديدة التي لم تُستخدم في التدريب بعد"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
         c.execute("""
-            SELECT COUNT(*) FROM sensor_readings
+            SELECT COUNT(*) FROM ml_sensor_readings
             WHERE irrigation_needed IS NOT NULL
               AND source = 'real'
         """)
@@ -259,13 +269,13 @@ class WarifDatabase:
 
     def get_all_labeled_data(self) -> pd.DataFrame:
         """يجلب كل البيانات المعلّمة للتدريب"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         df = pd.read_sql("""
             SELECT soil_moisture, soil_temp, soil_ph, soil_ec,
                    air_temp, humidity, co2_ppm, vpd_kpa,
                    growth_stage_encoded, days_since_transplant,
                    irrigation_needed
-            FROM sensor_readings
+            FROM ml_sensor_readings
             WHERE irrigation_needed IS NOT NULL
         """, conn)
         conn.close()
@@ -273,21 +283,21 @@ class WarifDatabase:
 
     def get_stats(self) -> dict:
         """ملخص إحصائيات قاعدة البيانات"""
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         c = conn.cursor()
 
-        c.execute("SELECT COUNT(*) FROM sensor_readings")
+        c.execute("SELECT COUNT(*) FROM ml_sensor_readings")
         n_readings = c.fetchone()[0]
 
-        c.execute("SELECT COUNT(*) FROM predictions")
+        c.execute("SELECT COUNT(*) FROM ml_predictions")
         n_predictions = c.fetchone()[0]
 
-        c.execute("SELECT COUNT(*) FROM model_versions")
+        c.execute("SELECT COUNT(*) FROM ml_model_versions")
         n_versions = c.fetchone()[0]
 
         c.execute("""
             SELECT version, ensemble_accuracy, trained_at
-            FROM model_versions ORDER BY id DESC LIMIT 1
+            FROM ml_model_versions ORDER BY id DESC LIMIT 1
         """)
         latest = c.fetchone()
 

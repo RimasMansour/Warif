@@ -390,8 +390,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     };
 
     try {
-      // Use the live Render backend as the default if the environment variable is not set
-      const API_BASE = import.meta.env.VITE_API_URL || "https://warif.onrender.com";
+      // Use empty string as default fallback to rely on relative paths or proxy
+      const API_BASE = import.meta.env.VITE_API_URL || "";
       
       // Ensure the URL is valid before fetching
       const fetchUrl = `${API_BASE.replace(/\/$/, "")}/api/v1/chatbot/ask`;
