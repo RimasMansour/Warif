@@ -207,6 +207,38 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 }
 
 function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
+  // نفس نظام الألوان مثل التوصيات حسب الفئات
+  const getAlertTheme = (category, severity) => {
+    const isUrgent = severity === 'high' || severity === 'critical';
+
+    const themes = {
+      irrigation: {
+        urgent: { bg: 'bg-blue-50/30', border: 'border-r-4 border-r-blue-600', text: 'text-blue-800' },
+        warning: { bg: 'bg-blue-50/20', border: 'border-r-4 border-r-blue-500', text: 'text-blue-700' }
+      },
+      temperature: {
+        urgent: { bg: 'bg-amber-50/30', border: 'border-r-4 border-r-amber-600', text: 'text-amber-800' },
+        warning: { bg: 'bg-amber-50/20', border: 'border-r-4 border-r-amber-500', text: 'text-amber-700' }
+      },
+      humidity: {
+        urgent: { bg: 'bg-slate-50/30', border: 'border-r-4 border-r-slate-600', text: 'text-slate-800' },
+        warning: { bg: 'bg-slate-50/20', border: 'border-r-4 border-r-slate-400', text: 'text-slate-700' }
+      },
+      soil: {
+        urgent: { bg: 'bg-amber-50/40', border: 'border-r-4 border-r-amber-700', text: 'text-amber-900' },
+        warning: { bg: 'bg-amber-50/20', border: 'border-r-4 border-r-amber-400', text: 'text-amber-700' }
+      }
+    };
+
+    const cat = category?.toLowerCase() || 'irrigation';
+    const level = isUrgent ? 'urgent' : 'warning';
+    return themes[cat]?.[level] || themes.irrigation[level];
+  };
+
+  // تقسيم الانذارات حسب الشدة
+  const urgentAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
+  const warningAlerts = alerts.filter(a => a.severity === 'warning' || a.severity === 'info');
+
   return (
     <CardShell className="h-full flex flex-col bg-white p-5">
       <CardTopRow
@@ -216,86 +248,102 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
         title={isEn ? "System Alerts" : "تنبيهات النظام اللحظية"}
         subtitle={
           alerts.length > 0
-            ? `${alerts.length} ${isEn ? 'Active alerts' : 'تنبيهات نشطة'}`
+            ? `${urgentAlerts.length} ${isEn ? 'Urgent' : 'عاجلة'} • ${warningAlerts.length} ${isEn ? 'Warning' : 'تحذير'}`
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="flex-1 mt-4 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-3">
+      <div className="flex-1 mt-4 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-4">
         {alerts.length === 0 ? (
-          <EmptyState 
-            compact={true} 
+          <EmptyState
+            compact={true}
             variant="success"
-            title={isEn ? 'No active alerts' : 'لا توجد تنبيهات نشطة'} 
+            title={isEn ? 'No active alerts' : 'لا توجد تنبيهات نشطة'}
             subtitle={isEn ? 'System is stable and operating within optimal parameters.' : 'النظام مستقر ويعمل ضمن النطاق المثالي.'}
             icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
           />
         ) : (
-          alerts.map((alert, i) => {
-            const isRtl = !isEn;
-            const isCritical = alert.severity === 'high' || alert.severity === 'critical';
-            const borderColor = isCritical ? 'border-l-4 border-l-red-500' : 'border-l-4 border-l-orange-500';
-            const bgColor = isCritical ? 'bg-red-50/20' : 'bg-orange-50/20';
-            const titleColor = isCritical ? 'text-red-700' : 'text-orange-700';
-
-            return (
-              <div key={alert.id || i} className={`p-4 rounded-lg ${borderColor} flex flex-col gap-3 animate-fade-in ${bgColor}`}>
-
-                {/* العنوان فقط - واضح وصريح */}
-                <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                  <h4 className={`text-[15px] font-black leading-tight ${titleColor}`}>
-                    {alert.title}
-                  </h4>
-                  <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.timestamp}</span>
-                </div>
-
-                {/* السبب - نبقيه كما هو */}
-                {alert.reason && (
-                  <div className={`rounded-lg p-3 bg-blue-50/50 border border-blue-100/40 ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
-                      <span className="font-bold text-gray-800">السبب: </span>{alert.reason}
-                    </div>
-                  </div>
-                )}
-
-                {/* الإجراء المطلوب - نبقيه كما هو */}
-                <div className={`bg-gradient-to-r ${isCritical ? 'from-red-100 to-red-50' : 'from-orange-100 to-orange-50'} rounded-lg p-3 border ${isCritical ? 'border-red-200' : 'border-orange-200'}`}>
-                  <div className={`${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="text-[10px] font-bold text-gray-600 uppercase tracking-wide mb-1">الإجراء:</div>
-                    <div className={`text-[13px] font-black ${isCritical ? 'text-red-700' : 'text-orange-700'}`}>
-                      {alert.action}
-                    </div>
-                  </div>
-                </div>
-
-                {/* الفيدباك - اللايك والدس لايك */}
-                <div className={`pt-2 border-t border-gray-100/60 flex items-center justify-between gap-2`}>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                    {isEn ? 'Was this helpful?' : 'هل كان مفيداً؟'}
-                  </span>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => onFeedback?.(alert.id, false)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all"
-                      title={isEn ? 'Not helpful' : 'غير مفيد'}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                    </button>
-                    <button
-                      onClick={() => onFeedback?.(alert.id, true)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
-                      title={isEn ? 'Helpful' : 'مفيد'}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                    </button>
-                  </div>
-                </div>
+          <>
+            {/* الانذارات العاجلة أولاً */}
+            {urgentAlerts.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-[12px] font-bold text-red-700 uppercase tracking-wider">{isEn ? '🚨 Urgent Alerts' : '🚨 تنبيهات عاجلة'}</div>
+                {urgentAlerts.map((alert, i) => (
+                  <AlertItem key={alert.id || i} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} onFeedback={onFeedback} />
+                ))}
               </div>
-            );
-          })
+            )}
+
+            {/* الانذارات التحذيرية */}
+            {warningAlerts.length > 0 && (
+              <div className="space-y-3">
+                <div className="text-[12px] font-bold text-amber-700 uppercase tracking-wider">{isEn ? '⚠️ Warning Alerts' : '⚠️ تنبيهات تحذيرية'}</div>
+                {warningAlerts.map((alert, i) => (
+                  <AlertItem key={alert.id || i} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} onFeedback={onFeedback} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </CardShell>
+  );
+}
+
+function AlertItem({ alert, isEn, getAlertTheme, onFeedback }) {
+  const isRtl = !isEn;
+  const theme = getAlertTheme(alert.sensor_type || alert.category, alert.severity);
+  const isCritical = alert.severity === 'high' || alert.severity === 'critical';
+
+  return (
+    <div className={`p-4 rounded-xl ${theme.bg} ${theme.border} flex flex-col gap-3 animate-fade-in border border-gray-100/50`}>
+      {/* العنوان والشدة */}
+      <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+        <div className="flex items-start gap-2">
+          <span className={`text-[13px] font-black px-2.5 py-1 rounded-lg ${isCritical ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+            {isCritical ? (isEn ? '🚨 Urgent' : '🚨 عاجل') : (isEn ? '⚠️ Warning' : '⚠️ تحذير')}
+          </span>
+        </div>
+        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.timestamp}</span>
+      </div>
+
+      {/* الرسالة الرئيسية */}
+      <h4 className={`text-[14px] font-black leading-tight ${theme.text}`}>
+        {alert.message || alert.title}
+      </h4>
+
+      {/* السبب */}
+      {alert.reason && (
+        <div className={`rounded-lg p-3 bg-white/60 border border-gray-100/60 ${isRtl ? 'text-right' : 'text-left'}`}>
+          <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
+            <span className="font-bold text-gray-800">{isEn ? 'Reason: ' : 'السبب: '}</span>{alert.reason}
+          </div>
+        </div>
+      )}
+
+      {/* الفيدباك */}
+      <div className={`pt-2 border-t border-gray-100/40 flex items-center justify-between gap-2`}>
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+          {isEn ? 'Was this helpful?' : 'هل كان مفيداً؟'}
+        </span>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onFeedback?.(alert.id, false)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all"
+            title={isEn ? 'Not helpful' : 'غير مفيد'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+          </button>
+          <button
+            onClick={() => onFeedback?.(alert.id, true)}
+            className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+            title={isEn ? 'Helpful' : 'مفيد'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
