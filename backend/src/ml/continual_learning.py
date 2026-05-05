@@ -680,6 +680,76 @@ class ContinualLearner:
         print(f"   النموذج القديم محفوظ كـ backup")
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# نظام الفيدباك والمراقبة المستمرة -- ربط الفيدباك مع التعلم المستمر
+# ══════════════════════════════════════════════════════════════════════════════
+
+class FeedbackMonitor:
+    """
+    يراقب الفيدباك من المستخدمين ويستخدمه لتحسين النموذج
+
+    هذا هو تطبيق مفهوم Digital Twin:
+    - مراقبة مستمرة للأداء الفعلي (الفيدباك)
+    - تعلم تلقائي من التقييمات الفعلية
+    - تحسن مستمر للنموذج
+    """
+
+    def __init__(self, db: WarifDatabase, ensemble: WarifEnsemble, learner: ContinualLearner):
+        self.db = db
+        self.ensemble = ensemble
+        self.learner = learner
+        self.feedback_history = {}
+
+    def record_user_feedback(self, recommendation_id: int, farm_id: int, is_helpful: bool):
+        """
+        يسجل فيدباك المستخدم على توصية
+        """
+        key = f"farm_{farm_id}_rec_{recommendation_id}"
+        self.feedback_history[key] = {
+            'is_helpful': is_helpful,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'farm_id': farm_id,
+            'recommendation_id': recommendation_id
+        }
+        status = '✅ مفيدة' if is_helpful else '❌ غير مفيدة'
+        print(f"   [Feedback] التوصية {recommendation_id}: {status}")
+
+    def calculate_accuracy(self, farm_id: int = None) -> dict:
+        """
+        يحسب دقة التوصيات بناءً على الفيدباك الفعلي
+        """
+        relevant = [fb for key, fb in self.feedback_history.items()
+                   if farm_id is None or fb['farm_id'] == farm_id]
+
+        if not relevant:
+            return {'total': 0, 'helpful': 0, 'accuracy': 0}
+
+        total = len(relevant)
+        helpful = sum(1 for fb in relevant if fb['is_helpful'])
+        accuracy = (helpful / total * 100) if total > 0 else 0
+
+        return {
+            'total_feedback': total,
+            'helpful_count': helpful,
+            'accuracy_percentage': round(accuracy, 2),
+            'last_updated': datetime.now(timezone.utc).isoformat()
+        }
+
+    def check_quality(self, threshold: float = 85.0) -> bool:
+        """
+        تحديد جودة التوصيات بناءً على الفيدباك
+        """
+        stats = self.calculate_accuracy()
+        accuracy = stats.get('accuracy_percentage', 100)
+
+        if accuracy < threshold and stats['total_feedback'] > 0:
+            print(f"\n⚠️  تحذير: دقة التوصيات = {accuracy:.1f}% (حد: {threshold}%)")
+            return False
+
+        print(f"✅ جودة التوصيات: {accuracy:.1f}%")
+        return True
+
+
 # ══════════════════════════════════════════════════════════════
 # تشغيل تجريبي -- يحاكي وصول بيانات من المزرعة
 # ══════════════════════════════════════════════════════════════

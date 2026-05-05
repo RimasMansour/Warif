@@ -215,7 +215,11 @@ class Recommendation(Base):
     category   = Column(SAEnum(RecommendationCategory), default=RecommendationCategory.general)
     severity   = Column(SAEnum(RecommendationSeverity), default=RecommendationSeverity.normal)
     is_read    = Column(Boolean, default=False)
+    helpful    = Column(Boolean, nullable=True)  # NULL = لم يعطِ فيدباك, True = مفيدة, False = غير مفيدة
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    feedback_at= Column(DateTime(timezone=True), nullable=True)  # وقت إعطاء الفيدباك
+    actual_outcome = Column(Boolean, nullable=True)  # هل كانت التوصية صحيحة فعلاً
+    outcome_at = Column(DateTime(timezone=True), nullable=True)  # وقت تأكيد النتيجة الفعلية
 
     def __repr__(self):
         return f"<Recommendation [{self.category}] {self.message[:30]}>"

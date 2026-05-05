@@ -1,4 +1,5 @@
 # backend/src/api/main.py
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,6 +48,60 @@ app.include_router(commands.router,        prefix="/api/v1/commands",        tag
 app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
 # app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])  # Disabled temporarily
+
+# ── Startup Events ────────────────────────────────────────────────────────
+@app.on_event("startup")
+async def startup_monitoring():
+    """بدء نظام المراقبة 24/7 عند تشغيل الخادم"""
+    print("\n" + "="*70)
+    print("🚀 Warif نظام المراقبة 24/7 بدأ")
+    print("   يراقب الفيدباك والدقة...")
+    print("="*70 + "\n")
+
+    async def continuous_monitoring():
+        """المراقبة المستمرة للفيدباك والدقة"""
+        await asyncio.sleep(5)  # انتظر 5 ثواني حتى يبدأ الـ API
+
+        while True:
+            try:
+                from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+                from sqlalchemy.orm import sessionmaker
+                from src.ml.feedback_integration import FeedbackLearningBridge
+                from src.db.models.models import Farm
+                from sqlalchemy import select
+
+                engine = create_async_engine(settings.DATABASE_URL, echo=False)
+                async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+                async with async_session_maker() as db:
+                    result = await db.execute(select(Farm))
+                    farms = result.scalars().all()
+
+                    for farm in farms:
+                        try:
+                            bridge = FeedbackLearningBridge(db)
+                            stats = await bridge.calculate_feedback_accuracy(farm.id, days=7)
+                            accuracy = stats['overall_accuracy']
+                            total = stats['total_feedback']
+
+                            if total > 0:
+                                if accuracy < 80:
+                                    print(f"⚠️  [EMERGENCY] المزرعة {farm.id}: {accuracy:.1f}%")
+                                elif accuracy < 85:
+                                    print(f"⚠️  [WARNING] المزرعة {farm.id}: {accuracy:.1f}%")
+
+                        except Exception as e:
+                            pass  # خطأ صامت لتجنب إغلاق الـ task
+
+                await engine.dispose()
+                await asyncio.sleep(60)
+
+            except Exception as e:
+                await asyncio.sleep(60)
+
+    # بدء المراقبة كـ background task
+    asyncio.create_task(continuous_monitoring())
+
 
 # ── Health ────────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"])
