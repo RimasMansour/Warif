@@ -52,28 +52,41 @@ async def list_recommendations(
     # تنسيق احترافي للبيانات
     professional_recs = []
     for rec in recommendations:
-        # تنسيق مخصص حسب نوع التوصية
-        formatted = formatter.format_recommendation(
-            rec_type=f"{rec.category}" if rec.category else "general",
-            data_insight=rec.reasoning or rec.message,
-            category=rec.category or "general"
-        )
+        try:
+            # تنسيق مخصص حسب نوع التوصية
+            formatted = formatter.format_recommendation(
+                rec_type=f"{rec.category}" if rec.category else "general",
+                data_insight=rec.reasoning or rec.message,
+                category=rec.category or "general"
+            )
 
-        professional_recs.append({
-            "id": rec.id,
-            "title": formatted.title,
-            "data_insight": formatted.data_insight,
-            "reason": formatted.reason,
-            "suggestion": formatted.suggestion,
-            "benefit": formatted.benefit,
-            "timing": formatted.timing,
-            "priority": formatted.priority,
-            "category": formatted.category,
-            "is_read": rec.is_read,
-            "created_at": rec.created_at.isoformat() if rec.created_at else None,
-            "severity": rec.severity,
-            "message": rec.message,
-        })
+            professional_recs.append({
+                "id": rec.id,
+                "title": formatted.title,
+                "data_insight": formatted.data_insight,
+                "reason": formatted.reason,
+                "suggestion": formatted.suggestion,
+                "benefit": formatted.benefit,
+                "timing": formatted.timing,
+                "priority": formatted.priority,
+                "category": formatted.category,
+                "is_read": rec.is_read,
+                "created_at": rec.created_at.isoformat() if rec.created_at else None,
+                "severity": rec.severity,
+                "message": rec.message,
+            })
+        except Exception as e:
+            # fallback بسيط إذا فشل التنسيق
+            print(f"[Warning] خطأ في تنسيق التوصية {rec.id}: {e}")
+            professional_recs.append({
+                "id": rec.id,
+                "title": rec.message[:50] if rec.message else "توصية",
+                "message": rec.message,
+                "category": str(rec.category) if rec.category else "general",
+                "severity": str(rec.severity) if rec.severity else "normal",
+                "is_read": rec.is_read,
+                "created_at": rec.created_at.isoformat() if rec.created_at else None,
+            })
 
     return professional_recs
 
