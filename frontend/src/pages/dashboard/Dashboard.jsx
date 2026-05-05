@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { useLatestSensors, useAutoAlerts, triggerManualCooling, useDevices } from "../../hooks/useWarifData";
+import { useLatestSensors, useAutoAlerts, triggerManualCooling, useDevices, useAutoMode } from "../../hooks/useWarifData";
 import { startManualIrrigation, getMe, getFarms } from "../../services/api";
 import { translations } from "../../i18n";
 import { apiConfig } from "../../config/api";
@@ -263,7 +263,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [page]);
   const [activeFarm, setActiveFarm] = useState(0); 
-  const [globalAutoMode, setGlobalAutoMode] = useState(true);
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
+  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(farmId);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSensorsPopup, setShowSensorsPopup] = useState(false);
   const [showManualIrrigation, setShowManualIrrigation] = useState(false);
@@ -591,7 +592,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
               activeFarm={activeFarm} 
               setActiveFarm={setActiveFarm} 
               globalAutoMode={globalAutoMode} 
-              setGlobalAutoMode={setGlobalAutoMode} 
+              setGlobalAutoMode={toggleAutoMode} 
               farms={farms}
             />
           </div>

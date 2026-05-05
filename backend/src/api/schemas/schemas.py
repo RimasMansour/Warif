@@ -68,6 +68,7 @@ class FarmOut(BaseModel):
     crop_type:  Optional[str]
     current_water_level: float
     total_energy_kwh:    float
+    auto_mode:  bool
     created_at: datetime
 
     model_config = {"from_attributes": True}

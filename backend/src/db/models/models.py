@@ -113,6 +113,7 @@ class Farm(Base):
     current_water_level = Column(Float, default=1000.0)  # لتر
     water_tank_capacity = Column(Float, default=1000.0)  # لتر
     total_energy_kwh    = Column(Float, default=0.0)
+    auto_mode  = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user    = relationship("User", back_populates="farms")

@@ -144,6 +144,9 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
     crop_type = (farm.crop_type or "default").lower()
     profile = CROP_PROFILES.get(crop_type, CROP_PROFILES["default"])
 
+    # Check farm auto_mode setting
+    farm_auto_mode = getattr(farm, 'auto_mode', True)
+
     # Initialize physics state from last DB readings
     # Ref: Stanghellini (1987) - optimal starting conditions
     if fid not in farm_states:
@@ -302,22 +305,27 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
                 pass
         
         if not still_manual:
-            # Automatic mode
-            # Full cooling: temp >= 32 AND humidity < 80
-            if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
-                state["fan_on"] = True
-                state["cooler_on"] = True
-                state["cooling_on"] = True
-            # Ventilation only: humidity >= 75 AND temp < 32
-            elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
-                state["fan_on"] = True
-                state["cooler_on"] = False
-                state["cooling_on"] = False
-            # All off: good conditions
-            elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
-                state["fan_on"] = False
-                state["cooler_on"] = False
-                state["cooling_on"] = False
+            # Automatic mode - Only run if farm auto_mode is enabled
+            if farm_auto_mode:
+                # Full cooling: temp >= 32 AND humidity < 80
+                if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
+                    state["fan_on"] = True
+                    state["cooler_on"] = True
+                    state["cooling_on"] = True
+                # Ventilation only: humidity >= 75 AND temp < 32
+                elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
+                    state["fan_on"] = True
+                    state["cooler_on"] = False
+                    state["cooling_on"] = False
+                # All off: good conditions
+                elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
+                    state["fan_on"] = False
+                    state["cooler_on"] = False
+                    state["cooling_on"] = False
+            else:
+                # Manual mode (via auto_mode toggle): stay in current state
+                # or rely on manual_override (device_commands)
+                pass
 
     # --- Physics Effects ---
     if state["cooling_on"]:

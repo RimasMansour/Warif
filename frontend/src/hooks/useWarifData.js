@@ -129,6 +129,51 @@ export function useLatestSensors(intervalMs = 10000) {
   return { data, loading, error, refetch: fetch_data }
 }
 
+export function useAutoMode(farmId) {
+  const [autoMode, setAutoMode] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  // Load auto_mode from backend on mount
+  useEffect(() => {
+    if (!farmId) return;
+    const token = localStorage.getItem('warif_token');
+    fetch(`${API_BASE}/api/v1/farms/${farmId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.auto_mode === 'boolean') {
+          setAutoMode(data.auto_mode);
+        }
+      })
+      .catch(() => { });
+  }, [farmId]);
+
+  // Save auto_mode to backend
+  const toggleAutoMode = async (newValue) => {
+    if (!farmId) return;
+    setLoading(true);
+    const token = localStorage.getItem('warif_token');
+    try {
+      await fetch(`${API_BASE}/api/v1/farms/${farmId}/auto-mode`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ auto_mode: newValue })
+      });
+      setAutoMode(newValue);
+    } catch (e) {
+      console.error('Failed to update auto mode:', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { autoMode, toggleAutoMode, loading };
+}
+
 export function useSensorHistory(sensor_type, limit = 100) {
   const cacheKey = `${sensor_type}_${limit}`;
   const [data, setData] = useState(globalCache.history[cacheKey] || [])

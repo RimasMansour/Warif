@@ -67,10 +67,41 @@ async def update_farm(
         farm.farm_type = body["farm_type"]
     if "crop_type" in body:
         farm.crop_type = body["crop_type"]
+    if "auto_mode" in body:
+        farm.auto_mode = body["auto_mode"]
     
     await db.commit()
     await db.refresh(farm)
     return farm
+
+
+@router.patch("/{farm_id}/auto-mode")
+async def update_auto_mode(
+    farm_id: int,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Specific endpoint to toggle auto_mode."""
+    result = await db.execute(
+        select(Farm).where(
+            Farm.id == farm_id,
+            Farm.user_id == int(current_user["sub"])
+        )
+    )
+    farm = result.scalar_one_or_none()
+    if not farm:
+        raise HTTPException(status_code=404, detail="Farm not found")
+    
+    farm.auto_mode = payload.get("auto_mode", True)
+    await db.commit()
+    await db.refresh(farm)
+    
+    return {
+        "farm_id": farm_id,
+        "auto_mode": farm.auto_mode,
+        "message": "Auto mode updated successfully"
+    }
 
 
 @router.get("/{farm_id}", response_model=FarmOut)
