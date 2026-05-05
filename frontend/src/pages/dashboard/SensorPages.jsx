@@ -25,7 +25,6 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const [activeAction, setActiveAction] = useState("");
   const [fanRunning, setFanRunning] = useState(false);
   const [coolerRunning, setCoolerRunning] = useState(false);
-  const [activeAction, setActiveAction] = useState("");
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
