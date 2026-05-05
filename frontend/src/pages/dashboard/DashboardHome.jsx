@@ -709,95 +709,52 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
             if (status === 'later') return null;
 
             return (
-              <div key={rec.id} className={`p-4 rounded-xl border flex flex-col gap-2.5 animate-fade-in ${
+              <div key={rec.id} className={`p-3 rounded-[24px] border flex flex-col bg-white shadow-sm transition-all ${
                 rec.priority === 'high'
-                  ? 'bg-blue-50/30 border-blue-100/50'
-                  : 'bg-emerald-50/30 border-emerald-100/50'
+                  ? 'border-blue-200 shadow-blue-50/50'
+                  : 'border-emerald-100 shadow-emerald-50/50'
               }`}>
+                 <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
+                    <h4 className={`text-[13px] font-black leading-tight mb-1 ${rec.priority === 'high' ? 'text-blue-700' : 'text-emerald-700'}`}>
+                      {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title} {isEn ? 'for' : 'عن'} {getRecSubject(rec.type)}
+                    </h4>
 
-                <div className={`flex flex-col lg:flex-row lg:items-start justify-between gap-5 ${isRtl ? 'text-right' : 'text-left'}`}>
-                  
-                  {/* أزرار التقييم على اليسار */}
-                  <div className="flex flex-col items-center gap-3 min-w-[80px]">
-                    <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
-                      {isEn ? 'Rate' : 'تقييم'}
-                    </div>
-                    <div className="flex flex-col items-center gap-2">
-                      <button
-                        onClick={() => handleFeedback(rec.id, 'up')}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                        title={isEn ? 'Helpful' : 'مفيدة'}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                      </button>
-                      <button
-                        onClick={() => handleFeedback(rec.id, 'down')}
-                        className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                        title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                      </button>
-                    </div>
-
-                    {/* Feedback Confirmation */}
-                    {showThanksIds.includes(rec.id) && (
-                      <div className="mt-2 text-center text-[8px] font-bold text-emerald-700 animate-fade-in">
-                        {isEn ? 'Thanks!' : 'شكراً!'}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1">
-                    {/* العنوان */}
-                    <div className={`flex items-start gap-2 mb-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                      <h4 className={`text-[14px] font-black leading-tight text-emerald-700`}>
-                        {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title} {isEn ? 'for' : 'عن'} {getRecSubject(rec.type)}
-                      </h4>
-                    </div>
-
-                    {/* التحليل */}
                     {rec.data_insight && (
-                      <div className="bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50 mb-3">
-                        <div className="text-[12px] font-bold text-gray-800 mb-1">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                        <div className="text-[12px] text-gray-800 leading-relaxed">{rec.data_insight}</div>
+                      <div className="bg-gray-50/50 rounded-xl p-2 border border-gray-100/50 mt-1">
+                        <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
+                        <div className="text-[11px] text-gray-800 leading-relaxed">{rec.data_insight}</div>
                       </div>
                     )}
 
-                    {/* التوصية أو الإجراء */}
-                    <div className="bg-emerald-50/30 rounded-2xl p-3 border border-emerald-100/50">
-                      <div className="text-[12px] font-bold text-emerald-800 mb-1">{isEn ? 'Action:' : 'الإجراء:'}</div>
-                      <div className="text-[12px] text-gray-800 leading-relaxed">{getRecActionText(rec)}</div>
+                    <div className={`${rec.priority === 'high' ? 'bg-blue-50/30 border-blue-100/50' : 'bg-emerald-50/30 border-emerald-100/50'} rounded-xl p-2 border`}>
+                      <div className={`text-[11px] font-bold mb-0.5 ${rec.priority === 'high' ? 'text-blue-800' : 'text-emerald-800'}`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
+                      <div className="text-[11px] text-gray-800 leading-relaxed">{getRecActionText(rec)}</div>
                     </div>
 
-                    {/* النتيجة المتوقعة */}
                     {rec.benefit && (
-                      <div className="bg-purple-50/30 rounded-2xl p-3 border border-purple-100/50 mt-3">
-                        <div className="text-[12px] font-bold text-purple-800 mb-1">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                        <div className="text-[12px] text-gray-800 leading-relaxed">{rec.benefit}</div>
+                      <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
+                        <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
+                        <div className="text-[11px] text-gray-800 leading-relaxed">{rec.benefit}</div>
                       </div>
                     )}
 
-                    {/* الزرين الإضافية في المود اليدوي */}
                     {!globalAutoMode && (
-                      <div className="flex flex-col gap-2 mt-4">
-                        <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
-                          {isEn ? 'Execute Now' : 'نفذ الآن'}
-                        </div>
+                      <div className="mt-2">
                         {recommendationStatus[rec.id] ? (
-                          <div className={`px-4 py-2 rounded-xl text-[12px] font-black text-center border ${recommendationStatus[rec.id] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                          <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${recommendationStatus[rec.id] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
                             {recommendationStatus[rec.id] === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
                           </div>
                         ) : (
                           <div className="flex gap-2">
                             <button 
                               onClick={() => handleRecommendationDecision(rec.id, 'accepted')}
-                              className="flex-1 px-3 py-2 bg-emerald-600 text-white text-[11px] font-black rounded-lg hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                              className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
                             >
                               {isEn ? 'Execute' : 'نفذ'}
                             </button>
                             <button 
                               onClick={() => handleRecommendationDecision(rec.id, 'rejected')}
-                              className="flex-1 px-3 py-2 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-lg hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
+                              className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
                             >
                               {isEn ? 'Ignore' : 'تجاهل'}
                             </button>
@@ -805,8 +762,35 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
                         )}
                       </div>
                     )}
-                  </div>
-                </div>
+                 </div>
+
+                 {/* Feedback Section at the bottom */}
+                 <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
+                   <span className="text-[11px] font-bold text-gray-500">
+                     {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
+                   </span>
+                   <div className="flex items-center gap-2">
+                     <button
+                       onClick={() => handleFeedback(rec.id, 'down')}
+                       className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
+                       title={isEn ? 'Not helpful' : 'غير مفيدة'}
+                     >
+                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                     </button>
+                     <button
+                       onClick={() => handleFeedback(rec.id, 'up')}
+                       className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
+                       title={isEn ? 'Helpful' : 'مفيدة'}
+                     >
+                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+                     </button>
+                   </div>
+                   {showThanksIds.includes(rec.id) && (
+                     <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
+                       {isEn ? 'Thanks!' : 'شكراً!'}
+                     </div>
+                   )}
+                 </div>
               </div>
             );
           })

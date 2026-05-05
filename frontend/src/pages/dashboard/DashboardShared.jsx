@@ -503,6 +503,65 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
   );
 }
 
+export function getRecommendationTheme(type, text = "") {
+  let resolvedType = type;
+  if (!resolvedType) {
+    const t = text.toLowerCase();
+    if (t.includes('ري') || t.includes('ماء') || t.includes('water') || t.includes('irrigat') || t.includes('تدفق')) resolvedType = 'irrigation';
+    else if (t.includes('حرار') || t.includes('شمس') || t.includes('temp') || t.includes('sun') || t.includes('مناخ') || t.includes('رطوبة')) resolvedType = 'climate';
+    else if (t.includes('ترب') || t.includes('جذور') || t.includes('soil') || t.includes('root') || t.includes('سماد') || t.includes('fertil')) resolvedType = 'soil';
+    else resolvedType = 'default';
+  }
+
+  switch(resolvedType) {
+    case 'irrigation': 
+      return { 
+        bg: 'bg-blue-50/20', 
+        border: 'border-blue-100/60', 
+        text: 'text-blue-700', 
+        iconBg: 'bg-blue-100 text-blue-600 border-blue-200/50', 
+        actionBg: 'bg-blue-50/50',
+        actionBorder: 'border-blue-100/50',
+        actionText: 'text-blue-800',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+      };
+    case 'climate': 
+      return { 
+        bg: 'bg-amber-50/20', 
+        border: 'border-amber-100/60', 
+        text: 'text-amber-700', 
+        iconBg: 'bg-amber-100 text-amber-600 border-amber-200/50', 
+        actionBg: 'bg-amber-50/50',
+        actionBorder: 'border-amber-100/50',
+        actionText: 'text-amber-800',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+      };
+    case 'soil': 
+    case 'fertilization':
+      return { 
+        bg: 'bg-stone-50/30', 
+        border: 'border-stone-200/60', 
+        text: 'text-stone-700', 
+        iconBg: 'bg-stone-200 text-stone-600 border-stone-300/50', 
+        actionBg: 'bg-stone-100/50',
+        actionBorder: 'border-stone-200/50',
+        actionText: 'text-stone-800',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20c0-3 3-4 8-4s8 1 8 4"/><path d="M12 16V8"/><path d="M12 8c-2-2-5-2-5 0 0 3 3 4 5 4"/><path d="M12 8c2-2 5-2 5 0 0 3-3 4-5 4"/></svg>
+      };
+    default: 
+      return { 
+        bg: 'bg-emerald-50/10', 
+        border: 'border-emerald-100/50', 
+        text: 'text-emerald-700', 
+        iconBg: 'bg-emerald-100 text-emerald-600 border-emerald-200/50', 
+        actionBg: 'bg-emerald-50/30',
+        actionBorder: 'border-emerald-100/50',
+        actionText: 'text-emerald-800',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+      };
+  }
+}
+
 export {
   CardShell,
   CardTopRow,
@@ -525,5 +584,6 @@ export {
   ListIcon,
   WindSharedIcon,
   IrrigationSmartIcon,
-  DashboardErrorBoundary
+  DashboardErrorBoundary,
+  getRecommendationTheme
 };

@@ -186,121 +186,103 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                   <div className="h-px bg-gray-100 flex-1" />
                 </div>
     
-                <div className="grid grid-cols-1 gap-4">
+                <div className="flex flex-col gap-4">
                   {weekRecs.map((item, idx) => {
                     const styles = getRecStyles(item.type);
                     return (
-                      <CardShell key={item.id} className={`relative overflow-hidden card-interactive p-4 rounded-[24px] bg-white border-y border-gray-100 ${isRtl ? 'border-l' : 'border-r'} ${styles.border}`}>
-                        <div className={`flex flex-col lg:flex-row lg:items-start justify-between gap-5 ${isRtl ? 'text-right' : 'text-left'}`}>
-                          
-                          {/* أزرار التقييم على اليسار */}
-                          <div className="flex flex-col items-center gap-3 min-w-[80px]">
-                            <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
-                              {isEn ? 'Rate' : 'تقييم'}
-                            </div>
-                            <div className="flex flex-col items-center gap-2">
-                              <button
-                                onClick={() => handleFeedback(item.id, 'up')}
-                                className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                                title={isEn ? 'Helpful' : 'مفيدة'}
-                              >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                              </button>
-                              <button
-                                onClick={() => handleFeedback(item.id, 'down')}
-                                className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                                title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                              >
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                              </button>
-                            </div>
-
-                            {/* Feedback Confirmation */}
-                            {showThanksIds.includes(item.id) && (
-                              <div className="mt-2 text-center text-[8px] font-bold text-emerald-700 animate-fade-in">
-                                {T.thanks}
+                      <CardShell key={item.id} className={`relative overflow-hidden card-interactive p-3 flex flex-col rounded-[24px] bg-white border border-gray-100 ${styles.border}`}>
+                        <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
+                           <div className="flex items-start gap-3">
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${styles.iconBg}`}>
+                                {React.isValidElement(styles.icon) ? React.cloneElement(styles.icon, { size: 18, strokeWidth: 1.7 }) : styles.icon}
                               </div>
-                            )}
-                          </div>
-
-                          <div className="flex-1">
-                            <div className="flex items-start gap-4">
-                              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${styles.iconBg}`}>
-                                {React.isValidElement(styles.icon) ? React.cloneElement(styles.icon, { size: 22, strokeWidth: 1.7 }) : styles.icon}
-                              </div>
-
                               <div className="flex-1">
-                                {/* العنوان */}
-                                <div className={`flex items-start gap-2 mb-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                                  <h4 className={`text-[14px] font-black leading-tight text-emerald-700`}>
-                                    {isEn ? 'Recommendation:' : 'التوصية:'} {item.title}
-                                  </h4>
-                                </div>
-
-                                {/* التحليل */}
-                                {item.reasoning && (
-                                  <div className="bg-gray-50/50 rounded-2xl p-3 border border-gray-100/50 mb-3">
-                                    <div className="text-[12px] font-bold text-gray-800 mb-1">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                                    <div className="text-[12px] text-gray-800 leading-relaxed">{item.reasoning}</div>
-                                  </div>
-                                )}
-
-                                {/* التوصية أو الإجراء */}
-                                <div className="bg-emerald-50/30 rounded-2xl p-3 border border-emerald-100/50">
-                                  <div className="text-[12px] font-bold text-emerald-800 mb-1">{isEn ? 'Action:' : 'الإجراء:'}</div>
-                                  <div className="text-[12px] text-gray-800 leading-relaxed">{item.suggestion || item.title}</div>
-                                </div>
-
-                                {/* النتيجة المتوقعة */}
-                                {item.benefit && (
-                                  <div className="bg-purple-50/30 rounded-2xl p-3 border border-purple-100/50 mt-3">
-                                    <div className="text-[12px] font-bold text-purple-800 mb-1">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                                    <div className="text-[12px] text-gray-800 leading-relaxed">{item.benefit}</div>
-                                  </div>
-                                )}
+                                <h4 className={`text-[13px] font-black leading-tight text-emerald-700 mt-2`}>
+                                  {isEn ? 'Recommendation:' : 'التوصية:'} {item.title}
+                                </h4>
                               </div>
+                           </div>
+
+                           {item.reasoning && (
+                             <div className="bg-gray-50/50 rounded-xl p-2 border border-gray-100/50 mt-1">
+                               <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
+                               <div className="text-[11px] text-gray-800 leading-relaxed">{item.reasoning}</div>
+                             </div>
+                           )}
+
+                           <div className="bg-emerald-50/30 rounded-xl p-2 border border-emerald-100/50">
+                             <div className="text-[11px] font-bold text-emerald-800 mb-0.5">{isEn ? 'Action:' : 'الإجراء:'}</div>
+                             <div className="text-[11px] text-gray-800 leading-relaxed">{item.suggestion || item.title}</div>
+                           </div>
+
+                           {item.benefit && (
+                             <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
+                               <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
+                               <div className="text-[11px] text-gray-800 leading-relaxed">{item.benefit}</div>
+                             </div>
+                           )}
+
+                           {/* Compact Action Interface */}
+                           <div className={`mt-2`}>
+                             {(item.mode === 'auto' || globalAutoMode) ? (
+                               <div className="flex flex-col items-center gap-1.5 p-2 bg-gray-50 rounded-xl">
+                                 <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">
+                                    {isEn ? 'System Will Execute' : 'سيقوم النظام بتنفيذ'}
+                                 </div>
+                               </div>
+                             ) : (
+                               <div className="flex flex-col gap-2 w-full">
+                                 {item.status === 'pending' ? (
+                                   <div className="flex gap-2">
+                                     <button 
+                                       onClick={() => handleDecision(item.id, 'accepted')}
+                                       className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                                     >
+                                       {isEn ? 'Execute' : 'نفذ'}
+                                     </button>
+                                     <button 
+                                       onClick={() => handleDecision(item.id, 'rejected')}
+                                       className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
+                                     >
+                                       {isEn ? 'Ignore' : 'تجاهل'}
+                                     </button>
+                                   </div>
+                                 ) : (
+                                   <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${item.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                                     {item.status === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                        </div>
+
+                        {/* Feedback Section at the bottom */}
+                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
+                          <span className="text-[11px] font-bold text-gray-500">
+                            {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleFeedback(item.id, 'down')}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
+                              title={isEn ? 'Not helpful' : 'غير مفيدة'}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
+                            </button>
+                            <button
+                              onClick={() => handleFeedback(item.id, 'up')}
+                              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
+                              title={isEn ? 'Helpful' : 'مفيدة'}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+                            </button>
+                          </div>
+                          {showThanksIds.includes(item.id) && (
+                            <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
+                              {T.thanks}
                             </div>
-                          </div>
-
-                          {/* Compact Action Interface */}
-                          <div className={`flex flex-col items-center lg:items-end justify-center min-w-[160px] lg:border-r border-gray-100 ${isRtl ? 'lg:pr-6' : 'lg:pl-6'}`}>
-                            {(item.mode === 'auto' || globalAutoMode) ? (
-                              <div className="flex flex-col items-center gap-3">
-                                <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100 font-black text-[11px] uppercase tracking-wider">
-                                   {isEn ? 'System Will Execute' : 'سيقوم النظام بتنفيذ'}
-                                </div>
-                                <div className="text-[10px] text-gray-600 text-center leading-tight">
-                                  {isEn ? 'Automated action in progress...' : 'الإجراء التلقائي قيد التنفيذ...'}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col gap-2 w-full">
-                                <div className="text-[9px] font-black text-gray-400 uppercase tracking-widest text-center mb-1">
-                                   {isEn ? 'Execute Now' : 'نفذ الآن'}
-                                </div>
-                                {item.status === 'pending' ? (
-                                  <>
-                                    <button 
-                                      onClick={() => handleDecision(item.id, 'accepted')}
-                                      className="w-full px-4 py-2 bg-emerald-600 text-white text-[12px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
-                                    >
-                                      {isEn ? 'Execute' : 'نفذ'}
-                                    </button>
-                                    <button 
-                                      onClick={() => handleDecision(item.id, 'rejected')}
-                                      className="w-full px-4 py-2 bg-white border border-gray-100 text-gray-500 text-[12px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center gap-2"
-                                    >
-                                      {isEn ? 'Ignore' : 'تجاهل'}
-                                    </button>
-                                  </>
-                                ) : (
-                                  <div className={`px-4 py-2 rounded-xl text-[12px] font-black text-center border ${item.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                    {item.status === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </CardShell>
                     );
