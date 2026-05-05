@@ -49,6 +49,13 @@ async def list_recommendations(
     result = await db.execute(q)
     recommendations = result.scalars().all()
 
+    # Debug logging
+    print(f"[DEBUG] Farm {farm_id}: Found {len(recommendations)} recommendations")
+    if len(recommendations) == 0:
+        # التحقق إذا كانت هناك توصيات على الإطلاق
+        all_recs = await db.execute(select(Recommendation).where(Recommendation.farm_id == farm_id))
+        print(f"[DEBUG] Total recommendations in DB for farm {farm_id}: {len(all_recs.scalars().all())}")
+
     # تنسيق احترافي للبيانات
     professional_recs = []
     for rec in recommendations:
