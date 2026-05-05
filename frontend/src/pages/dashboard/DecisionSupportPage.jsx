@@ -1,15 +1,16 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { 
-  SensorTopBar, 
-  CardShell, 
-  TempSunIcon, 
-  AirHumidityIcon, 
-  PlantSoilIcon, 
+import {
+  SensorTopBar,
+  CardShell,
+  TempSunIcon,
+  AirHumidityIcon,
+  PlantSoilIcon,
   IrrigationSmartIcon,
   ListIcon,
   WindSharedIcon,
-  EmptyState
+  EmptyState,
+  getRecommendationTheme
 } from './DashboardShared';
 import { formatLastUpdated } from './dashboardUtils';
 import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
@@ -113,9 +114,8 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
 
   useEffect(() => {
     let filtered = allRecommendations;
-    if (!globalAutoMode) {
-      filtered = filtered.filter(r => r.mode === 'manual');
-    }
+    // In manual mode, show API recommendations as actionable items for user review
+    // In auto mode, show all recommendations (both auto and manual)
     setLocalRecs(filtered);
   }, [allRecommendations, globalAutoMode]);
 
@@ -188,30 +188,30 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     
                 <div className="flex flex-col gap-4">
                   {weekRecs.map((item, idx) => {
-                    const styles = getRecStyles(item.type);
+                    const theme = getRecommendationTheme(item.type, item.title);
                     return (
-                      <CardShell key={item.id} className={`relative overflow-hidden card-interactive p-3 flex flex-col rounded-[24px] bg-white border border-gray-100 ${styles.border}`}>
+                      <div key={item.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} shadow-sm transition-all animate-fade-in`}>
                         <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
                            <div className="flex items-start gap-3">
-                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${styles.iconBg}`}>
-                                {React.isValidElement(styles.icon) ? React.cloneElement(styles.icon, { size: 18, strokeWidth: 1.7 }) : styles.icon}
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
+                                {theme.icon}
                               </div>
                               <div className="flex-1">
-                                <h4 className={`text-[13px] font-black leading-tight text-emerald-700 mt-2`}>
+                                <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
                                   {isEn ? 'Recommendation:' : 'التوصية:'} {item.title}
                                 </h4>
                               </div>
                            </div>
 
                            {item.reasoning && (
-                             <div className="bg-gray-50/50 rounded-xl p-2 border border-gray-100/50 mt-1">
+                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
                                <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
                                <div className="text-[11px] text-gray-800 leading-relaxed">{item.reasoning}</div>
                              </div>
                            )}
 
-                           <div className="bg-emerald-50/30 rounded-xl p-2 border border-emerald-100/50">
-                             <div className="text-[11px] font-bold text-emerald-800 mb-0.5">{isEn ? 'Action:' : 'الإجراء:'}</div>
+                           <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
+                             <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
                              <div className="text-[11px] text-gray-800 leading-relaxed">{item.suggestion || item.title}</div>
                            </div>
 
@@ -222,39 +222,31 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                              </div>
                            )}
 
-                           {/* Compact Action Interface */}
-                           <div className={`mt-2`}>
-                             {(item.mode === 'auto' || globalAutoMode) ? (
-                               <div className="flex flex-col items-center gap-1.5 p-2 bg-gray-50 rounded-xl">
-                                 <div className="text-[10px] font-black text-emerald-700 uppercase tracking-wider">
-                                    {isEn ? 'System Will Execute' : 'سيقوم النظام بتنفيذ'}
+                           {/* Action Interface */}
+                           {!globalAutoMode && (
+                             <div className="mt-2">
+                               {item.status === 'pending' ? (
+                                 <div className="flex gap-2">
+                                   <button
+                                     onClick={() => handleDecision(item.id, 'accepted')}
+                                     className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+                                   >
+                                     {isEn ? 'Execute' : 'نفذ'}
+                                   </button>
+                                   <button
+                                     onClick={() => handleDecision(item.id, 'rejected')}
+                                     className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
+                                   >
+                                     {isEn ? 'Ignore' : 'تجاهل'}
+                                   </button>
                                  </div>
-                               </div>
-                             ) : (
-                               <div className="flex flex-col gap-2 w-full">
-                                 {item.status === 'pending' ? (
-                                   <div className="flex gap-2">
-                                     <button 
-                                       onClick={() => handleDecision(item.id, 'accepted')}
-                                       className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                                     >
-                                       {isEn ? 'Execute' : 'نفذ'}
-                                     </button>
-                                     <button 
-                                       onClick={() => handleDecision(item.id, 'rejected')}
-                                       className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-                                     >
-                                       {isEn ? 'Ignore' : 'تجاهل'}
-                                     </button>
-                                   </div>
-                                 ) : (
-                                   <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${item.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                     {item.status === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                                   </div>
-                                 )}
-                               </div>
-                             )}
-                           </div>
+                               ) : (
+                                 <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${item.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                                   {item.status === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
+                                 </div>
+                               )}
+                             </div>
+                           )}
                         </div>
 
                         {/* Feedback Section at the bottom */}
@@ -284,7 +276,7 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                             </div>
                           )}
                         </div>
-                      </CardShell>
+                      </div>
                     );
                   })}
                 </div>

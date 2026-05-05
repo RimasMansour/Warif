@@ -503,7 +503,7 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
   );
 }
 
-export function getRecommendationTheme(type, text = "") {
+function getRecommendationTheme(type, text = "") {
   let resolvedType = type;
   if (!resolvedType) {
     const t = text.toLowerCase();

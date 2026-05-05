@@ -208,7 +208,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   recommendations.map((rec, i) => {
                     const theme = getRecommendationTheme('climate', rec.text);
                     return (
-                    <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} shadow-sm transition-all animate-fade-in`}>
+                      <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} shadow-sm transition-all animate-fade-in`}>
                        <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
                           <div className="flex items-start gap-3">
                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
@@ -293,8 +293,9 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                            </div>
                          )}
                        </div>
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 ) : (
                   <EmptyState 
                     compact={true}
@@ -702,8 +703,9 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                            </div>
                          )}
                        </div>
-                    </div>
-                  ))
+                      </div>
+                    );
+                  })
                 ) : (
                   <EmptyState 
                     compact={true}
