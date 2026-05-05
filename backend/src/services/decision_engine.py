@@ -187,11 +187,11 @@ class SmartDecisionEngine:
             if ml_result:
                 ml_vote = ml_result["ensemble_pred"] * ml_result["confidence"] * 0.50
 
-            if soil_moisture < 25:
+            if soil_moisture < 50:
                 soil_vote = 0.9 * 0.25
-            elif soil_moisture < 40:
+            elif soil_moisture < 70:
                 soil_vote = 0.6 * 0.25
-            elif soil_moisture > 75:
+            elif soil_moisture > 85:
                 soil_vote = -0.5 * 0.25
             else:
                 soil_vote = 0.1 * 0.25
@@ -233,10 +233,10 @@ class SmartDecisionEngine:
                 severity = "urgent" if score > 0.75 else "warning"
                 if score > 0.75:
                     message = "تحسين إدارة الري"
-                    rec_text = f"رطوبة التربة الحالية ({soil_moisture:.0f}%) انخفضت عن الحد الأدنى المتوقع (40%). الإجراء: تفعيل الري الفوري لتجنب إجهاد النبات."
+                    rec_text = f"رطوبة التربة الحالية ({soil_moisture:.0f}%) انخفضت عن الحد الأدنى المتوقع لنمو الخيار (70%). الإجراء: تفعيل الري الفوري لتجنب إجهاد النبات."
                 else:
                     message = "زيادة فترات الري"
-                    rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض نحو الحد الحرج. التوصية: زيادة تكرار الري تدريجياً للحفاظ على الإنتاجية."
+                    rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض نحو الحد الحرج (70%). التوصية: زيادة تكرار الري تدريجياً للحفاظ على الإنتاجية."
 
                 if ml_result:
                     recommendation_conf = ml_result.get("confidence", 0.65)
@@ -253,7 +253,7 @@ class SmartDecisionEngine:
             elif score < -0.2:
                 recommendations.append(SmartRecommendation(
                     message="تقليل فترات الري",
-                    reasoning=f"رطوبة التربة الحالية ({soil_moisture:.0f}%) فوق المستوى المثالي (60%). التوصية: تقليل عدد فترات الري لتوفير المياه وتجنب أمراض الجذور.",
+                    reasoning=f"رطوبة التربة الحالية ({soil_moisture:.0f}%) فوق المستوى المثالي للخيار (80%). التوصية: تقليل عدد فترات الري لتوفير المياه وتجنب أمراض الجذور.",
                     category="irrigation",
                     severity="normal",
                     confidence=max(0.7, min(0.9, abs(score) + 0.3)),
