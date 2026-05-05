@@ -49,14 +49,28 @@ export async function triggerManualIrrigation(deviceId = 'simulator_001', durati
     return null;
   }
 }
-export async function triggerManualCooling(action = "start") {
-  console.log(`[Warif] Manual cooling requested: ${action}`);
+export async function triggerManualCooling(mode = "stop") {
+  console.log(`[Warif] Manual cooling requested: ${mode}`);
   try {
-    // We try to find a device_id from latest sensors if possible, or use a default/generic one
-    // In a real scenario, this would be the specific actuator ID for this farm.
-    const device_id = "GATEWAY_MASTER"; 
-    const res = await triggerFanControl(device_id, action);
-    return res;
+    const token = localStorage.getItem('warif_token');
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    
+    // Payload mapping based on mode
+    let payload = { fan: false, cooler: false };
+    if (mode === 'full') payload = { fan: true, cooler: true };
+    else if (mode === 'fan_only') payload = { fan: true, cooler: false };
+    
+    const res = await fetch(`${API_BASE}/api/v1/commands/cooling`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!res.ok) throw new Error('Cooling command failed');
+    return await res.json();
   } catch (err) {
     console.error("Failed to trigger cooling:", err);
     throw err;
@@ -491,17 +505,19 @@ export function useDevices(providedFarmId = null) {
   const counts = {
     sensors: devices.filter(d => d.type === 'sensor').length,
     pumps: devices.filter(d => d.type === 'actuator' && 
-      (d.name?.toLowerCase().includes('pump') ||
-       d.name?.toLowerCase().includes('مضخ') ||
-       d.name?.toLowerCase().includes('valve') ||
+      (d.name?.includes('مضخة') ||
+       d.name?.includes('ري') ||
+       d.name?.includes('محبس') ||
        d.name?.toLowerCase().includes('irrigat') ||
-       d.name?.toLowerCase().includes('محبس') ||
-       d.name?.toLowerCase().includes('ري'))).length,
+       d.name?.toLowerCase().includes('pump') ||
+       d.name?.toLowerCase().includes('valve'))).length,
     cooling: devices.filter(d => d.type === 'actuator' && 
-      (d.name?.toLowerCase().includes('fan') ||
+      (d.name?.includes('تبريد') ||
+       d.name?.includes('مكيف') ||
+       d.name?.includes('المروحة') ||
+       d.name?.includes('مروحة') ||
        d.name?.toLowerCase().includes('cool') ||
-       d.name?.toLowerCase().includes('مروح') ||
-       d.name?.toLowerCase().includes('تبريد'))).length,
+       d.name?.toLowerCase().includes('fan'))).length,
     actuators: devices.filter(d => d.type === 'actuator').length,
     total: devices.length,
     activeTotal: devices.filter(d => d.status === 'active').length,

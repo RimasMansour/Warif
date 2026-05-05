@@ -24,9 +24,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const [seconds, setSeconds] = useState(0);
   const [activeAction, setActiveAction] = useState("");
   const [fanRunning, setFanRunning] = useState(false);
-  const [fanAction, setFanAction] = useState(null); // 'started' or 'stopped'
-  const [coolingActive, setCoolingActive] = useState(false);
-  const [coolingAction, setCoolingAction] = useState(null); // 'started' or 'stopped'
+  const [coolerRunning, setCoolerRunning] = useState(false);
+  const [activeAction, setActiveAction] = useState("");
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
@@ -323,87 +322,77 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
                 />
               ) : (
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   <span className="sr-only">Climate Control Actions</span>
+                  
+                  {/* Mode 1: Full Cooling */}
                   <div className="flex flex-col gap-1">
                     <IrrigationActionButton 
-                      active={coolingActive} 
+                      active={fanRunning && coolerRunning} 
                       onClick={() => {
-                        if (!coolingActive) {
-                          // Turning ON
-                          setCoolingActive(true);
-                          setFanRunning(false); // Turn off standalone fan mode
-                          setCoolingAction('started');
-                          setFanAction('started'); 
-                          setActiveAction('cool');
-                          triggerManualCooling && triggerManualCooling('start');
-                        } else {
-                          // Turning OFF
-                          setCoolingActive(false);
-                          setCoolingAction('stopped');
-                          setActiveAction('cool');
-                          triggerManualCooling && triggerManualCooling('stop');
-                        }
-                        setTimeout(() => setActiveAction(null), 6000);
+                        setFanRunning(true);
+                        setCoolerRunning(true);
+                        setActiveAction('full');
+                        triggerManualCooling && triggerManualCooling('full');
+                        setTimeout(() => setActiveAction(""), 5000);
                       }}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/></svg>}
                       isRtl={isRtl}
                     >
-                      {coolingActive ? (isEn ? "Stop Cooler & Fans" : "إيقاف المكيف والمراوح") : (isEn ? "Start Cooler & Fans" : "تشغيل المكيف والمراوح")}
+                      {isEn ? "Full Cooling (Fan + Cooler)" : "تبريد كامل (مروحة + مكيف)"}
                     </IrrigationActionButton>
-                    <div className="text-[10px] text-gray-400 font-medium px-1 mb-1">
-                      {isEn ? "Evaporative Cooler + Fans — Integrated Cooling" : "المكيف الصحراوي + المراوح — وحدة تبريد متكاملة"}
-                    </div>
                   </div>
 
+                  {/* Mode 2: Fan Only */}
                   <div className="flex flex-col gap-1">
                     <IrrigationActionButton 
-                      active={fanRunning} 
+                      active={fanRunning && !coolerRunning} 
                       onClick={() => {
-                        if (!fanRunning) {
-                          setFanRunning(true);
-                          setCoolingActive(false); // Turn off integrated cooling mode
-                          setFanAction('started');
-                        } else {
-                          setFanRunning(false);
-                          setFanAction('stopped');
-                        }
-                        setActiveAction('fan');
-                        setTimeout(() => setActiveAction(null), 6000);
+                        setFanRunning(true);
+                        setCoolerRunning(false);
+                        setActiveAction('fan_only');
+                        triggerManualCooling && triggerManualCooling('fan_only');
+                        setTimeout(() => setActiveAction(""), 5000);
                       }}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" /></svg>}
                       isRtl={isRtl}
                     >
-                      {fanRunning ? (isEn ? "Stop Fans" : "إيقاف المراوح") : (isEn ? "Start Fans Only" : "تشغيل المراوح فقط")}
+                      {isEn ? "Ventilation Only (Fan)" : "تهوية فقط (مروحة)"}
                     </IrrigationActionButton>
-                    <div className="text-[10px] text-gray-400 font-medium px-1 mb-1">
-                      {isEn ? "Ventilation without cooling — suitable for humidity reduction" : "تهوية بدون تبريد — مناسب لتخفيض الرطوبة"}
+                  </div>
+
+                  {/* Mode 3: Stop All */}
+                  <div className="flex flex-col gap-1">
+                    <button 
+                      onClick={() => {
+                        setFanRunning(false);
+                        setCoolerRunning(false);
+                        setActiveAction('stop');
+                        triggerManualCooling && triggerManualCooling('stop');
+                        setTimeout(() => setActiveAction(""), 5000);
+                      }}
+                      className="w-full flex items-center justify-center gap-3 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                      {isEn ? "Stop All Units" : "إيقاف الكل"}
+                    </button>
+                  </div>
+
+                  {/* Status Indicators */}
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${fanRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                      <span className="text-[10px] font-bold uppercase">{isEn ? 'Fan Status' : 'حالة المروحة'}</span>
+                      <span className="text-sm font-black">{fanRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
+                    </div>
+                    <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${coolerRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                      <span className="text-[10px] font-bold uppercase">{isEn ? 'Cooler Status' : 'حالة المكيف'}</span>
+                      <span className="text-sm font-black">{coolerRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
                     </div>
                   </div>
 
-                  {activeAction === 'cool' && (
-                    <div className={`mt-2 px-4 py-2.5 rounded-2xl border text-xs font-black flex items-center gap-2 animate-pulse
-                      ${coolingAction === 'started'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                        : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
-                      <span>
-                        {coolingAction === 'started'
-                          ? (isEn ? '✓ Cooling unit started — AC and Fans running together' : '✓ تم تشغيل وحدة التبريد — المكيف والمراوح يعملان معاً')
-                          : (isEn ? '✓ Cooling unit stopped — System in standby' : '✓ تم إيقاف وحدة التبريد — النظام في وضع الاستعداد')}
-                      </span>
-                    </div>
-                  )}
-
-                  {activeAction === 'fan' && (
-                    <div className={`mt-2 px-4 py-2.5 rounded-2xl border text-xs font-black flex items-center gap-2 animate-pulse
-                      ${fanAction === 'started'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                        : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
-                      <span>
-                        {fanAction === 'started'
-                          ? (isEn ? '✓ Fans started — Reducing temperature' : '✓ تم تشغيل المراوح — يعمل النظام على خفض درجة الحرارة')
-                          : (isEn ? '✓ Fans stopped — System in standby' : '✓ تم إيقاف المراوح — النظام في وضع الاستعداد')}
-                      </span>
+                  {activeAction && (
+                    <div className="mt-2 px-4 py-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-black flex items-center gap-2 animate-pulse">
+                      <span>✓ {isEn ? 'Command sent to gateway...' : 'تم إرسال الأمر للوحدة المركزية...'}</span>
                     </div>
                   )}
                 </div>

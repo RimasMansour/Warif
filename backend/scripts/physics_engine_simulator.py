@@ -29,7 +29,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from src.db.session import AsyncSessionLocal
-from src.db.models.models import Farm, Device, Actuator, SensorReading, IrrigationCommand, IrrigationEvent
+from src.db.models.models import (
+    Farm, Device, Actuator, SensorReading, 
+    Recommendation, Alert, AlertSeverity, AlertStatus,
+    IrrigationCommand, IrrigationEvent, IrrigationStatus, IrrigationMode
+)
 
 # --- Engineering Constants (Science-Based) ---
 # Greenhouse specs
@@ -123,9 +127,17 @@ def calculate_lux(is_day, cloudcover):
     max_lux = 100000.0 * (1.0 - (cloudcover / 100.0) * 0.5)
     return max(0.0, (intensity * max_lux) * 0.7)
 
-async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
-    global farm_states
+# --- Simulation Registry ---
+# Only these farms will be managed by the physics engine.
+# Remove a Farm ID from this list when you connect real hardware to it.
+SIMULATED_FARM_IDS = [3, 4, 5, 6, 7, 12, 14, 19, 20]
+
+async def process_farm(db, farm, ext_temp, ext_hum, lux):
     fid = farm.id
+    
+    # Check if this farm is registered for simulation
+    if fid not in SIMULATED_FARM_IDS:
+        return
 
     # Get crop profile
     crop_type = (farm.crop_type or "default").lower()
@@ -162,6 +174,8 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
             "soil_moisture": max(profile["optimal_soil_min"], min(profile["optimal_soil_max"], init_soil)),
             "soil_temp": ext_temp - 3.0,
             "fan_on": False,
+            "cooler_on": False,
+            "cooling_on": False,
         }
 
     state = farm_states[fid]
@@ -182,7 +196,7 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         pump_on = True
 
         # Auto-stop: soil saturated (FAO Paper 56)
-        from src.db.models.models import IrrigationStatus
+        # Auto-stop: soil saturated (FAO Paper 56)
         if state.get("soil_moisture", 0) >= profile["optimal_soil_max"]:
             evt.status = IrrigationStatus.completed
             await db.flush()
@@ -203,20 +217,47 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     # Ref: Abdel-Ghany & Kozai (2006) - glass transmittance ~0.7
     heating_factor = (lux / 100000.0) * 0.4
 
-    # Thermostat with hysteresis
-    # Ref: ASHRAE 2021 - recommended greenhouse setpoints
-    if state["internal_temp"] >= 32.0:
+    # === COOLING DECISION LOGIC ===
+    # Goal: FULL COOLING (fan + cooler together)
+    # Trigger: internal_temp >= 32.0 AND humidity < 80%
+    if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
         state["fan_on"] = True
-    elif state["internal_temp"] <= 28.0:
-        state["fan_on"] = False
+        state["cooler_on"] = True
+        state["cooling_on"] = True
 
-    if state["fan_on"]:
-        # Evaporative cooling efficiency
-        # Ref: ASHRAE Ch.41 - efficiency = base * (1 - RH_outdoor)
-        cooling_efficiency = EVAP_EFFICIENCY_BASE * max(0.1, (100 - ext_hum) / 100.0)
-        temp_drop = 1.0 * cooling_efficiency
+    # Goal: VENTILATION ONLY (fan only - reduce humidity)  
+    # Trigger: humidity >= 75.0 AND temp < 32.0
+    elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
+        state["fan_on"] = True
+        state["cooler_on"] = False
+        state["cooling_on"] = False
+
+    # Goal: OFF (conditions are good)
+    elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
+        state["fan_on"] = False
+        state["cooler_on"] = False
+        state["cooling_on"] = False
+
+    # --- Physics Effects ---
+    if state["cooling_on"]:
+        # When FULL COOLING (fan + cooler):
+        # Ref: ASHRAE Ch.41 - cooling efficiency
+        cooling_efficiency = EVAP_EFFICIENCY_BASE * (1 - ext_hum/100) * 0.8
+        temp_drop = (state["internal_temp"] - ext_temp * 0.7) * cooling_efficiency * 0.15
         state["internal_temp"] -= temp_drop
-        state["internal_hum"] = min(90.0, state["internal_hum"] + 1.0)
+        state["internal_hum"] += 1.0  # cooler adds humidity
+        state["internal_hum"] = min(state["internal_hum"], 90.0)
+
+    elif state["fan_on"] and not state["cooler_on"]:
+        # When FAN ONLY (ventilation):
+        # Fan brings outdoor air in - reduces humidity but may increase temp
+        hum_reduction = (state["internal_hum"] - ext_hum) * 0.05
+        state["internal_hum"] -= hum_reduction
+        state["internal_hum"] = max(state["internal_hum"], ext_hum)
+        
+        # If outdoor is hotter, temp rises slightly
+        if ext_temp > state["internal_temp"]:
+            state["internal_temp"] += (ext_temp - state["internal_temp"]) * 0.02
     else:
         # Natural heat gain toward outdoor temp + solar gain
         # Ref: Abdel-Ghany & Kozai (2006)
@@ -231,7 +272,6 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     # === SMART ALERTS GENERATION ===
     # Ref: Warif System Design Section 4.2.1.3
     try:
-        from src.db.models.models import Alert, AlertSeverity, AlertStatus
         from datetime import timezone
 
         # Heat Stress Alert
@@ -329,7 +369,11 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     state["soil_temp"] = max(10.0, min(50.0, state["soil_temp"]))
 
     if state["fan_on"]:
-        energy_consumed += (FAN_POWER_KW / 3600.0) * INTERVAL
+        # Fan power: 1.1 kW
+        energy_consumed += (1.1 / 3600.0) * INTERVAL
+    if state["cooler_on"]:
+        # Cooler pump power: 0.5 kW
+        energy_consumed += (0.5 / 3600.0) * INTERVAL
 
     # Clamp values to physical limits
     state["internal_temp"] = max(10.0, min(55.0, state["internal_temp"]))
@@ -343,7 +387,6 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         # Tank monitoring logic
         if farm.water_tank_capacity > 0:
             pct = (farm.current_water_level / farm.water_tank_capacity) * 100
-            from src.db.models.models import Alert, AlertSeverity, AlertStatus
             from datetime import timezone
 
             if pct <= 5.0:
@@ -378,93 +421,59 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     if energy_consumed > 0:
         farm.total_energy_kwh += energy_consumed
 
-    # Device IDs based on real hardware
+    # 1. Device Mapping
     DEVICE_MAP = {
         "soil":     f"soil_sensor_{fid}",
         "climate":  f"climate_sensor_{fid}",
-        "cooling":  f"cooling_unit_{fid}",
+        "cooler":   f"cooling_unit_{fid}",   # evaporative cooler only
+        "fan":      f"fan_unit_{fid}",        # fan only
         "irrigation": f"irrigation_{fid}",
     }
 
-    # Auto-register devices if missing
-    devices_result = await db.execute(select(Device).where(Device.farm_id == fid))
-    devices = devices_result.scalars().all()
-
-    if not devices:
-        print(f"Farm {fid} has no devices. Auto-registering 4 correct devices...")
-        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["soil"], name="حساس التربة", type="sensor"))
-        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["climate"], name="حساس المناخ", type="sensor"))
-        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["cooling"], name="وحدة التبريد", type="actuator"))
-        db.add(Device(farm_id=fid, device_id=DEVICE_MAP["irrigation"], name="محبس الري", type="actuator"))
-        
-        # Add actuators
-        db.add(Actuator(device_id=DEVICE_MAP["cooling"], actuator_type="fan", state="off", power_rating_kw=1.1))
-        db.add(Actuator(device_id=DEVICE_MAP["irrigation"], actuator_type="irrigation_valve", state="off", power_rating_kw=0.0))
-        
-        await db.flush()
-        await db.commit()
-
-    # Write readings directly to Database (no HTTP needed)
+    # 2. Auto-register devices if missing
+    ARABIC_NAMES = {
+        "soil": "حساس التربة",
+        "climate": "حساس المناخ",
+        "cooler": "المكيف الصحراوي",
+        "fan": "المروحة",
+        "irrigation": "مضخة الري الذكي"
+    }
     
-    # 1. Soil sensor readings (soil_sensor_{fid})
-    soil_readings = [
-        ("soil_moisture",    round(state["soil_moisture"], 2),  "%"),
-        ("soil_temperature", round(state["soil_temp"], 2),      "C"),
+    for d_key, d_id in DEVICE_MAP.items():
+        existing = await db.execute(select(Device).where(Device.device_id == d_id))
+        if not existing.scalar_one_or_none():
+            print(f"[AUTO-CONFIG] Creating device {d_id} for Farm {fid}")
+            d_type = "sensor" if d_key in ["soil", "climate"] else "actuator"
+            d_name = ARABIC_NAMES.get(d_key, d_id)
+            db.add(Device(device_id=d_id, name=d_name, type=d_type, farm_id=fid, status="active"))
+            
+            # If actuator, add to actuators table too
+            if d_type == "actuator":
+                db.add(Actuator(
+                    device_id=d_id, 
+                    actuator_type=d_key if d_key in ["fan", "cooler"] else "irrigation_valve",
+                    state="off",
+                    power_rating_kw=1.1 if d_key == "fan" else (0.5 if d_key == "cooler" else 0.0)
+                ))
+    await db.flush() # Ensure devices exist before readings
+
+    # 3. Readings definition
+    readings_to_save = [
+        (DEVICE_MAP["soil"],      "soil_moisture",     round(state["soil_moisture"], 2),  "%"),
+        (DEVICE_MAP["soil"],      "soil_temperature",  round(state["soil_temp"], 2),      "C"),
+        (DEVICE_MAP["climate"],   "air_temperature",   round(state["internal_temp"], 2),  "C"),
+        (DEVICE_MAP["climate"],   "air_humidity",      round(state["internal_hum"], 2),   "%"),
+        (DEVICE_MAP["climate"],   "light_intensity",   round(lux, 1),                     "lux"),
+        (DEVICE_MAP["irrigation"],"water_usage",       round(water_consumed, 3),          "L"),
+        (DEVICE_MAP["cooler"],   "power_usage",       round((0.5 / 3600.0 * INTERVAL if state["cooler_on"] else 0) * 1000, 3), "Wh"),
+        (DEVICE_MAP["fan"],      "power_usage",       round((1.1 / 3600.0 * INTERVAL if state["fan_on"] else 0) * 1000, 3), "Wh"),
     ]
 
-    # 2. Climate sensor readings (climate_sensor_{fid})
-    climate_readings = [
-        ("air_temperature",  round(state["internal_temp"], 2),  "C"),
-        ("air_humidity",     round(state["internal_hum"], 2),   "%"),
-        ("light_intensity",  round(lux, 1),                     "lux"),
-    ]
-
-    # 3. Irrigation readings (irrigation_{fid})
-    irrigation_readings = [
-        ("water_usage", round(water_consumed, 3), "L"),
-    ]
-
-    # 4. Power readings (cooling_unit_{fid})
-    power_readings = [
-        ("power_usage", round(energy_consumed * 1000, 3), "Wh"),
-    ]
-
-    # Save to Database with correct device mapping and farm_id
+    # 4. Save to Database
     from datetime import timezone
-
-    for stype, val, unit in soil_readings:
+    for d_id, stype, val, unit in readings_to_save:
         db.add(SensorReading(
-            device_id=DEVICE_MAP["soil"],
-            farm_id=fid,
-            sensor_type=stype,
-            value=val,
-            unit=unit,
-            timestamp=datetime.now(timezone.utc)
-        ))
-
-    for stype, val, unit in climate_readings:
-        db.add(SensorReading(
-            device_id=DEVICE_MAP["climate"],
-            farm_id=fid,
-            sensor_type=stype,
-            value=val,
-            unit=unit,
-            timestamp=datetime.now(timezone.utc)
-        ))
-
-    for stype, val, unit in irrigation_readings:
-        db.add(SensorReading(
-            device_id=DEVICE_MAP["irrigation"],
-            farm_id=fid,
-            sensor_type=stype,
-            value=val,
-            unit=unit,
-            timestamp=datetime.now(timezone.utc)
-        ))
-
-    for stype, val, unit in power_readings:
-        db.add(SensorReading(
-            device_id=DEVICE_MAP["cooling"],
+            device_id=d_id,
             farm_id=fid,
             sensor_type=stype,
             value=val,
@@ -487,7 +496,6 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
     # Call Decision Engine for recommendations and anomaly detection
     try:
         from src.services.decision_engine import SmartDecisionEngine
-        from src.db.models.models import Recommendation, Alert, AlertSeverity, AlertStatus
         from datetime import timezone, timedelta
         
         engine = SmartDecisionEngine()
@@ -540,10 +548,12 @@ async def process_farm(db: AsyncSession, farm: Farm, ext_temp, ext_hum, lux):
         print(f"[DE] Farm {fid} decision engine error: {de_err}")
 
     print(
-        f"[{datetime.now().strftime('%H:%M:%S')}] Farm {fid} ({crop_type}) | "
-        f"EXT: {ext_temp:.1f}C | INT: {state['internal_temp']:.1f}C | "
-        f"SOIL: {state['soil_moisture']:.1f}% | FAN: {'ON' if state['fan_on'] else 'OFF'} | "
-        f"PUMP: {'ON' if pump_on else 'OFF'}"
+        f"[{datetime.now().strftime('%H:%M:%S')}] Farm {fid} | "
+        f"EXT:{ext_temp:.0f}C | INT:{state['internal_temp']:.0f}C | "
+        f"HUM:{state['internal_hum']:.0f}% | SOIL:{state['soil_moisture']:.0f}% | "
+        f"FAN:{'ON' if state['fan_on'] else 'OFF'} | "
+        f"COOLER:{'ON' if state['cooler_on'] else 'OFF'} | "
+        f"PUMP:{'ON' if pump_on else 'OFF'}"
     )
 
 async def engine_loop():
