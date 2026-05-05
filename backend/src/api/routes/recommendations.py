@@ -52,17 +52,24 @@ async def list_recommendations(
     # تنسيق احترافي للبيانات
     professional_recs = []
     for rec in recommendations:
-        # Fallback بسيط بدون استدعاء formatter
-        professional_recs.append({
-            "id": rec.id,
-            "title": rec.message[:60] if rec.message else "توصية",
-            "message": rec.message,
-            "reasoning": rec.reasoning,
-            "category": str(rec.category.value) if rec.category else "general",
-            "severity": str(rec.severity.value) if rec.severity else "normal",
-            "is_read": rec.is_read,
-            "created_at": rec.created_at.isoformat() if rec.created_at else None,
-        })
+        try:
+            # استخراج القيم بأمان
+            category_value = rec.category.value if hasattr(rec.category, 'value') else str(rec.category)
+            severity_value = rec.severity.value if hasattr(rec.severity, 'value') else str(rec.severity)
+
+            professional_recs.append({
+                "id": rec.id,
+                "title": rec.message[:60] if rec.message else "توصية",
+                "message": rec.message,
+                "reasoning": rec.reasoning,
+                "category": category_value,
+                "severity": severity_value,
+                "is_read": rec.is_read,
+                "created_at": rec.created_at.isoformat() if rec.created_at else None,
+            })
+        except Exception as e:
+            print(f"[ERROR] Recommendation {rec.id}: {e}")
+            continue
 
     return professional_recs
 
