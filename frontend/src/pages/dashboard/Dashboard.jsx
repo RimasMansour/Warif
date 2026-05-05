@@ -800,13 +800,22 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                         <div className="flex flex-col gap-2">
                           {devices.filter(d => d.type === 'sensor').map(device => {
                             const nameLower = device.name?.toLowerCase() || '';
-                            const isSoil = nameLower.includes('soil') || nameLower.includes('تربة');
-                            const isTemp = nameLower.includes('temp') || nameLower.includes('حرار');
-                            const isHum = nameLower.includes('hum') || nameLower.includes('رطوب');
+                            const isSoil    = device.name.includes('تربة') || nameLower.includes('soil');
+                            const isTemp    = device.name.includes('حرار') || nameLower.includes('temp');
+                            const isHum     = device.name.includes('رطوب') || nameLower.includes('hum');
+                            const isClimate = device.name.includes('مناخ') || nameLower.includes('climate');
+                            const isFan     = device.name.includes('مروح') || nameLower.includes('fan');
+                            const isCooler  = device.name.includes('مكيف') || nameLower.includes('cool');
+                            const isIrrig   = device.name.includes('ري') || device.name.includes('مضخة') || nameLower.includes('irrig');
                             
-                            const val = isSoil ? `${liveSensors?.soil_moisture || 0}%` :
-                                       isTemp ? `${liveSensors?.air_temperature || 0}°C` :
-                                       isHum ? `${liveSensors?.air_humidity || 0}%` : '';
+                            const val = 
+                              isSoil    ? `${liveSensors?.soil_moisture?.toFixed(1) || '--'}%` :
+                              isClimate ? `${liveSensors?.air_temperature?.toFixed(1) || '--'}°C` :
+                              isTemp    ? `${liveSensors?.air_temperature?.toFixed(1) || '--'}°C` :
+                              isHum     ? `${liveSensors?.air_humidity?.toFixed(1) || '--'}%` :
+                              isFan     ? (device.status === 'active' ? 'تعمل' : 'متوقفة') :
+                              isCooler  ? (device.status === 'active' ? 'تعمل' : 'متوقفة') :
+                              isIrrig   ? `${liveSensors?.water_usage?.toFixed(1) || '0'} L` : '';
                             
                             const iconBg = isTemp ? 'bg-orange-50 border-orange-100/30' : isHum ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
                             const iconColor = isTemp ? 'text-[#F97316]' : isHum ? 'text-[#0EA5E9]' : 'text-[#059669]';
@@ -830,7 +839,15 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                                   </div>
                                   <div className={isRtl ? 'text-right' : 'text-left'}>
                                     <p className="text-[15px] font-black text-gray-800 leading-tight">{device.name}</p>
-                                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">{isTemp ? (isEn ? "Air Temperature" : "درجة الحرارة") : isHum ? (isEn ? "Air Humidity" : "رطوبة الهواء") : (isEn ? "Real-time analysis" : "تحليل فوري")}</p>
+                                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">
+                                      {isSoil    ? 'رطوبة + حرارة التربة' :
+                                       isClimate ? 'حرارة + رطوبة + إضاءة' :
+                                       isTemp    ? 'درجة الحرارة' :
+                                       isHum     ? 'رطوبة الهواء' :
+                                       isFan     ? 'مروحة التهوية' :
+                                       isCooler  ? 'مكيف صحراوي' :
+                                       isIrrig   ? 'مضخة مياه' : 'تحليل فوري'}
+                                    </p>
                                   </div>
                                 </div>
                                 <div className="text-lg font-black tracking-tighter" style={{ color: iconColor }}>{val}</div>
