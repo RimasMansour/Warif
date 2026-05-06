@@ -187,14 +187,25 @@ class SmartDecisionEngine:
             if ml_result:
                 ml_vote = ml_result["ensemble_pred"] * ml_result["confidence"] * 0.50
 
-            if soil_moisture < 50:
-                soil_vote = 0.9 * 0.25
-            elif soil_moisture < 70:
-                soil_vote = 0.6 * 0.25
-            elif soil_moisture > 85:
-                soil_vote = -0.5 * 0.25
+            # Tomato optimal: 60-70%, Cucumber: 70-80%
+            crop_type = (sensor_data.get("crop_type") or "tomatoes").lower()
+            if crop_type in ["cucumber", "خيار"]:
+                optimal_min, optimal_max = 70, 80
+            elif crop_type in ["tomatoes", "طماطم"]:
+                optimal_min, optimal_max = 60, 70
             else:
-                soil_vote = 0.1 * 0.25
+                optimal_min, optimal_max = 55, 75
+
+            if soil_moisture < optimal_min - 15:
+                soil_vote = 0.9 * 0.25   # critically dry
+            elif soil_moisture < optimal_min:
+                soil_vote = 0.6 * 0.25   # below optimal
+            elif soil_moisture > optimal_max + 10:
+                soil_vote = -0.5 * 0.25  # oversaturated
+            elif soil_moisture > optimal_max:
+                soil_vote = -0.2 * 0.25  # slightly wet
+            else:
+                soil_vote = 0.0 * 0.25   # optimal range
 
             if ext_temp is not None:
                 heat_factor = max(0, (ext_temp - 30) / 20)
@@ -456,28 +467,59 @@ class SmartDecisionEngine:
 
         irr_score = 0.0
         irr_confidence = 0.65
+        ml_actually_ran = False
         irr_reason = "لا بيانات عن رطوبة التربة"
         if soil_moisture is not None:
             ml_result = self.run_ml_prediction(sensor_data)
             if ml_result:
+                ml_actually_ran = True
                 irr_score += ml_result["ensemble_pred"] * ml_result["confidence"] * 0.50
                 irr_confidence = ml_result.get("confidence", 0.65)
-            if soil_moisture < 50:
-                irr_score += 0.9 * 0.25
-            elif soil_moisture < 70:
-                irr_score += 0.6 * 0.25
-            elif soil_moisture > 85:
-                irr_score += -0.5 * 0.25
+            # Tomato optimal: 60-70%, Cucumber: 70-80%
+            crop_type = (sensor_data.get("crop_type") or "tomatoes").lower()
+            if crop_type in ["cucumber", "خيار"]:
+                optimal_min, optimal_max = 70, 80
+            elif crop_type in ["tomatoes", "طماطم"]:
+                optimal_min, optimal_max = 60, 70
             else:
-                irr_score += 0.1 * 0.25
+                optimal_min, optimal_max = 55, 75
+
+            if soil_moisture < optimal_min - 15:
+                irr_score += 0.9 * 0.25
+            elif soil_moisture < optimal_min:
+                irr_score += 0.6 * 0.25
+            elif soil_moisture > optimal_max + 10:
+                irr_score += -0.5 * 0.25
+            elif soil_moisture > optimal_max:
+                irr_score += -0.2 * 0.25
+            else:
+                irr_score += 0.0 * 0.25
             irr_score = max(-1.0, min(1.0, irr_score))
             irr_reason = f"رطوبة التربة {soil_moisture:.0f}%"
 
+        ml_available = ml_actually_ran and irr_confidence > 0.1  # ML is working when confidence is meaningful
+        _optimal_min = optimal_min if soil_moisture is not None else 60
+
+        if ml_available:
+            should_irrigate = irr_score > 0.60
+        else:
+            # Rule-based fallback (when ML unavailable)
+            if soil_moisture is not None and soil_moisture < 45:
+                should_irrigate = True   # Critically dry - irrigate now
+            elif soil_moisture is not None and soil_moisture < _optimal_min:
+                should_irrigate = False  # Below optimal but wait for ML
+            elif soil_moisture is not None and soil_moisture > optimal_max:
+                should_irrigate = False  # Too wet - don't irrigate
+            else:
+                should_irrigate = False  # Optimal range or no data
+
         irrigation_action = {
-            "should_irrigate": irr_score > 0.75,
+            "should_irrigate": should_irrigate,
             "score": round(irr_score, 3),
             "confidence": irr_confidence,
+            "ml_available": ml_available,
             "reason": irr_reason,
+            "soil_threshold_used": 45 if not ml_available else _optimal_min,
         }
 
         cooling_action = {

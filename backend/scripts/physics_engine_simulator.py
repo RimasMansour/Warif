@@ -611,6 +611,7 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
         "light_intensity":  round(lux, 1),
         "water_usage":      round(water_consumed, 3),
         "power_usage":      round(energy_consumed * 1000, 3),
+        "crop_type":        farm.crop_type,
     }
 
     # Call Decision Engine for recommendations and anomaly detection
