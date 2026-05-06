@@ -207,32 +207,208 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 }
 
 function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
-  // نفس نظام الألوان مثل التوصيات حسب الفئات
-  const getAlertTheme = (category, severity) => {
-    const isUrgent = severity === 'high' || severity === 'critical';
+  const [alertFeedback, setAlertFeedback] = useState({});
+  const [showAlertThanks, setShowAlertThanks] = useState([]);
 
-    const themes = {
-      irrigation: {
-        urgent: { bg: 'bg-blue-50/30', border: 'border-r-4 border-r-blue-600', text: 'text-blue-800' },
-        warning: { bg: 'bg-blue-50/20', border: 'border-r-4 border-r-blue-500', text: 'text-blue-700' }
+  const handleAlertFeedback = async (id, type) => {
+    // تحديث الواجهة المحلية فوراً
+    setAlertFeedback(prev => ({ ...prev, [id]: type }));
+    setShowAlertThanks(prev => [...prev, id]);
+    setTimeout(() => setShowAlertThanks(prev => prev.filter(i => i !== id)), 2000);
+
+    // إرسال الفيدباك إلى الـ Backend
+    try {
+      const helpful = type === 'up';
+      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
+      const farmId = userData.farmId;
+      const token = localStorage.getItem('warif_token');
+
+      if (farmId && token) {
+        const API_BASE = import.meta.env.VITE_API_URL || '';
+        await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/feedback/${id}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ helpful: helpful })
+        });
+      }
+    } catch (err) {
+      console.error('Feedback submission error:', err);
+    }
+  };
+
+  // Map sensor types to categories
+  const getSensorCategory = (sensorType) => {
+    if (!sensorType) return 'irrigation';
+    const s = sensorType.toLowerCase();
+    if (s.includes('temperature') || s.includes('temp')) return 'temperature';
+    if (s.includes('humidity') || s.includes('humid')) return 'humidity';
+    if (s.includes('soil') || s.includes('moisture')) return 'soil';
+    if (s.includes('water') || s.includes('irrigation') || s.includes('pump')) return 'irrigation';
+    return 'irrigation';
+  };
+
+  // Generate descriptive analysis with consequences
+  const getAlertAnalysis = (alert, category) => {
+    const currentValue = alert.actual_value;
+    const threshold = alert.threshold;
+    const isExceeding = currentValue > threshold;
+
+    const analysisMap = {
+      temperature: () => {
+        if (isExceeding) {
+          return isEn
+            ? `Temperature exceeds optimal threshold (${threshold}°C). Current: ${currentValue}°C. High temperatures may cause heat stress to crops, reduce crop quality, increase water consumption, and accelerate plant maturation.`
+            : `درجة الحرارة تتجاوز الحد الأمثل (${threshold}°م). القيمة الحالية: ${currentValue}°م. قد تؤدي الحرارة المرتفعة إلى إجهاد حراري للمحاصيل وتقليل الجودة وزيادة استهلاك المياه وتسريع النضج.`;
+        } else {
+          return isEn
+            ? `Temperature is below optimal threshold (${threshold}°C). Current: ${currentValue}°C. Low temperatures slow crop growth, reduce metabolic activity, and increase vulnerability to diseases.`
+            : `درجة الحرارة أقل من الحد الأمثل (${threshold}°م). القيمة الحالية: ${currentValue}°م. قد تؤدي الحرارة المنخفضة إلى إبطاء نمو المحاصيل وتقليل النشاط الأيضي وزيادة عرضة الإصابة بالأمراض.`;
+        }
       },
-      temperature: {
-        urgent: { bg: 'bg-amber-50/30', border: 'border-r-4 border-r-amber-600', text: 'text-amber-800' },
-        warning: { bg: 'bg-amber-50/20', border: 'border-r-4 border-r-amber-500', text: 'text-amber-700' }
+      humidity: () => {
+        if (isExceeding) {
+          return isEn
+            ? `Humidity exceeds optimal level (${threshold}%). Current: ${currentValue}%. High humidity increases risk of fungal diseases, reduces nutrient absorption, and creates condensation that promotes pathogen growth.`
+            : `الرطوبة تتجاوز المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد ترفع الرطوبة المرتفعة من خطر الأمراض الفطرية وتقلل امتصاص العناصر الغذائية وتعزز نمو الممرضات.`;
+        } else {
+          return isEn
+            ? `Humidity is below optimal level (${threshold}%). Current: ${currentValue}%. Low humidity causes water stress, increases transpiration, slows growth, and makes plants more susceptible to pests.`
+            : `الرطوبة أقل من المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد تسبب الرطوبة المنخفضة إجهاد مائي وزيادة النتح وإبطاء النمو وزيادة عرضة الآفات.`;
+        }
       },
-      humidity: {
-        urgent: { bg: 'bg-slate-50/30', border: 'border-r-4 border-r-slate-600', text: 'text-slate-800' },
-        warning: { bg: 'bg-slate-50/20', border: 'border-r-4 border-r-slate-400', text: 'text-slate-700' }
+      soil: () => {
+        if (isExceeding) {
+          return isEn
+            ? `Soil moisture exceeds optimal level (${threshold}%). Current: ${currentValue}%. Excess moisture causes root rot, reduces oxygen availability, promotes fungal diseases, and impairs nutrient absorption.`
+            : `رطوبة التربة تتجاوز المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد يسبب الإفراط في الرطوبة تعفن الجذور وتقليل توفر الأكسجين وتعزيز الأمراض الفطرية وضعف امتصاص العناصر الغذائية.`;
+        } else {
+          return isEn
+            ? `Soil moisture is below optimal level (${threshold}%). Current: ${currentValue}%. Low soil moisture causes water stress, reduces nutrient availability, slows crop development, and increases vulnerability to drought.`
+            : `رطوبة التربة أقل من المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد تسبب الرطوبة المنخفضة إجهاد مائي وتقليل توفر العناصر الغذائية وإبطاء التطور وزيادة عرضة الجفاف.`;
+        }
       },
-      soil: {
-        urgent: { bg: 'bg-amber-50/40', border: 'border-r-4 border-r-amber-700', text: 'text-amber-900' },
-        warning: { bg: 'bg-amber-50/20', border: 'border-r-4 border-r-amber-400', text: 'text-amber-700' }
+      irrigation: () => {
+        return isEn
+          ? `Water usage requires attention. Current: ${currentValue} units. Proper irrigation ensures optimal crop health and resource efficiency.`
+          : `استهلاك المياه يتطلب انتباهاً. القيمة الحالية: ${currentValue} وحدة. يضمن الري المناسب صحة المحصول المثلى وكفاءة الموارد.`;
       }
     };
 
-    const cat = category?.toLowerCase() || 'irrigation';
-    const level = isUrgent ? 'urgent' : 'warning';
-    return themes[cat]?.[level] || themes.irrigation[level];
+    return (analysisMap[category] || analysisMap.irrigation)();
+  };
+
+  // Generate mode-aware action
+  const getAlertAction = (alert, category, isAutoMode) => {
+    const actionMap = {
+      temperature: () => {
+        const isExceeding = alert.actual_value > alert.threshold;
+        if (isAutoMode) {
+          return isExceeding
+            ? isEn
+              ? 'The system will increase ventilation rate and activate cooling mechanisms to bring temperature within optimal range.'
+              : 'سيقوم النظام بزيادة معدل التهوية وتفعيل آليات التبريد لإعادة درجة الحرارة إلى النطاق الأمثل.'
+            : isEn
+              ? 'The system will reduce ventilation and adjust heating if needed to maintain optimal temperature.'
+              : 'سيقوم النظام بتقليل التهوية وتعديل التدفئة إذا لزم الأمر للحفاظ على درجة حرارة مثلى.';
+        } else {
+          return isExceeding
+            ? isEn
+              ? 'Increase ventilation rate and activate cooling systems to bring temperature within optimal range (18-27°C).'
+              : 'قم بزيادة معدل التهوية وتفعيل نظم التبريد لإعادة درجة الحرارة إلى النطاق الأمثل (18-27°م).'
+            : isEn
+              ? 'Reduce ventilation and activate heating if needed to maintain optimal temperature range.'
+              : 'قلل التهوية وفعّل التدفئة إذا لزم الأمر للحفاظ على النطاق الأمثل للحرارة.';
+        }
+      },
+      humidity: () => {
+        const isExceeding = alert.actual_value > alert.threshold;
+        if (isAutoMode) {
+          return isExceeding
+            ? isEn
+              ? 'The system will increase air circulation and ventilation to reduce humidity levels.'
+              : 'سيقوم النظام بزيادة الدوران الهوائي والتهوية لتقليل مستويات الرطوبة.'
+            : isEn
+              ? 'The system will reduce ventilation and activate humidification if available.'
+              : 'سيقوم النظام بتقليل التهوية وتفعيل الترطيب إذا كان متاحاً.';
+        } else {
+          return isExceeding
+            ? isEn
+              ? 'Increase air circulation and ventilation to reduce humidity below optimal level (60-75%).'
+              : 'قم بزيادة الدوران الهوائي والتهوية لتقليل الرطوبة تحت المستوى الأمثل (60-75%).'
+            : isEn
+              ? 'Reduce ventilation and activate misting systems if available to maintain humidity.'
+              : 'قلل التهوية وفعّل نظم الرش إذا كانت متاحة للحفاظ على الرطوبة.';
+        }
+      },
+      soil: () => {
+        const isExceeding = alert.actual_value > alert.threshold;
+        if (isAutoMode) {
+          return isExceeding
+            ? isEn
+              ? 'The system will suspend irrigation and increase drainage to reduce soil moisture.'
+              : 'سيقوم النظام بإيقاف الري وزيادة الصرف لتقليل رطوبة التربة.'
+            : isEn
+              ? 'The system will activate irrigation to restore soil moisture to optimal level.'
+              : 'سيقوم النظام بتفعيل الري لاستعادة رطوبة التربة إلى المستوى الأمثل.';
+        } else {
+          return isExceeding
+            ? isEn
+              ? 'Suspend irrigation and increase drainage to reduce soil moisture to optimal level (35-50%).'
+              : 'قم بإيقاف الري وزيادة الصرف لتقليل رطوبة التربة إلى المستوى الأمثل (35-50%).'
+            : isEn
+              ? 'Activate irrigation to restore soil moisture to optimal level.'
+              : 'قم بتفعيل الري لاستعادة رطوبة التربة إلى المستوى الأمثل.';
+        }
+      },
+      irrigation: () => {
+        if (isAutoMode) {
+          return isEn
+            ? 'The system will adjust irrigation schedule to maintain water efficiency.'
+            : 'سيقوم النظام بتعديل جدول الري للحفاظ على كفاءة المياه.';
+        } else {
+          return isEn
+            ? 'Review and adjust irrigation settings to optimize water usage.'
+            : 'قم بمراجعة وتعديل إعدادات الري لتحسين استخدام المياه.';
+        }
+      }
+    };
+
+    return (actionMap[category] || actionMap.irrigation)();
+  };
+
+  // استخدم نفس الأيقونات والألوان من التوصيات
+  const getAlertTheme = (category, severity) => {
+    const isUrgent = severity === 'high' || severity === 'critical';
+
+    // احصل على الـ theme من التوصيات
+    const recommendationTheme = getRecommendationTheme(category);
+
+    return {
+      ...recommendationTheme,
+      bg: isUrgent ?
+        (category === 'irrigation' ? 'bg-blue-50/30' :
+         category === 'temperature' ? 'bg-amber-50/30' :
+         category === 'humidity' ? 'bg-slate-50/30' : 'bg-amber-50/40')
+        : recommendationTheme.bg,
+      text: isUrgent ?
+        (category === 'irrigation' ? 'text-blue-800' :
+         category === 'temperature' ? 'text-amber-800' :
+         category === 'humidity' ? 'text-slate-800' : 'text-amber-900')
+        : recommendationTheme.text,
+      actionText: isUrgent ?
+        (category === 'irrigation' ? 'text-blue-700' :
+         category === 'temperature' ? 'text-amber-700' :
+         category === 'humidity' ? 'text-slate-700' : 'text-amber-800')
+        : recommendationTheme.actionText,
+      actionBg: isUrgent ?
+        (category === 'irrigation' ? 'bg-blue-50/40' :
+         category === 'temperature' ? 'bg-amber-50/40' :
+         category === 'humidity' ? 'bg-slate-50/40' : 'bg-amber-50/50')
+        : recommendationTheme.actionBg
+    };
   };
 
   // تقسيم الانذارات حسب الشدة
@@ -248,7 +424,7 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
         title={isEn ? "System Alerts" : "تنبيهات النظام اللحظية"}
         subtitle={
           alerts.length > 0
-            ? `${urgentAlerts.length} ${isEn ? 'Urgent' : 'عاجلة'} • ${warningAlerts.length} ${isEn ? 'Warning' : 'تحذير'}`
+            ? `${alerts.length} ${isEn ? 'Active' : 'نشطة'}`
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
@@ -263,25 +439,10 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
           />
         ) : (
           <>
-            {/* الانذارات العاجلة أولاً */}
-            {urgentAlerts.length > 0 && (
-              <div className="space-y-3">
-                <div className="text-[12px] font-bold text-red-700 uppercase tracking-wider">{isEn ? '🚨 Urgent Alerts' : '🚨 تنبيهات عاجلة'}</div>
-                {urgentAlerts.map((alert, i) => (
-                  <AlertItem key={alert.id || i} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} onFeedback={onFeedback} />
-                ))}
-              </div>
-            )}
-
-            {/* الانذارات التحذيرية */}
-            {warningAlerts.length > 0 && (
-              <div className="space-y-3">
-                <div className="text-[12px] font-bold text-amber-700 uppercase tracking-wider">{isEn ? '⚠️ Warning Alerts' : '⚠️ تنبيهات تحذيرية'}</div>
-                {warningAlerts.map((alert, i) => (
-                  <AlertItem key={alert.id || i} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} onFeedback={onFeedback} />
-                ))}
-              </div>
-            )}
+            {/* كل الانذارات مرتبة حسب الشدة */}
+            {[...urgentAlerts, ...warningAlerts].map((alert, i) => (
+              <AlertItem key={alert.id || i} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} getSensorCategory={getSensorCategory} getAlertAnalysis={getAlertAnalysis} getAlertAction={getAlertAction} onFeedback={handleAlertFeedback} globalAutoMode={globalAutoMode} alertFeedback={alertFeedback} showAlertThanks={showAlertThanks} />
+            ))}
           </>
         )}
       </div>
@@ -289,59 +450,109 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
   );
 }
 
-function AlertItem({ alert, isEn, getAlertTheme, onFeedback }) {
+function AlertItem({ alert, isEn, getAlertTheme, getSensorCategory, getAlertAnalysis, getAlertAction, onFeedback, globalAutoMode, alertFeedback, showAlertThanks }) {
   const isRtl = !isEn;
-  const theme = getAlertTheme(alert.sensor_type || alert.category, alert.severity);
-  const isCritical = alert.severity === 'high' || alert.severity === 'critical';
+  const category = getSensorCategory(alert.sensor_type);
+  const theme = getAlertTheme(category, alert.severity);
+  const analysis = getAlertAnalysis(alert, category);
+  const action = getAlertAction(alert, category, globalAutoMode);
+
+  // نفس نسق الحدود مثل التوصيات
+  const borderRightClass = category === 'irrigation' ? 'border-r-4 border-r-blue-500' :
+                          category === 'temperature' ? 'border-r-4 border-r-amber-500' :
+                          category === 'humidity' ? 'border-r-4 border-r-slate-400' :
+                          'border-r-4 border-r-amber-400';
 
   return (
-    <div className={`p-4 rounded-xl ${theme.bg} ${theme.border} flex flex-col gap-3 animate-fade-in border border-gray-100/50`}>
-      {/* العنوان والشدة */}
-      <div className={`flex items-start justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <div className="flex items-start gap-2">
-          <span className={`text-[13px] font-black px-2.5 py-1 rounded-lg ${isCritical ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-            {isCritical ? (isEn ? '🚨 Urgent' : '🚨 عاجل') : (isEn ? '⚠️ Warning' : '⚠️ تحذير')}
-          </span>
-        </div>
-        <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{alert.timestamp}</span>
-      </div>
-
-      {/* الرسالة الرئيسية */}
-      <h4 className={`text-[14px] font-black leading-tight ${theme.text}`}>
-        {alert.message || alert.title}
-      </h4>
-
-      {/* السبب */}
-      {alert.reason && (
-        <div className={`rounded-lg p-3 bg-white/60 border border-gray-100/60 ${isRtl ? 'text-right' : 'text-left'}`}>
-          <div className="text-[12px] text-gray-700 leading-relaxed font-medium">
-            <span className="font-bold text-gray-800">{isEn ? 'Reason: ' : 'السبب: '}</span>{alert.reason}
+    <div key={alert.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
+      <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
+        {/* العنوان مع الأيقونة - تصميم التوصية بالفعل */}
+        <div className="flex items-start gap-3">
+          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
+            {theme.icon}
+          </div>
+          <div className="flex-1">
+            <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
+              {alert.title || alert.message}
+            </h4>
           </div>
         </div>
-      )}
 
-      {/* الفيدباك */}
-      <div className={`pt-2 border-t border-gray-100/40 flex items-center justify-between gap-2`}>
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+        {/* التحليل - نفس تصميم التوصية */}
+        <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
+          <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
+          <div className="text-[11px] text-gray-800 leading-relaxed">{analysis}</div>
+        </div>
+
+        {/* الإجراء - نفس تصميم التوصية */}
+        <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
+          <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
+          <div className="text-[11px] text-gray-800 leading-relaxed">{action}</div>
+        </div>
+
+        {/* القيمة المطلوبة (المثلى) */}
+        <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
+          <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Required Value:' : 'القيمة المطلوبة:'}</div>
+          <div className="text-[11px] text-gray-800 leading-relaxed">
+            {alert.threshold !== null && alert.threshold !== undefined ? (
+              category === 'temperature' ? `${alert.threshold}°C` :
+              category === 'humidity' ? `${alert.threshold}%` :
+              category === 'soil' ? `${alert.threshold}%` :
+              `${alert.threshold}`
+            ) : (
+              category === 'temperature' ? (isEn ? '18-27°C' : '18-27°م') :
+              category === 'humidity' ? (isEn ? '60-75%' : '60-75%') :
+              category === 'soil' ? (isEn ? '35-50%' : '35-50%') :
+              (isEn ? 'Optimal level' : 'المستوى الأمثل')
+            )}
+          </div>
+        </div>
+
+        {/* الأزرار - نفس تصميم التوصية */}
+        {!globalAutoMode && (
+          <div className="mt-2">
+            <div className="flex gap-2">
+              <button
+                className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
+              >
+                {isEn ? 'Execute' : 'نفذ'}
+              </button>
+              <button
+                className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
+              >
+                {isEn ? 'Ignore' : 'تجاهل'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* الفيدباك - نفس تصميم التوصية */}
+      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
+        <span className="text-[11px] font-bold text-gray-500">
           {isEn ? 'Was this helpful?' : 'هل كان مفيداً؟'}
         </span>
-
         <div className="flex items-center gap-2">
           <button
-            onClick={() => onFeedback?.(alert.id, false)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-all"
+            onClick={() => onFeedback?.(alert.id, 'down')}
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${alertFeedback[alert.id] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
             title={isEn ? 'Not helpful' : 'غير مفيد'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
           </button>
           <button
-            onClick={() => onFeedback?.(alert.id, true)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50 transition-all"
+            onClick={() => onFeedback?.(alert.id, 'up')}
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${alertFeedback[alert.id] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
             title={isEn ? 'Helpful' : 'مفيد'}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
           </button>
         </div>
+        {showAlertThanks.includes(alert.id) && (
+          <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
+            {isEn ? 'Thanks!' : 'شكراً!'}
+          </div>
+        )}
       </div>
     </div>
   );
