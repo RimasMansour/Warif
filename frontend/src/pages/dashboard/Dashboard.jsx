@@ -108,33 +108,44 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     if (propLang) setLanguage(propLang);
   }, [propLang]);
 
-  const [userFarms, setUserFarms] = useState([]);
+  const [userFarms, setUserFarms] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('warif_session_farms');
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem('warif_session_user');
+      return cached ? JSON.parse(cached) : null;
+    } catch { return null; }
+  });
 
   useEffect(() => {
     async function loadUser() {
       try {
-        const data = await getMe();
-        if (data.full_name) setUserFullName(data.full_name);
-        if (data.full_name_en) setUserFullNameEn(data.full_name_en);
-        
-        const farmsData = await getFarms();
-        setUserFarms(farmsData);
+        const [userData, farmsData] = await Promise.all([
+          getMe(),
+          getFarms()
+        ]);
 
-        // Also update localStorage
-        const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-        const updatedUser = { 
-          ...saved, 
-          fullName: data.full_name,
-          fullNameEn: data.full_name_en,
-          farms: farmsData
-        };
-        
-        if (farmsData && farmsData.length > 0) {
-          updatedUser.farmName = farmsData[0].name;
-          updatedUser.farmId = farmsData[0].id;
+        if (userData) {
+          const freshUser = {
+            username: userData.username,
+            fullName: userData.full_name || '',
+            fullNameEn: userData.full_name_en || '',
+            email: userData.email,
+          };
+          sessionStorage.setItem('warif_session_user', JSON.stringify(freshUser));
+          setCurrentUser(freshUser);
+          if (userData.full_name) setUserFullName(userData.full_name);
+          if (userData.full_name_en) setUserFullNameEn(userData.full_name_en);
         }
-        
-        localStorage.setItem('warif_user', JSON.stringify(updatedUser));
+
+        if (farmsData && farmsData.length > 0) {
+          setUserFarms(farmsData);
+          sessionStorage.setItem('warif_session_farms', JSON.stringify(farmsData));
+        }
       } catch (err) {
         console.error("Failed to load user info:", err);
       }
@@ -164,13 +175,14 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     localStorage.setItem('warif_user', JSON.stringify({ ...saved, language: lang }));
   }
 
-  const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
-  const displayName = isEn
-    ? (savedUser.fullNameEn || savedUser.full_name_en || savedUser.username || 'User')
-    : (savedUser.fullName || savedUser.full_name || savedUser.username || 'المستخدم');
+  const displayName = currentUser
+    ? (isEn
+        ? (currentUser.fullNameEn || currentUser.full_name_en || currentUser.username || 'User')
+        : (currentUser.fullName || currentUser.full_name || currentUser.username || 'المستخدم'))
+    : '';
   
   const firstName = displayName.split(' ')[0];
-  const avatarLetter = displayName.trim().charAt(0).toUpperCase();
+  const avatarLetter = displayName.trim().charAt(0).toUpperCase() || '?';
 
   const [showChat, setShowChat] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
@@ -274,15 +286,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const [irrigationSuccess, setIrrigationSuccess] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
-  const savedFarmName = isEn
-    ? (savedUser.farmNameEn || savedUser.farmName || 'My Greenhouse')
-    : (savedUser.farmName || 'محميتي');
-
-  const farms = userFarms.length > 0 
+  const farms = userFarms.length > 0
     ? userFarms.map(f => f.name)
-    : [savedFarmName];
+    : [];
   
-  const currentFarmName = farms[activeFarm] || farms[0];
+  const currentFarmName = farms[activeFarm] || farms[0] || (isEn ? 'My Greenhouse' : 'محميتي');
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -387,6 +395,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
         setTimeout(() => {
           localStorage.removeItem('warif_remember'); 
           localStorage.removeItem('warif_logged_in');
+          sessionStorage.removeItem('warif_session_user');
+          sessionStorage.removeItem('warif_session_farms');
           onLogout?.();
           setConfirmModal({ open: false, title: "", message: "", onConfirm: null, danger: false, success: false });
         }, 1000);

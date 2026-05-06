@@ -137,8 +137,8 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   return (
     <>
       <style>{waveStyles}</style>
-      <div className="w-full px-4 md:px-8 py-5 page-enter">
-      <div className="w-full max-w-[1380px] mx-auto flex flex-col gap-6">
+      <div className="w-full px-4 md:px-8 py-4 page-enter">
+      <div className="w-full max-w-[1380px] mx-auto flex flex-col gap-5">
 
         {/* Page Header */}
         <div className="flex items-center gap-3 animate-fade-in-down mb-1 mt-1">
@@ -163,7 +163,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
 
         {/* Perfectly Aligned 3-Column Layout: Uniform Row Heights & Custom Column Widths */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-6 items-stretch w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-4 lg:gap-5 items-stretch w-full">
           
           {/* Row 1: Top Aligned Cards */}
           <div className="animate-fade-in-up delay-2">
@@ -174,6 +174,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           </div>
           <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 h-full self-stretch">
             <DashboardAlertsCard
+              onGo={onGo}
               alerts={alerts}
               onAccept={onAlertAccept}
               onReject={onAlertReject}
@@ -206,7 +207,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   );
 }
 
-function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
+function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
   const [alertFeedback, setAlertFeedback] = useState({});
   const [showAlertThanks, setShowAlertThanks] = useState([]);
 
@@ -416,7 +417,7 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
   const warningAlerts = alerts.filter(a => a.severity === 'warning' || a.severity === 'info');
 
   return (
-    <CardShell className="h-full flex flex-col bg-white p-5">
+    <CardShell className="h-full flex flex-col bg-white p-4 md:p-5">
       <CardTopRow
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
         iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
@@ -441,7 +442,7 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
           <>
             {/* كل الانذارات مرتبة حسب الشدة */}
             {[...urgentAlerts, ...warningAlerts].map((alert, i) => (
-              <AlertItem key={alert.id || i} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} getSensorCategory={getSensorCategory} getAlertAnalysis={getAlertAnalysis} getAlertAction={getAlertAction} onFeedback={handleAlertFeedback} globalAutoMode={globalAutoMode} alertFeedback={alertFeedback} showAlertThanks={showAlertThanks} />
+              <AlertItem key={alert.id || i} onGo={onGo} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} getSensorCategory={getSensorCategory} getAlertAnalysis={getAlertAnalysis} getAlertAction={getAlertAction} onFeedback={handleAlertFeedback} globalAutoMode={globalAutoMode} alertFeedback={alertFeedback} showAlertThanks={showAlertThanks} />
             ))}
           </>
         )}
@@ -450,110 +451,125 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onFeedback, isEn, glo
   );
 }
 
-function AlertItem({ alert, isEn, getAlertTheme, getSensorCategory, getAlertAnalysis, getAlertAction, onFeedback, globalAutoMode, alertFeedback, showAlertThanks }) {
+function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAlertAnalysis, getAlertAction, onFeedback, globalAutoMode, alertFeedback, showAlertThanks }) {
   const isRtl = !isEn;
-  const category = getSensorCategory(alert.sensor_type);
-  const theme = getAlertTheme(category, alert.severity);
-  const analysis = getAlertAnalysis(alert, category);
-  const action = getAlertAction(alert, category, globalAutoMode);
+  const isManualMode = !globalAutoMode; 
 
-  // نفس نسق الحدود مثل التوصيات
-  const borderRightClass = category === 'irrigation' ? 'border-r-4 border-r-blue-500' :
-                          category === 'temperature' ? 'border-r-4 border-r-amber-500' :
-                          category === 'humidity' ? 'border-r-4 border-r-slate-400' :
-                          'border-r-4 border-r-amber-400';
+  const category = 
+    alert.sensor_type?.includes('temperature') || 
+    alert.sensor_type?.includes('humidity') ? 'climate' :
+    alert.sensor_type?.includes('soil') ? 'soil' :
+    alert.sensor_type?.includes('water') || 
+    alert.sensor_type?.includes('irrigation') ? 'irrigation' : 'system';
+
+  const categoryLabel = isEn
+    ? (category === 'climate' ? 'Climate & Ventilation' :
+       category === 'soil'    ? 'Soil Health' :
+       category === 'irrigation' ? 'Irrigation' : 'System')
+    : (category === 'climate' ? 'المناخ والتهوية' :
+       category === 'soil'    ? 'صحة التربة' :
+       category === 'irrigation' ? 'الري' : 'النظام');
+
+  const severityColor =
+    alert.severity === 'critical' || alert.severity === 'high'
+      ? 'bg-red-50 text-red-700 border-red-200' :
+    alert.severity === 'warning'  
+      ? 'bg-amber-50 text-amber-700 border-amber-200' :
+      'bg-blue-50 text-blue-700 border-blue-200';
+
+  const severityLabel = isEn
+    ? (alert.severity === 'critical' || alert.severity === 'high' ? 'Critical' :
+       alert.severity === 'warning'  ? 'Warning' : 'Info')
+    : (alert.severity === 'critical' || alert.severity === 'high' ? 'حرج' :
+       alert.severity === 'warning'  ? 'تحذير' : 'معلومة');
 
   return (
-    <div key={alert.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
-      <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-        {/* العنوان مع الأيقونة - تصميم التوصية بالفعل */}
-        <div className="flex items-start gap-3">
-          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
-            {theme.icon}
+    <div className="flex flex-col gap-3 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+
+      {/* 1. HEADER: category + severity */}
+      <div className={`flex items-center justify-between ${isRtl ? 'flex-row-reverse' : ''}`}>
+        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${severityColor}`}>
+          {severityLabel}
+        </span>
+        <span className="text-sm font-black text-gray-800">
+          {categoryLabel}
+        </span>
+      </div>
+
+      {/* 2. STATUS: alert message */}
+      <p className={`text-sm font-bold text-gray-800 leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}>
+        {alert.message || alert.title || alert.description || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
+      </p>
+
+      {/* 3. ACTION: manual vs auto */}
+      {isManualMode ? (
+        <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+          <button
+            onClick={() => {}} 
+            className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition-colors active:scale-95">
+            {isEn ? 'Confirm Action' : 'تأكيد الإجراء'}
+          </button>
+          <button
+            onClick={() => {}} 
+            className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-500 font-black text-xs hover:bg-gray-200 transition-colors active:scale-95">
+            {isEn ? 'Ignore' : 'تجاهل'}
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className={`text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100 ${isRtl ? 'text-right' : 'text-left'}`}>
+            {isEn ? 'Action taken automatically' : 'تم تنفيذ الإجراء تلقائياً'}
           </div>
-          <div className="flex-1">
-            <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-              {alert.title || alert.message}
-            </h4>
-          </div>
-        </div>
-
-        {/* التحليل - نفس تصميم التوصية */}
-        <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
-          <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-          <div className="text-[11px] text-gray-800 leading-relaxed">{analysis}</div>
-        </div>
-
-        {/* الإجراء - نفس تصميم التوصية */}
-        <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
-          <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-          <div className="text-[11px] text-gray-800 leading-relaxed">{action}</div>
-        </div>
-
-        {/* القيمة المطلوبة (المثلى) */}
-        <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
-          <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Required Value:' : 'القيمة المطلوبة:'}</div>
-          <div className="text-[11px] text-gray-800 leading-relaxed">
-            {alert.threshold !== null && alert.threshold !== undefined ? (
-              category === 'temperature' ? `${alert.threshold}°C` :
-              category === 'humidity' ? `${alert.threshold}%` :
-              category === 'soil' ? `${alert.threshold}%` :
-              `${alert.threshold}`
-            ) : (
-              category === 'temperature' ? (isEn ? '18-27°C' : '18-27°م') :
-              category === 'humidity' ? (isEn ? '60-75%' : '60-75%') :
-              category === 'soil' ? (isEn ? '35-50%' : '35-50%') :
-              (isEn ? 'Optimal level' : 'المستوى الأمثل')
-            )}
-          </div>
-        </div>
-
-        {/* الأزرار - نفس تصميم التوصية */}
-        {!globalAutoMode && (
-          <div className="mt-2">
-            <div className="flex gap-2">
+          <div className="flex items-center w-full" dir="rtl">
+            <span className="text-[11px] text-gray-400 font-bold flex-1 text-right">
+              {isEn ? 'Was this appropriate?' : 'هل كان هذا مناسباً؟'}
+            </span>
+            <div className="flex gap-2 mr-3 relative">
               <button
-                className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-              >
-                {isEn ? 'Execute' : 'نفذ'}
+                onClick={() => { alert.onRate?.('down'); onFeedback?.(alert.id, 'down'); }}
+                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-colors ${alertFeedback?.[alert.id] === 'down' ? 'bg-red-50 border-red-300 text-red-600' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600'}`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+                  <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+                </svg>
               </button>
               <button
-                className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-              >
-                {isEn ? 'Ignore' : 'تجاهل'}
+                onClick={() => { alert.onRate?.('up'); onFeedback?.(alert.id, 'up'); }}
+                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-colors ${alertFeedback?.[alert.id] === 'up' ? 'bg-emerald-50 border-emerald-300 text-emerald-600' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+                  <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+                </svg>
               </button>
+              {showAlertThanks?.includes(alert.id) && (
+                <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg whitespace-nowrap">
+                  {isEn ? 'Thanks!' : 'شكراً!'}
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </div>
-
-      {/* الفيدباك - نفس تصميم التوصية */}
-      <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
-        <span className="text-[11px] font-bold text-gray-500">
-          {isEn ? 'Was this helpful?' : 'هل كان مفيداً؟'}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => onFeedback?.(alert.id, 'down')}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${alertFeedback[alert.id] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-            title={isEn ? 'Not helpful' : 'غير مفيد'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-          </button>
-          <button
-            onClick={() => onFeedback?.(alert.id, 'up')}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${alertFeedback[alert.id] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-            title={isEn ? 'Helpful' : 'مفيد'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-          </button>
         </div>
-        {showAlertThanks.includes(alert.id) && (
-          <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
-            {isEn ? 'Thanks!' : 'شكراً!'}
-          </div>
-        )}
-      </div>
+      )}
+
+      {/* 4. TIMESTAMP */}
+      {(alert.created_at || alert.timestamp) && (
+        <p className={`text-[10px] text-gray-400 font-bold ${isRtl ? 'text-right' : 'text-left'}`}>
+          {(() => {
+            const date = new Date(alert.created_at || alert.timestamp);
+            const diffMs = Date.now() - date.getTime();
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffHr = Math.floor(diffMin / 60);
+            if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
+            if (diffMin < 60) return isEn ? `${diffMin} min ago` : `منذ ${diffMin} دقيقة`;
+            if (diffHr < 24) return isEn ? `${diffHr}h ago` : `منذ ${diffHr} ساعة`;
+            return isEn
+              ? date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
+              : date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+          })()}
+        </p>
+      )}
     </div>
   );
 }
@@ -661,7 +677,7 @@ function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, c
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
-    <CardShell className="p-6 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("microclimate")}>
+    <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("microclimate")}>
       <div className="animate-fade-in delay-1">
       <CardTopRow 
         title={isEn ? "Climate & Ventilation" : "المناخ والتهوية"} 
@@ -716,7 +732,7 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
 
   return (
-    <CardShell className="p-6 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("soil")}>
+    <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("soil")}>
       <div className="animate-fade-in delay-2">
       <CardTopRow 
         title={isEn ? "Soil & Crop Health" : "بيئة وصحة التربة"} 
@@ -758,7 +774,7 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
 
       {/* Modern Multi-Crop Display Section */}
       {crops.length > 0 && (
-        <div className="mt-5 pt-4 border-t border-gray-100/60 flex flex-col gap-2.5">
+        <div className="mt-3 pt-2.5 border-t border-gray-100/60 flex flex-col gap-2">
            <div className={`text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 ${isEn ? 'flex-row-reverse' : ''}`}>
              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
              {isEn ? 'Monitored Crops' : 'المحاصيل المراقبة'}
@@ -792,7 +808,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
   // Calculate a fake visual percentage for energy (max 50 kWh daily goal)
   const energyPercent = Math.min(100, (energyKwh / 50) * 100);
   return (
-    <CardShell className="p-6 h-full cursor-pointer card-interactive group relative overflow-hidden flex flex-col justify-between" onClick={() => onGo("irrigation")}>
+    <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group relative overflow-hidden flex flex-col justify-between" onClick={() => onGo("irrigation")}>
       <div className="animate-fade-in delay-3">
         <CardTopRow 
           title={isEn ? "Irrigation Management" : "إدارة الري"} 
@@ -960,7 +976,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
   };
 
   return (
-    <CardShell className="p-6 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("dss")}>
+    <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("dss")}>
       <div className="animate-fade-in delay-2">
         <CardTopRow
           title={isEn ? "Smart Recommendations" : "توصيات ذكية"}

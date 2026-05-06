@@ -227,7 +227,12 @@ export function useAutoAlerts(sensors, globalAutoMode) {
   const fetchAlerts = useCallback(async () => {
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
-      const farmId = userData.farmId;
+      // Get farmId from sessionStorage first (most current), 
+      // then localStorage, then fetch without filter
+      const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
+      const farmId = sessionFarms.length > 0 
+        ? sessionFarms[0].id 
+        : (userData.farmId || null);
       const token = localStorage.getItem('warif_token');
       const API_BASE = import.meta.env.VITE_API_URL || '';
       const url = `${API_BASE}/api/v1/alerts?status=open${farmId ? `&farm_id=${farmId}` : ''}`;
@@ -286,7 +291,9 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           id: backendAlert.id,
           autoMode: globalAutoMode,
           title: shortTitle || (isEn ? "System Alert" : "تنبيه النظام"),
-          severity: frontendSeverity,
+          severity: backendAlert.severity || frontendSeverity,
+          created_at: backendAlert.created_at,
+          sensor_type: backendAlert.sensor_type,
           sensor: isEn ? sensorNameEn : sensorNameAr,
           value: extractedValue,
           reason: reasonMatch,

@@ -94,51 +94,46 @@ export function AccountAndSettingsPages({
     langDesc: isEn ? "Choose your preferred system language" : "اختر لغة النظام المفضلة لديك",
   };
 
+  const [isDataLoading, setIsDataLoading] = useState(true);
   const [profile, setProfile] = useState({
-    fullName: savedUser.fullName || savedUser.full_name || "",
-    fullNameEn: savedUser.fullNameEn || savedUser.full_name_en || "",
-    username: savedUser.username || "",
-    email: savedUser.email || "",
-    password: savedUser.password || "********",
-    farmName: savedUser.farmName || "",
-    farmType: savedUser.farmType || "",
+    fullName: "",
+    fullNameEn: "",
+    username: "",
+    email: "",
+    password: "********",
+    farmName: "",
+    farmType: "",
   });
 
   useEffect(() => {
     async function loadProfile() {
       try {
-        const data = await getMe();
-        setProfile(prev => ({
-          ...prev,
-          fullName: data.full_name || "",
-          fullNameEn: data.full_name_en || "",
-          username: data.username || "",
-          email: data.email || "",
-        }));
+        const [data, farms] = await Promise.all([
+          getMe(),
+          getFarms()
+        ]);
+        
+        if (data) {
+          setProfile(prev => ({
+            ...prev,
+            fullName: data.full_name || "",
+            fullNameEn: data.full_name_en || "",
+            username: data.username || "",
+            email: data.email || "",
+          }));
+        }
 
-        const farms = await getFarms();
-        setUserFarms(farms || []);
-        
-        // Update localStorage with fresh farm list
-        const updatedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
-        updatedUser.farms = farms;
-        
-        if (farms && farms.length > 0) {
-          // If no active farm is set, or if the current one is gone, pick the first
-          const currentId = updatedUser.farmId;
-          const stillExists = farms.find(f => f.id === currentId);
-          if (!stillExists) {
-            updatedUser.farmId = farms[0].id;
-            updatedUser.farmName = farms[0].name;
+        if (farms) {
+          setUserFarms(farms);
+          if (farms.length > 0) {
             setActiveFarmId(farms[0].id);
-          } else {
-            setActiveFarmId(currentId);
           }
         }
-        localStorage.setItem('warif_user', JSON.stringify(updatedUser));
 
       } catch (err) {
         console.error("Failed to fetch profile:", err);
+      } finally {
+        setIsDataLoading(false);
       }
     }
     loadProfile();
@@ -570,6 +565,12 @@ export function AccountAndSettingsPages({
 
         {page === "profile" ? (
           <div className="flex flex-col gap-5 animate-fade-in-up">
+            {isDataLoading ? (
+               <div className="flex justify-center items-center h-64 w-full">
+                 <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+               </div>
+            ) : (
+              <>
               <div className="animate-fade-in-up delay-1">
                 <Account_Card className="relative overflow-hidden card-interactive">
                   <div className={`absolute top-0 ${isRtl ? 'right-0 -mr-10' : 'left-0 -ml-10'} w-32 h-32 bg-emerald-50/30 rounded-full blur-3xl -mt-10`} />
@@ -627,6 +628,8 @@ export function AccountAndSettingsPages({
                   {isEn ? "Delete Account Permanently" : "حذف الحساب نهائياً"}
                 </button>
               </div>
+              </>
+            )}
           </div>
         ) : (
             <div className="flex flex-col gap-5">
