@@ -272,6 +272,10 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
                 cooler_cmd_obj.completed_at = datetime.now(timezone.utc)
                 
     except Exception as cmd_err:
+        try:
+            await db.rollback()
+        except:
+            pass
         print(f"[ERROR] Manual command check failed for Farm {fid}: {cmd_err}")
 
     # --- Physics Calculations ---
@@ -658,15 +662,38 @@ async def engine_loop():
                 daily_variance = -4
             ext_temp = max(15.0, min(50.0, ext_temp + daily_variance))
 
-            async with AsyncSessionLocal() as db:
-                result = await db.execute(select(Farm))
-                farms = result.scalars().all()
-                for farm in farms:
-                    await process_farm(db, farm, ext_temp, ext_hum, lux)
-                await db.commit()
+            # 1. Fetch all farm IDs first in a temporary session
+            async with AsyncSessionLocal() as init_db:
+                res = await init_db.execute(select(Farm.id))
+                farm_ids = res.scalars().all()
 
-        except Exception as e:
-            print(f"[ERROR] Engine tick failed: {e}")
+            # 2. Process each farm in its own isolated session
+            for fid in farm_ids:
+                async with AsyncSessionLocal() as db:
+                    try:
+                        # Fetch the farm object specifically for this session
+                        res = await db.execute(select(Farm).where(Farm.id == fid))
+                        farm = res.scalar_one_or_none()
+                        if not farm:
+                            continue
+                            
+                        await process_farm(db, farm, ext_temp, ext_hum, lux)
+                        await db.commit()
+                        
+                    except Exception as e:
+                        try:
+                            await db.rollback()
+                        except:
+                            pass
+                        
+                        error_msg = str(e)
+                        if "connection" in error_msg.lower() or "rollback" in error_msg.lower():
+                            print(f"[RECONNECT] Farm {fid} - connection reset, will retry next tick")
+                        else:
+                            print(f"[ERROR] Farm {fid} tick failed: {e}")
+
+        except Exception as outer_e:
+            print(f"[CRITICAL] Engine loop error: {outer_e}")
 
         await asyncio.sleep(INTERVAL)
 

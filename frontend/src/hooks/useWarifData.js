@@ -49,31 +49,28 @@ export async function triggerManualIrrigation(deviceId = 'simulator_001', durati
     return null;
   }
 }
-export async function triggerManualCooling(mode = "stop") {
-  console.log(`[Warif] Manual cooling requested: ${mode}`);
+export async function triggerManualCooling(mode = "stop", farmId = null) {
+  console.log('[Warif] Manual cooling requested:', mode, 'farm:', farmId);
+  let payload = { fan: false, cooler: false, farm_id: farmId };
+  if (mode === 'full')     payload = { fan: true,  cooler: true,  farm_id: farmId };
+  if (mode === 'fan_only') payload = { fan: true,  cooler: false, farm_id: farmId };
+
+  const token = localStorage.getItem('warif_token');
   try {
-    const token = localStorage.getItem('warif_token');
     const API_BASE = import.meta.env.VITE_API_URL || '';
-    
-    // Payload mapping based on mode
-    let payload = { fan: false, cooler: false };
-    if (mode === 'full') payload = { fan: true, cooler: true };
-    else if (mode === 'fan_only') payload = { fan: true, cooler: false };
-    
     const res = await fetch(`${API_BASE}/api/v1/commands/cooling`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
-    
     if (!res.ok) throw new Error('Cooling command failed');
     return await res.json();
-  } catch (err) {
-    console.error("Failed to trigger cooling:", err);
-    throw err;
+  } catch (e) {
+    console.error('Failed to trigger cooling:', e);
+    throw e;
   }
 }
 

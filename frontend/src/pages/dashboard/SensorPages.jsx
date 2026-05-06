@@ -354,7 +354,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                         setFanRunning(true);
                         setCoolerRunning(true);
                         setActiveAction('full');
-                        triggerManualCooling && triggerManualCooling('full');
+                        triggerManualCooling && triggerManualCooling('full', farmId);
                         setTimeout(() => setActiveAction(""), 5000);
                       }}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/></svg>}
@@ -372,7 +372,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                         setFanRunning(true);
                         setCoolerRunning(false);
                         setActiveAction('fan_only');
-                        triggerManualCooling && triggerManualCooling('fan_only');
+                        triggerManualCooling && triggerManualCooling('fan_only', farmId);
                         setTimeout(() => setActiveAction(""), 5000);
                       }}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" /></svg>}
@@ -389,7 +389,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                         setFanRunning(false);
                         setCoolerRunning(false);
                         setActiveAction('stop');
-                        triggerManualCooling && triggerManualCooling('stop');
+                        triggerManualCooling && triggerManualCooling('stop', farmId);
                         setTimeout(() => setActiveAction(""), 5000);
                       }}
                       className="w-full flex items-center justify-center gap-3 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black"

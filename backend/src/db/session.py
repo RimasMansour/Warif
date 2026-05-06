@@ -6,10 +6,17 @@ from src.core.config import settings
 
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_pre_ping=True,
-    pool_recycle=3600,
+    echo=False,
+    pool_size=5,
     max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,      # Recycle connections every 30 min
+    pool_pre_ping=True,     # Test connection before using it
+    connect_args={
+        "server_settings": {
+            "application_name": "warif_backend"
+        }
+    }
 )
 
 AsyncSessionLocal = async_sessionmaker(

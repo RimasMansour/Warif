@@ -53,17 +53,21 @@ async def control_cooling(
     current_user: dict = Depends(get_current_user)
 ):
     from src.db.models.models import Farm
-    # Get user's first farm
-    result = await db.execute(
-        select(Farm).where(Farm.user_id == int(current_user["sub"]))
-    )
-    farm = result.scalars().first()
-    if not farm:
-        raise HTTPException(status_code=404, detail="No farm found for user")
-    
-    farm_id = farm.id
     fan_state = payload.get("fan", False)
     cooler_state = payload.get("cooler", False)
+    farm_id_from_payload = payload.get("farm_id")
+    
+    if farm_id_from_payload:
+        farm_id = farm_id_from_payload
+    else:
+        # Get user's first farm
+        result = await db.execute(
+            select(Farm).where(Farm.user_id == int(current_user["sub"]))
+        )
+        farm = result.scalars().first()
+        if not farm:
+            raise HTTPException(status_code=404, detail="No farm found for user")
+        farm_id = farm.id
     
     import json
     from datetime import datetime, timezone
