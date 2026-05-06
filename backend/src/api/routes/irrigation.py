@@ -57,6 +57,7 @@ async def get_irrigation_status(
 async def start_manual_irrigation(
     body: IrrigationManualIn,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Trigger manual irrigation for a specific device."""
     actuator = await _get_or_create_actuator(body.device_id, db)
@@ -127,7 +128,7 @@ async def trigger_auto_irrigation(
 
     command = IrrigationCommand(
         actuator_id=actuator.id,
-        mode=IrrigationMode.manual,
+        mode=IrrigationMode.auto,
         duration_min=duration_min,
     )
     db.add(command)

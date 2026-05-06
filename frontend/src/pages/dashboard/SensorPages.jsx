@@ -14,7 +14,7 @@ import {
   generateDataForRange, 
   formatLastUpdated 
 } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, triggerManualIrrigation, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
 import { getLabelForRange } from './dashboardUtils';
 
 /* =========================================================
@@ -464,6 +464,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 ========================================================= */
 export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
+  const [pumpRunning, setPumpRunning] = useState(false);
+  const [irrigationFeedback, setIrrigationFeedback] = useState(null);
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
@@ -752,7 +754,90 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
           </div>
         </div>
 
-        <div className="animate-fade-in-up delay-3 mt-2">
+        {/* ── Irrigation Control ── */}
+        <div className="animate-fade-in-up delay-3">
+          <CardShell className="p-6 flex flex-col gap-4 card-interactive">
+            <div className={isRtl ? 'text-right' : 'text-left'}>
+              <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">
+                {isEn ? 'Irrigation Control' : 'التحكم في الري'}
+              </div>
+              <div className="text-[12px] font-medium text-gray-400 mt-1">
+                {isEn ? 'Based on central automation status' : 'يعتمد على حالة الأتمتة المركزية'}
+              </div>
+            </div>
+
+            {globalAutoMode ? (
+              <EmptyState
+                compact={true}
+                variant="success"
+                title={isEn ? 'System Managed Automatically' : 'النظام يدار تلقائياً الآن.'}
+                subtitle={isEn ? 'Irrigation is controlled by the AI engine. Switch to manual mode to override.' : 'الري يُدار بواسطة الذكاء الاصطناعي. انتقل للوضع اليدوي للتحكم.'}
+                icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
+              />
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      setPumpRunning(true);
+                      setIrrigationFeedback('starting');
+                      await triggerManualIrrigation('start', farmId, 15);
+                      setIrrigationFeedback('active');
+                    }}
+                    disabled={pumpRunning}
+                    className={`flex-1 flex items-center justify-center gap-2 p-4 rounded-[20px] border font-black text-sm transition-all active:scale-95
+                      ${pumpRunning
+                        ? 'bg-blue-50 text-blue-700 border-blue-200 cursor-not-allowed'
+                        : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50 hover:shadow-sm'}`}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2v6M5.2 5.2l4.2 4.2M2 12h6M5.2 18.8l4.2-4.2M12 22v-6M18.8 18.8l-4.2-4.2M22 12h-6M18.8 5.2l-4.2 4.2"/>
+                    </svg>
+                    {isEn ? 'Start Irrigation (15 min)' : 'بدء الري اليدوي (15 د)'}
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      setPumpRunning(false);
+                      setIrrigationFeedback('stopped');
+                      await triggerManualIrrigation('stop', farmId);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black text-sm active:scale-95"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                    {isEn ? 'Stop Irrigation' : 'إيقاف الري'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-1">
+                  <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${pumpRunning ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                    <span className="text-[10px] font-bold uppercase">{isEn ? 'Pump Status' : 'حالة المضخة'}</span>
+                    <span className="text-sm font-black">{pumpRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
+                  </div>
+                  <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${soilMoist >= 70 ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-amber-50 border-amber-100 text-amber-700'}`}>
+                    <span className="text-[10px] font-bold uppercase">{isEn ? 'Soil Moisture' : 'رطوبة التربة'}</span>
+                    <span className="text-sm font-black">{soilMoist.toFixed(0)}%</span>
+                  </div>
+                </div>
+
+                {irrigationFeedback && (
+                  <div className={`px-4 py-2.5 rounded-2xl text-xs font-black flex items-center gap-2 animate-pulse
+                    ${irrigationFeedback === 'active' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                      irrigationFeedback === 'stopped' ? 'bg-gray-50 text-gray-500 border border-gray-100' :
+                      'bg-amber-50 text-amber-700 border border-amber-100'}`}>
+                    <span>✓ {
+                      irrigationFeedback === 'active' ? (isEn ? 'Irrigation active — pump running' : 'الري نشط — المضخة تعمل') :
+                      irrigationFeedback === 'stopped' ? (isEn ? 'Irrigation stopped' : 'تم إيقاف الري') :
+                      (isEn ? 'Sending command...' : 'جاري إرسال الأمر...')
+                    }</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardShell>
+        </div>
+
+        <div className="animate-fade-in-up delay-4 mt-2">
           <div className={`mb-4 ${isRtl ? 'text-right' : 'text-left'}`}>
             <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.bioTitle}</div>
             <div className="text-[12px] font-medium text-gray-400 mt-1">{T.bioSub}</div>

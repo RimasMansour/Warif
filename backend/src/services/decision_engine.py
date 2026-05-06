@@ -449,11 +449,49 @@ class SmartDecisionEngine:
             "status": self._determine_system_status(risk_assessment, recommendations, anomalies),
         }
 
+        # Step 6: Compute irrigation_action and cooling_action for simulator use
+        soil_moisture = sensor_data.get("soil_moisture")
+        air_temperature = sensor_data.get("air_temperature") or 0
+        air_humidity = sensor_data.get("air_humidity") or 0
+
+        irr_score = 0.0
+        irr_confidence = 0.65
+        irr_reason = "لا بيانات عن رطوبة التربة"
+        if soil_moisture is not None:
+            ml_result = self.run_ml_prediction(sensor_data)
+            if ml_result:
+                irr_score += ml_result["ensemble_pred"] * ml_result["confidence"] * 0.50
+                irr_confidence = ml_result.get("confidence", 0.65)
+            if soil_moisture < 50:
+                irr_score += 0.9 * 0.25
+            elif soil_moisture < 70:
+                irr_score += 0.6 * 0.25
+            elif soil_moisture > 85:
+                irr_score += -0.5 * 0.25
+            else:
+                irr_score += 0.1 * 0.25
+            irr_score = max(-1.0, min(1.0, irr_score))
+            irr_reason = f"رطوبة التربة {soil_moisture:.0f}%"
+
+        irrigation_action = {
+            "should_irrigate": irr_score > 0.75,
+            "score": round(irr_score, 3),
+            "confidence": irr_confidence,
+            "reason": irr_reason,
+        }
+
+        cooling_action = {
+            "should_cool": air_temperature > 32,
+            "should_ventilate": air_humidity > 75,
+        }
+
         return {
             "recommendations": recommendations,
             "risk_assessment": risk_assessment,
             "anomalies": anomalies,
             "overall_intelligence": overall_intelligence,
+            "irrigation_action": irrigation_action,
+            "cooling_action": cooling_action,
         }
 
     def _determine_system_status(self, risk_assessment: Dict, recommendations: List, anomalies: List) -> str:

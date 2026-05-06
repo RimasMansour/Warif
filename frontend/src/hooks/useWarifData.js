@@ -29,19 +29,31 @@ let simState = {
 };
 
 // Expose manual triggers for UI
-export async function triggerManualIrrigation(deviceId = 'simulator_001', durationMin = 20) {
-  simState.irrigationActive = true;
-  setTimeout(() => { simState.irrigationActive = false; }, durationMin * 60 * 1000);
+export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
   try {
-    const token = localStorage.getItem('warif_token');
-    const API_BASE = import.meta.env.VITE_API_URL || '';
+    if (action === 'stop') {
+      const res = await fetch(`${API_BASE}/api/v1/irrigation/stop-farm/${farmId}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error('Stop irrigation API failed');
+      const data = await res.json();
+      simState.irrigationActive = false;
+      console.log('[Warif] Irrigation stopped via API:', data);
+      return data;
+    }
+    // action === 'start'
     const res = await fetch(`${API_BASE}/api/v1/irrigation/manual`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_id: deviceId, duration_min: durationMin })
+      body: JSON.stringify({ device_id: `irrigation_${farmId}`, duration_min: durationMin })
     });
     if (!res.ok) throw new Error('Irrigation API failed');
     const data = await res.json();
+    simState.irrigationActive = true;
+    setTimeout(() => { simState.irrigationActive = false; }, durationMin * 60 * 1000);
     console.log('[Warif] Manual irrigation started via API:', data);
     return data;
   } catch (err) {

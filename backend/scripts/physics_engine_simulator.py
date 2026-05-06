@@ -633,13 +633,52 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
                                  else AlertSeverity.warning,
                         status=AlertStatus.open,
                     ))
+        # === AUTO IRRIGATION DECISION ===
+        if farm_auto_mode and not pump_on:
+            irrigation_action = intelligence_report.get("irrigation_action", {})
+            should_irrigate = irrigation_action.get("should_irrigate", False)
+            if should_irrigate and farm.current_water_level > 10:
+                irrig_device = await db.execute(
+                    select(Device).where(
+                        Device.farm_id == fid,
+                        Device.device_id == f"irrigation_{fid}"
+                    )
+                )
+                irrig_device_obj = irrig_device.scalar_one_or_none()
+                if irrig_device_obj:
+                    actuator_result = await db.execute(
+                        select(Actuator).where(
+                            Actuator.device_id == f"irrigation_{fid}"
+                        )
+                    )
+                    actuator_obj = actuator_result.scalar_one_or_none()
+                    if actuator_obj:
+                        new_cmd = IrrigationCommand(
+                            actuator_id=actuator_obj.id,
+                            mode=IrrigationMode.auto,
+                            duration_min=15,
+                            start_time=datetime.now(timezone.utc)
+                        )
+                        db.add(new_cmd)
+                        await db.flush()
+                        new_event = IrrigationEvent(
+                            command_id=new_cmd.id,
+                            status=IrrigationStatus.active
+                        )
+                        db.add(new_event)
+                        pump_on = True
+                        print(f"[AUTO-IRRIGATE] Farm {fid} | ML Score: {irrigation_action.get('score', 0):.2f} | Starting irrigation")
+
     except Exception as de_err:
         print(f"[DE] Farm {fid} decision engine error: {de_err}")
 
+    mode_str = "AUTO" if farm_auto_mode else "MANUAL"
     print(
-        f"[{datetime.now().strftime('%H:%M:%S')}] Farm {fid} | "
+        f"[{datetime.now().strftime('%H:%M:%S')}] "
+        f"Farm {fid} | MODE:{mode_str} | "
         f"EXT:{ext_temp:.0f}C | INT:{state['internal_temp']:.0f}C | "
-        f"HUM:{state['internal_hum']:.0f}% | SOIL:{state['soil_moisture']:.0f}% | "
+        f"HUM:{state['internal_hum']:.0f}% | "
+        f"SOIL:{state['soil_moisture']:.0f}% | "
         f"FAN:{'ON' if state['fan_on'] else 'OFF'} | "
         f"COOLER:{'ON' if state['cooler_on'] else 'OFF'} | "
         f"PUMP:{'ON' if pump_on else 'OFF'}"
