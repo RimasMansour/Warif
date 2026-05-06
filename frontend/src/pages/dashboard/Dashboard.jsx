@@ -311,20 +311,37 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     'التحكم بالري': { value: '60%',  status: 'normal' },
   };
 
-  const [connectedSensors, setConnectedSensors] = useState(() => {
-    const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-    return saved.sensorList || [
-      { id: "S1", name: "حساس التربة",   type: "رطوبة التربة",  value: "42%",  status: "normal" },
-      { id: "S2", name: "حساس الحرارة", type: "درجة الحرارة",  value: "31°C", status: "warning" },
-      { id: "S3", name: "حساس الرطوبة", type: "رطوبة الهواء",  value: "58%",  status: "normal" },
-      { id: "P1", name: "مضخة الري الرئيسية", type: "مضخة مياه", value: "تعمل", status: "normal" },
-      { id: "F1", name: "مروحة تبريد 1", type: "مروحة", value: "نشط", status: "normal" },
-      { id: "A1", name: "وحدة التكييف", type: "مكيف", value: "خامل", status: "normal" },
-    ];
-  });
+  const [connectedSensors, setConnectedSensors] = useState([]);
 
   const currentFarmId = userFarms[activeFarm]?.id || null;
   const { devices, counts, loading: devicesLoading } = useDevices(currentFarmId);
+
+  useEffect(() => {
+    if (devices && devices.length > 0) {
+      const mapped = devices.map(d => ({
+        id: d.device_id || d.id,
+        name: d.name || d.device_id,
+        type: d.type === 'sensor' ? 
+          (d.name?.includes('Soil') || d.name?.includes('تربة') ? 'رطوبة التربة' :
+           d.name?.includes('Temp') || d.name?.includes('حرارة') ? 'درجة الحرارة' :
+           d.name?.includes('Humid') || d.name?.includes('رطوبة') ? 'رطوبة الهواء' : 'حساس')
+          : d.type === 'actuator' ?
+          (d.name?.includes('Pump') || d.name?.includes('مضخ') ? 'مضخة مياه' :
+           d.name?.includes('Fan') || d.name?.includes('مروح') ? 'مروحة' :
+           d.name?.includes('Valve') || d.name?.includes('محبس') ? 'محبس' : 'محرك')
+          : d.type,
+        value: d.status === 'active' ? 
+          (d.type === 'actuator' ? (d.name?.includes('Pump') ? 'تعمل' : 'نشط') : '--') 
+          : 'غير نشط',
+        status: d.status === 'active' ? 'normal' : 'offline',
+        device_id: d.device_id,
+        farm_id: d.farm_id,
+      }));
+      setConnectedSensors(mapped);
+    } else {
+      setConnectedSensors([]);
+    }
+  }, [devices]);
 
   // ── Real sensor data from API ──────────────────────────────
   const { data: liveSensors } = useLatestSensors(10000);

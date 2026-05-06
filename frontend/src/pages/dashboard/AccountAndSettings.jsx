@@ -661,6 +661,11 @@ export function AccountAndSettingsPages({
                     </button>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {sensors.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-4 col-span-2">
+                        {isEn ? 'No devices registered yet' : 'لا توجد أجهزة مسجلة بعد'}
+                      </p>
+                    )}
                     {sensors.map((s, idx) => (
                       <div key={s.id} className={`p-4 rounded-2xl border border-gray-100 bg-white/50 hover:border-emerald-200 transition-all flex items-center justify-between group animate-fade-in-up`} style={{ animationDelay: `${idx * 50}ms` }}>
                         <div className={`flex items-center gap-3`}>
