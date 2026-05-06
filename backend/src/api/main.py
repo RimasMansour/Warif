@@ -16,6 +16,7 @@ from src.api.routes import (
     irrigation,
     recommendations,
     dashboard,
+    logs,
 )
 
 app = FastAPI(
@@ -47,6 +48,7 @@ app.include_router(alerts.router,          prefix="/api/v1/alerts",          tag
 app.include_router(commands.router,        prefix="/api/v1/commands",        tags=["Commands"])
 app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
+app.include_router(logs.router,            prefix="/api/v1/logs",            tags=["Logs"])
 # app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])  # Disabled temporarily
 
 # ── Startup Events ────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from src.db.session import get_db
-from src.db.models.models import DeviceCommand
+from src.db.models.models import DeviceCommand, ActivityLog
 from src.api.schemas.schemas import CommandIn, CommandOut
 from src.services.mqtt_client import get_mqtt_client
 from src.core.security import get_current_user
@@ -91,8 +91,18 @@ async def control_cooling(
         issued_at=datetime.now(timezone.utc)
     )
     db.add(cooler_cmd)
+
+    mode = "full" if fan_state and cooler_state else ("fan_only" if fan_state else "stop")
+    log = ActivityLog(
+        farm_id=farm_id,
+        action_type=f"manual_cooling_{mode}",
+        device_id=f"fan_unit_{farm_id}",
+        details={"fan": fan_state, "cooler": cooler_state, "mode": mode},
+        performed_by="user",
+    )
+    db.add(log)
     await db.commit()
-    
+
     return {
         "success": True,
         "fan": fan_state,

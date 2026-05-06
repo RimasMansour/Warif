@@ -8,7 +8,7 @@ from sqlalchemy import select, desc
 from src.db.session import get_db
 from src.db.models.models import (
     Farm, Device, Actuator, IrrigationCommand,
-    IrrigationEvent, IrrigationMode, IrrigationStatus
+    IrrigationEvent, IrrigationMode, IrrigationStatus, ActivityLog
 )
 from src.api.schemas.schemas import (
     IrrigationManualIn, IrrigationScheduleIn,
@@ -75,6 +75,20 @@ async def start_manual_irrigation(
         status=IrrigationStatus.active,
     )
     db.add(event)
+
+    # Resolve farm_id for the activity log
+    dev_result = await db.execute(
+        select(Device).where(Device.device_id == body.device_id).limit(1)
+    )
+    dev = dev_result.scalar_one_or_none()
+    log = ActivityLog(
+        farm_id=dev.farm_id if dev else None,
+        action_type="manual_irrigation_start",
+        device_id=body.device_id,
+        details={"duration_min": body.duration_min},
+        performed_by="user",
+    )
+    db.add(log)
     await db.commit()
     await db.refresh(command)
     return command

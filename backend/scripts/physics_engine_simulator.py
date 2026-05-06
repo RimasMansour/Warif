@@ -36,6 +36,23 @@ from src.db.models.models import (
     DeviceCommand
 )
 
+
+async def log_action(db, farm_id, action_type, device_id=None,
+                     details=None, performed_by="system"):
+    try:
+        from src.db.models.models import ActivityLog
+        log = ActivityLog(
+            farm_id=farm_id,
+            action_type=action_type,
+            device_id=device_id,
+            details=details or {},
+            performed_by=performed_by,
+        )
+        db.add(log)
+    except Exception:
+        pass  # Never block simulation for logging
+
+
 # --- Engineering Constants (Science-Based) ---
 # Greenhouse specs
 AREA_SQM = 80.0
@@ -200,11 +217,12 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
         pump_on = True
 
         # Auto-stop: soil saturated (FAO Paper 56)
-        # Auto-stop: soil saturated (FAO Paper 56)
         if state.get("soil_moisture", 0) >= profile["optimal_soil_max"]:
             evt.status = IrrigationStatus.completed
             await db.flush()
             pump_on = False
+            await log_action(db, fid, "irrigation_auto_stop", f"irrigation_{fid}",
+                {"reason": "soil_saturated", "soil_moisture": round(state.get("soil_moisture", 0), 1)})
             print(f"[AUTO-STOP] Farm {fid} | Soil saturated {state.get('soil_moisture',0):.1f}% >= {profile['optimal_soil_max']}% → stopped")
 
         # Auto-stop: water tank empty
@@ -213,6 +231,8 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
             await db.flush()
             pump_on = False
             farm.current_water_level = 0.0
+            await log_action(db, fid, "irrigation_auto_stop", f"irrigation_{fid}",
+                {"reason": "water_tank_empty", "soil_moisture": round(state.get("soil_moisture", 0), 1)})
             print(f"[AUTO-STOP] Farm {fid} | Water tank empty → stopped")
 
     # === CHECK MANUAL COOLING COMMANDS ===
@@ -313,14 +333,24 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
             if farm_auto_mode:
                 # Full cooling: temp >= 32 AND humidity < 80
                 if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
+                    prev_fan = state["fan_on"]
                     state["fan_on"] = True
                     state["cooler_on"] = True
                     state["cooling_on"] = True
+                    if not prev_fan:
+                        await log_action(db, fid, "fan_auto_on", f"fan_unit_{fid}",
+                            {"reason": "temp >= 32C", "temp": round(state["internal_temp"], 1)})
+                        await log_action(db, fid, "cooler_auto_on", f"cooling_unit_{fid}",
+                            {"reason": "full cooling mode", "temp": round(state["internal_temp"], 1)})
                 # Ventilation only: humidity >= 75 AND temp < 32
                 elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
+                    prev_fan = state["fan_on"]
                     state["fan_on"] = True
                     state["cooler_on"] = False
                     state["cooling_on"] = False
+                    if not prev_fan:
+                        await log_action(db, fid, "fan_auto_on", f"fan_unit_{fid}",
+                            {"reason": "humidity >= 75%", "humidity": round(state["internal_hum"], 1)})
                 # All off: good conditions
                 elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
                     state["fan_on"] = False
@@ -667,6 +697,9 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
                         )
                         db.add(new_event)
                         pump_on = True
+                        await log_action(db, fid, "irrigation_auto_start", f"irrigation_{fid}",
+                            {"ml_score": irrigation_action.get("score"),
+                             "soil_moisture": round(state["soil_moisture"], 1)})
                         print(f"[AUTO-IRRIGATE] Farm {fid} | ML Score: {irrigation_action.get('score', 0):.2f} | Starting irrigation")
 
     except Exception as de_err:

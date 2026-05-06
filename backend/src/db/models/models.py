@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, Float, String, Boolean,
-    DateTime, ForeignKey, Text, Enum as SAEnum
+    DateTime, ForeignKey, Text, Enum as SAEnum, JSON
 )
 from sqlalchemy.orm import relationship
 import enum
@@ -273,6 +273,23 @@ class DeviceCommand(Base):
 
     def __repr__(self):
         return f"<DeviceCommand {self.command} status={self.status}>"
+
+
+class ActivityLog(Base):
+    __tablename__ = "activity_logs"
+
+    id           = Column(Integer, primary_key=True, index=True)
+    farm_id      = Column(Integer, ForeignKey("farms.id"), nullable=True, index=True)
+    user_id      = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action_type  = Column(String(50), nullable=False)
+    device_id    = Column(String(64), nullable=True)
+    details      = Column(JSON, nullable=True)
+    performed_by = Column(String(20), default="system")
+    created_at   = Column(DateTime(timezone=True),
+                          default=lambda: datetime.now(timezone.utc), index=True)
+
+    def __repr__(self):
+        return f"<ActivityLog {self.action_type} farm={self.farm_id}>"
 
 
 class SensorThreshold(Base):
