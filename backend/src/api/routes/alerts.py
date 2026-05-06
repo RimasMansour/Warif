@@ -8,10 +8,8 @@ from sqlalchemy import select, desc
 from src.db.session import get_db
 from src.db.models.models import Alert, AlertStatus
 from src.api.schemas.schemas import AlertOut
-from src.services.presentation_formatter import PresentationFormatter
 
 router = APIRouter()
-formatter = PresentationFormatter()
 
 
 @router.get("", response_model=List[dict])
@@ -32,57 +30,30 @@ async def list_alerts(
     result = await db.execute(q)
     alerts = result.scalars().all()
 
-    # تنسيق احترافي للبيانات
-    professional_alerts = []
+    alert_list = []
     for alert in alerts:
-        # استخراج معلومات الجهاز من device_id
-        device_name = alert.device_id if alert.device_id else "جهاز"
+        try:
+            severity_value = alert.severity.value if hasattr(alert.severity, 'value') else str(alert.severity)
+            status_value = alert.status.value if hasattr(alert.status, 'value') else str(alert.status)
 
-        if alert.sensor_type and alert.actual_value is not None:
-            # تنسيق متخصص حسب نوع الحساس
-            if alert.sensor_type == "soil_moisture":
-                formatted = formatter.format_soil_moisture_alert(
-                    current=alert.actual_value,
-                    optimal_min=55,
-                    optimal_max=70
-                )
-            elif alert.sensor_type == "air_temperature":
-                formatted = formatter.format_temperature_alert(alert.actual_value)
-            elif alert.sensor_type == "air_humidity":
-                formatted = formatter.format_humidity_alert(alert.actual_value)
-            else:
-                formatted = formatter.format_alert(
-                    alert_type="anomaly_detected",
-                    current_value=alert.actual_value,
-                    sensor_name=alert.sensor_type,
-                    device_name=device_name
-                )
-        else:
-            # fallback للتنبيهات بدون بيانات مفصلة
-            formatted = formatter.format_alert(
-                alert_type="anomaly_detected",
-                sensor_name=alert.sensor_type or "System",
-                device_name=device_name,
-                current_str=f"Value: {alert.actual_value}" if alert.actual_value else "Unknown"
-            )
+            alert_list.append({
+                "id": alert.id,
+                "message": alert.message,
+                "severity": severity_value,
+                "status": status_value,
+                "sensor_type": alert.sensor_type,
+                "category": alert.sensor_type,
+                "device_id": alert.device_id,
+                "actual_value": alert.actual_value,
+                "threshold": alert.threshold,
+                "created_at": alert.created_at.isoformat() if alert.created_at else None,
+                "updated_at": alert.updated_at.isoformat() if alert.updated_at else None,
+            })
+        except Exception as e:
+            print(f"[ERROR] Alert {alert.id}: {e}")
+            continue
 
-        professional_alerts.append({
-            "id": alert.id,
-            "icon": formatted.icon,
-            "title": formatted.title,
-            "severity": formatted.severity,
-            "current_value": formatted.current_value,
-            "expected_value": formatted.expected_value,
-            "difference": formatted.difference,
-            "reason": formatted.reason,
-            "action": formatted.action,
-            "urgency": formatted.urgency,
-            "timestamp": formatted.timestamp,
-            "status": alert.status,
-            "sensor_type": alert.sensor_type,
-        })
-
-    return professional_alerts
+    return alert_list
 
 
 @router.post("/{alert_id}/ack", response_model=AlertOut)
