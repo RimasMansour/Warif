@@ -2,6 +2,7 @@
 import logging
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -14,6 +15,7 @@ from src.api.schemas.schemas import SensorReadingOut, SensorLatestOut
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+RIYADH_TZ = ZoneInfo("Asia/Riyadh")
 
 
 @router.get("", response_model=List[SensorReadingOut])
@@ -21,7 +23,7 @@ async def list_sensor_readings(
     farm_id:     int           = Query(..., description="Farm ID"),
     device_id:   Optional[str] = Query(None),
     sensor_type: Optional[str] = Query(None),
-    limit:       int           = Query(100, le=1000),
+limit:       int           = Query(100, le=50000),
     db: AsyncSession = Depends(get_db),
 ):
     """Return historical sensor readings, most recent first, filtered by farm."""
@@ -68,10 +70,15 @@ async def get_latest_readings(
     out = []
     for r in readings:
         t = thresholds.get(r.sensor_type)
-        status = _compute_status(r.value, t)
+        value = r.value
+        if r.sensor_type == "light_intensity":
+            riyadh_hour = datetime.now(RIYADH_TZ).hour
+            if riyadh_hour >= 18 or riyadh_hour < 6:
+                value = 0.0
+        status = _compute_status(value, t)
         out.append(SensorLatestOut(
             sensor_type=r.sensor_type,
-            value=r.value,
+            value=value,
             unit=r.unit,
             status=status,
             timestamp=r.timestamp,

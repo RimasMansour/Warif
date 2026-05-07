@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 from typing import List
 from pathlib import Path
 
@@ -20,7 +21,7 @@ class Settings(BaseSettings):
     # JWT — must be set via JWT_SECRET_KEY env var in production
     JWT_SECRET_KEY: str = "insecure-dev-secret-change-in-prod"
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_MINUTES: int = 60
+    JWT_EXPIRE_MINUTES: int = 480
 
     # MQTT
     MQTT_BROKER_HOST: str = "localhost"
@@ -45,8 +46,21 @@ class Settings(BaseSettings):
 
     SLACK_WEBHOOK_URL: str = ""
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, value):
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug", "development", "dev"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "production", "prod"}:
+                return False
+        return bool(value)
+
     model_config = SettingsConfigDict(
-        env_file=str(BASE_DIR / ".env"),
+        env_file=(str(BASE_DIR / ".env"), str(BASE_DIR / ".env.shared")),
         env_file_encoding="utf-8",
         extra="ignore"
     )

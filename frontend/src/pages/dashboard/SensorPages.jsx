@@ -21,6 +21,163 @@ import { getLabelForRange } from './dashboardUtils';
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
+function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const ranges = [
+    { key: 'D', label: T.day || 'اليوم' },
+    { key: 'W', label: T.week || 'الأسبوع' },
+    { key: 'M', label: T.month || 'الشهر' },
+    { key: 'Y', label: T.year || 'السنة' },
+  ];
+  const n = data.length;
+  const maxVal = Math.max(...data.map(d => d.value), 100);
+  const currentVal = range === 'D'
+    ? Math.max(...data.map(d => d.value), 0)
+    : (data.reduce((a, b) => a + b.value, 0) / (n || 1));
+  const W = 860, H = 360, padL = 120, padR = 80, padT = 24, padB = 82;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const points = data.map((d, i) => ({
+    x: padL + (i / Math.max(n - 1, 1)) * chartW,
+    y: padT + chartH - (d.value / maxVal) * chartH,
+    value: d.value,
+    label: d.label,
+  }));
+  const linePath = points.length < 2 ? '' : points.map((p, i) => {
+    if (i === 0) return `M ${p.x} ${p.y}`;
+    const prev = points[i - 1];
+    const cpx = (prev.x + p.x) / 2;
+    return `C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`;
+  }).join(' ');
+  const areaPath = linePath
+    ? `${linePath} L ${points[n - 1]?.x} ${padT + chartH} L ${padL} ${padT + chartH} Z`
+    : '';
+  const getColor = (val) => {
+    if (val === 0) return '#9ca3af';
+    if (val < 1000) return '#fde68a';
+    if (val < 10000) return '#f59e0b';
+    if (val < 50000) return '#f97316';
+    return '#ef4444';
+  };
+  const getLabel = (val) => {
+    if (val === 0) return isRtl ? 'لا يوجد إضاءة' : 'No light';
+    if (val < 200) return isRtl ? 'خافتة جداً' : 'Very dim';
+    if (val < 1000) return isRtl ? 'إضاءة داخلية' : 'Indoor';
+    if (val < 10000) return isRtl ? 'مضيئة' : 'Bright';
+    if (val < 50000) return isRtl ? 'مشرقة جداً' : 'Very bright';
+    return isRtl ? 'ضوء شمس مباشر' : 'Direct sunlight';
+  };
+  const lineColor = getColor(currentVal);
+  return (
+    <CardShell className="p-5" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex justify-between items-center mb-4">
+        <div className={isRtl ? 'text-right' : 'text-left'}>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-lg font-black text-gray-800 leading-none">
+              {T.lightChart || 'مسار شدة الإضاءة'}
+            </h2>
+            <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-lg border border-amber-100 font-black uppercase tracking-tighter">
+              {T.realtimeAnalysis || 'تحليل فوري'}
+            </span>
+          </div>
+          <div className="text-[13px] font-bold text-gray-400">{getLabel(currentVal)}</div>
+        </div>
+        <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[110px]">
+          <div className="flex items-baseline gap-1">
+            <span className="text-xl font-black text-gray-800">{Math.round(currentVal).toLocaleString()}</span>
+            <span className="text-[11px] font-bold text-gray-400">Lux</span>
+          </div>
+          <div className="text-[10px] font-black mt-1 uppercase tracking-tighter" style={{ color: lineColor }}>
+            {T.periodAverage || 'متوسط الفترة'}
+          </div>
+        </div>
+      </div>
+      <div className="flex bg-gray-50 p-1 rounded-xl mb-4 gap-1 w-max mx-auto border border-gray-100 shadow-inner">
+        {ranges.map(r => (
+          <button key={r.key} onClick={() => onRangeChange(r.key)}
+            className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 ${range === r.key ? 'bg-white text-gray-800 shadow-md scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
+            {r.label}
+          </button>
+        ))}
+      </div>
+      <div className="w-full max-w-[800px] mx-auto" style={{ maxHeight: '360px' }} onMouseLeave={() => setHoveredIdx(null)}>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block w-full h-auto overflow-visible">
+          <defs>
+            <linearGradient id="lightAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.3"/>
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
+            </linearGradient>
+          </defs>
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const val = maxVal * ratio;
+            const y = padT + chartH - ratio * chartH;
+            return (
+              <g key={i}>
+                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4"/>
+                <text x={padL - 10} y={y} dominantBaseline="central" textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
+                  {val >= 100000
+                    ? `${(val / 1000).toFixed(0)}k`
+                    : val >= 1000
+                    ? `${(val / 1000).toFixed(1)}k`
+                    : Math.round(val)}
+                </text>
+              </g>
+            );
+          })}
+          <text x={40} y={padT + chartH / 2} transform={`rotate(-90, 40, ${padT + chartH / 2})`} textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'لوكس' : 'Lux'}
+          </text>
+          {areaPath && <path d={areaPath} fill="url(#lightAreaGrad)"/>}
+          {linePath && <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+          {points.map((p, i) => {
+            const show = i % Math.max(1, Math.floor(n / 8)) === 0;
+            const isHov = hoveredIdx === i;
+            return (
+              <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
+                <rect x={p.x - 10} y={padT} width={20} height={chartH} fill="transparent" className="cursor-pointer"/>
+                {(show || isHov) && (
+                  <circle cx={p.x} cy={p.y} r={isHov ? 6 : 3} fill={isHov ? lineColor : '#fff'} stroke={lineColor} strokeWidth="2" className="transition-all duration-200"/>
+                )}
+                {isHov && (
+                  <g pointerEvents="none">
+                    <line x1={p.x} y1={padT} x2={p.x} y2={padT + chartH} stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity="0.5"/>
+                    <rect x={p.x - 52} y={p.y - 54} width={104} height={38} rx="10" fill="#111827" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
+                    <text x={p.x} y={p.y - 30} textAnchor="middle" fontSize="11" fontWeight="900" fill="white">
+                      {Math.round(p.value).toLocaleString()} Lux
+                    </text>
+                    <path d={`M ${p.x - 6} ${p.y - 16} L ${p.x} ${p.y - 8} L ${p.x + 6} ${p.y - 16} Z`} fill="#111827"/>
+                  </g>
+                )}
+              </g>
+            );
+          })}
+          {points.map((p, i) => {
+            const show = i % Math.max(1, Math.floor(n / 6)) === 0;
+            return show ? (
+              <text key={i} x={p.x} y={H - padB + 34} textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
+                {p.label}
+              </text>
+            ) : null;
+          })}
+          <text
+            x={padL + chartW / 2}
+            y={H - 10}
+            textAnchor="middle"
+            fontSize="18"
+            fill="#059669"
+            fontWeight="900"
+            opacity="0.6"
+          >
+            {isRtl ? 'الوقت' : 'Time'}
+          </text>
+          <line x1={padL} y1={padT} x2={padL} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
+          <line x1={padL} y1={padT + chartH} x2={W - padR} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
+        </svg>
+      </div>
+    </CardShell>
+  );
+}
+
 export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [activeAction, setActiveAction] = useState("");
@@ -120,7 +277,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   // const coolingActive = livesensors?.coolingActive ?? false; (Replaced by local state)
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const historyLimit = range === 'D' ? 288 : range === 'W' ? 6000 : range === 'M' ? 15000 : 365;
   const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit);
   const { data: rawHum } = useSensorHistory('air_humidity', historyLimit);
   const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);
@@ -135,15 +292,33 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (range === 'D') {
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
-        const item = rawData?.find(r => new Date(r.timestamp).getHours() === i);
-        return { label, value: item?.value ?? 0 };
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          const localHour = (d.getUTCHours() + 3) % 24;
+          return localHour === i;
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'W') {
+      const now = new Date();
       return Array.from({ length: 7 }, (_, i) => {
-        const label = isEn ? daysEn[i] : daysAr[i];
-        const item = rawData?.find(r => new Date(r.timestamp).getDay() === i);
-        return { label, value: item?.value ?? 0 };
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() - (6 - i));
+        const dayOfWeek = targetDate.getDay();
+        const label = isEn ? daysEn[dayOfWeek] : daysAr[dayOfWeek];
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getDate() === targetDate.getDate() &&
+                 d.getMonth() === targetDate.getMonth();
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'M') {
@@ -208,8 +383,13 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <span className="text-2xl font-black text-gray-800">{hum.toFixed(0)}%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
-                  <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{isEn ? 'Light Intensity' : 'شدة الإضاءة'}</span>
-                  <span className="text-2xl font-black text-gray-800">{Math.round(light).toLocaleString()} <span className="text-[14px]">Lux</span></span>
+                  <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">
+                    {isEn ? 'Light Intensity' : 'شدة الإضاءة'}
+                  </span>
+                  <span className="text-2xl font-black text-gray-800">
+                    {Math.round(light).toLocaleString()}
+                    <span className="text-[14px] font-bold text-gray-400 mr-1">Lux</span>
+                  </span>
                 </div>
               </div>
             </CardShell>
@@ -375,10 +555,10 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
               isRtl={isRtl}
             />
             <div className="lg:col-span-2">
-              <HealthStyleBarChart 
-                range={range} onRangeChange={setRange} data={lightSeries} 
-                unit=" Lux" metricName={T.lightChart} color="#f59e0b" 
-                yAxisTitle={T.lightY}
+              <LightAreaChart
+                data={lightSeries}
+                range={range}
+                onRangeChange={setRange}
                 T={translations[lang]}
                 isRtl={isRtl}
               />
