@@ -149,4 +149,4 @@ async def _get_irrigation_status(farm_id: int, db: AsyncSession) -> str:
     event = result.scalar_one_or_none()
     if not event:
         return "idle"
-    return event.status.value
+    return event.status.value if hasattr(event.status, "value") else str(event.status or "idle")
