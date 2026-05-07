@@ -766,10 +766,10 @@ export function AlertCard({
 
   // تحديد اللون بناءً على severity
   const severityConfig = {
-    'critical': { bg: 'bg-red-50/80', border: 'border-red-200', text: 'text-red-700', label: isEn ? 'Critical' : 'حرج' },
-    'high': { bg: 'bg-red-50/80', border: 'border-red-200', text: 'text-red-700', label: isEn ? 'Critical' : 'حرج' },
-    'warning': { bg: 'bg-amber-50/80', border: 'border-amber-200', text: 'text-amber-700', label: isEn ? 'Warning' : 'تحذير' },
-    'info': { bg: 'bg-blue-50/80', border: 'border-blue-200', text: 'text-blue-700', label: isEn ? 'Info' : 'معلومة' }
+    'critical': { bg: 'bg-red-50/80', border: 'border-gray-200', text: 'text-red-700', label: isEn ? 'Critical' : 'حرج' },
+    'high': { bg: 'bg-red-50/80', border: 'border-gray-200', text: 'text-red-700', label: isEn ? 'Critical' : 'حرج' },
+    'warning': { bg: 'bg-amber-50/80', border: 'border-gray-200', text: 'text-amber-700', label: isEn ? 'Warning' : 'تحذير' },
+    'info': { bg: 'bg-blue-50/80', border: 'border-gray-200', text: 'text-blue-700', label: isEn ? 'Info' : 'معلومة' }
   };
 
   const severity = alert.severity || 'info';
@@ -782,6 +782,32 @@ export function AlertCard({
     alert.sensor_type?.includes('water') || alert.sensor_type?.includes('irrigation') ? 'irrigation' : 'system';
 
   const actionType = category === 'climate' ? 'cool' : 'irrigate';
+  const pageLabel = isEn
+    ? (category === 'climate' ? 'Microclimate & Ventilation' :
+       category === 'soil' ? 'Soil & Crop Health' :
+       category === 'irrigation' ? 'Irrigation Management' : 'System')
+    : (category === 'climate' ? 'المناخ والتهوية' :
+       category === 'soil' ? 'بيئة وصحة التربة' :
+       category === 'irrigation' ? 'إدارة الري' : 'النظام');
+
+  const formatAlertMeta = () => {
+    const raw = alert.created_at || alert.timestamp;
+    if (!raw) return null;
+    const date = new Date(raw);
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMin / 60);
+
+    if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
+    if (diffHr < 1) return isEn ? `${diffMin} min ago` : `منذ ${diffMin} دقيقة`;
+    if (diffHr < 24) return isEn ? `${diffHr}h ago` : `منذ ${diffHr} ساعة`;
+
+    return date.toLocaleDateString(isEn ? 'en-GB' : 'ar-SA', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
 
   const handleConfirm = async () => {
     setIsLoading(true);
@@ -798,76 +824,34 @@ export function AlertCard({
 
   return (
     <div
-      className={`rounded-3xl border shadow-sm transition-all animate-fade-in flex flex-col ${config.bg} ${config.border}`}
-      style={{ padding: '16px' }}
+      className={`rounded-2xl border shadow-sm transition-all animate-fade-in flex flex-col bg-white ${config.border}`}
+      style={{ padding: '14px' }}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       {/* Header: Severity Badge + Category Label */}
       <div className={`flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${config.text} bg-white/70`}>
+        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${config.text} ${config.border} bg-white`}>
           {config.label}
         </span>
-        <span className={`text-xs font-bold ${config.text}`}>
-          {isEn
-            ? (category === 'climate' ? 'Climate' : category === 'soil' ? 'Soil' : category === 'irrigation' ? 'Irrigation' : 'System')
-            : (category === 'climate' ? 'المناخ' : category === 'soil' ? 'التربة' : category === 'irrigation' ? 'الري' : 'النظام')}
+        <span className="text-[15px] font-black text-gray-800">
+          {pageLabel}
         </span>
       </div>
 
       {/* Message */}
-      <p className={`mt-3 text-sm font-bold ${config.text} leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}
+      <p className={`mt-3 text-sm font-bold text-gray-800 leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}
         dir={isRtl ? 'rtl' : 'ltr'}
       >
         {alert.message || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
       </p>
 
-      {/* Footer: Feedback + Confirm/Ignore */}
-      <div className={`mt-4 pt-3 border-t ${config.border} flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        {/* Feedback Buttons */}
-        <div className={`flex items-center gap-1.5 relative ${isRtl ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap">
-            {isEn ? 'Appropriate?' : 'مناسب؟'}
-          </span>
-          <button
-            onClick={() => onFeedback?.(alert.id, 'down')}
-            className={`w-7 h-7 flex items-center justify-center rounded-xl border transition-all transform
-              ${feedbackState[alert.id] === 'down'
-                ? 'bg-red-50 border-red-300 text-red-600 scale-110'
-                : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:scale-105'
-              }`}
-            title={isEn ? 'False alert' : 'إنذار خاطئ'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
-            </svg>
-          </button>
-          <button
-            onClick={() => onFeedback?.(alert.id, 'up')}
-            className={`w-7 h-7 flex items-center justify-center rounded-xl border transition-all transform
-              ${feedbackState[alert.id] === 'up'
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
-                : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 hover:scale-105'
-              }`}
-            title={isEn ? 'Appropriate alert' : 'إنذار مناسب'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
-            </svg>
-          </button>
-          {showThanks?.includes(alert.id) && (
-            <div className="absolute top-[-24px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[9px] font-bold whitespace-nowrap z-10 animate-bounce">
-              {isEn ? 'Thanks for feedback!' : 'شكراً على رأيك!'}
-            </div>
-          )}
-        </div>
-
-        {/* Confirm/Ignore Buttons (Manual Mode) OR Auto Badge */}
+      <div className="mt-3">
         {!globalAutoMode ? (
           <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
             <button
               onClick={handleConfirm}
               disabled={isLoading || executionSuccess}
-              className={`px-3 py-1.5 text-white text-[11px] font-black rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 ${
+              className={`px-4 py-2 text-white text-[12px] font-black rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 ${
                 executionSuccess
                   ? 'bg-emerald-600 border border-emerald-600'
                   : 'bg-emerald-600 hover:bg-emerald-700 border border-emerald-600'
@@ -893,19 +877,69 @@ export function AlertCard({
               )}
             </button>
             <button
-              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95"
+              className="px-4 py-2 bg-gray-100 border border-gray-200 text-gray-500 text-[12px] font-black rounded-xl hover:bg-gray-200 transition-all active:scale-95"
             >
               {isEn ? 'Ignore' : 'تجاهل'}
             </button>
           </div>
         ) : (
-          <div className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg border border-emerald-200 flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="10"/>
-            </svg>
-            {isEn ? 'Auto Executed' : 'تم التنفيذ تلقائياً'}
-          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200">
+            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-xs font-black text-emerald-700">
+              {isEn ? 'Auto executed' : 'تم التنفيذ تلقائياً'}
+            </span>
+            </div>
         )}
+      </div>
+
+      {/* Footer: feedback + timestamp */}
+      <div className="mt-2.5 pt-2.5 flex items-start justify-between gap-2.5" dir="ltr">
+        <div className="flex items-center gap-2 relative shrink-0">
+          <div className="flex items-center gap-2 relative">
+            <button
+              onClick={() => onFeedback?.(alert.id, 'down')}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
+                ${feedbackState[alert.id] === 'down'
+                  ? 'bg-red-50 border-red-300 text-red-600 scale-110'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:scale-105'
+                }`}
+              title={isEn ? 'False alert' : 'إنذار خاطئ'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => onFeedback?.(alert.id, 'up')}
+              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
+                ${feedbackState[alert.id] === 'up'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 hover:scale-105'
+                }`}
+              title={isEn ? 'Appropriate alert' : 'إنذار مناسب'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
+              </svg>
+            </button>
+            {showThanks?.includes(alert.id) && (
+              <div className="absolute top-[-24px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[9px] font-bold whitespace-nowrap z-10 animate-bounce">
+                {isEn ? 'Thanks for feedback!' : 'شكراً على رأيك!'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={`${isRtl ? 'text-right items-end' : 'text-left items-start'} flex flex-col gap-1 shrink-0`}>
+          <span className="text-[11px] font-bold text-gray-400 whitespace-nowrap">
+            {isEn ? 'Was this appropriate?' : 'هل كان هذا مناسباً؟'}
+          </span>
+          {formatAlertMeta() && (
+            <span className="text-[11px] font-bold text-gray-300 whitespace-nowrap">
+              {formatAlertMeta()}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

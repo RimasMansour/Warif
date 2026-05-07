@@ -472,78 +472,95 @@ function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAle
        alert.severity === 'warning'  ? 'تحذير' : 'معلومة');
 
   return (
-    <div className="flex flex-col gap-3 p-4 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+    <div className={`flex flex-col gap-0 bg-white rounded-2xl border overflow-hidden
+      ${alert.severity === 'critical' ? 'border-red-200' :
+        alert.severity === 'warning' ? 'border-amber-200' : 'border-blue-200'}`}>
 
-      {/* 1. HEADER: category + severity */}
-      <div className={`flex items-center justify-between ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${severityColor}`}>
-          {severityLabel}
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2">
+        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border
+          ${alert.severity === 'critical' ? 'bg-red-50 text-red-700 border-red-200' :
+            alert.severity === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+            'bg-blue-50 text-blue-700 border-blue-200'}`}>
+          {alert.severity === 'critical' ? (isEn ? 'Critical' : 'حرج') :
+           alert.severity === 'warning' ? (isEn ? 'Warning' : 'تحذير') :
+           (isEn ? 'Info' : 'معلومة')}
         </span>
-        <span className="text-sm font-black text-gray-800">
-          {categoryLabel}
-        </span>
+        <span className="text-sm font-black text-gray-700">{categoryLabel}</span>
       </div>
 
-      {/* 2. STATUS: alert message */}
-      <p className={`text-sm font-bold text-gray-800 leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}>
-        {alert.message || alert.title || alert.description || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
-      </p>
+      {/* Message */}
+      <div className="px-4 pb-3">
+        <p className={`text-sm font-bold text-gray-800 leading-relaxed
+          ${isRtl ? 'text-right' : 'text-left'}`}>
+          {alert.message || alert.description || 
+            (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
+        </p>
+      </div>
 
-      {/* 3. ACTION: manual vs auto */}
-      {isManualMode ? (
-        <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-          <button
-            onClick={() => onAccept?.(alert.id, actionType)}
-            className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition-colors active:scale-95">
-            {isEn ? 'Confirm Action' : 'تأكيد الإجراء'}
+      {/* Divider */}
+      <div className="border-t border-gray-100 mx-0" />
+
+      {/* Action row */}
+      <div className={`flex items-center justify-between px-4 py-2.5
+        ${isRtl ? 'flex-row-reverse' : ''}`}>
+        
+        {/* Rating - LEFT side */}
+        <div className="flex items-center gap-2">
+          <button onClick={() => alert.onRate?.('up')}
+            className="w-7 h-7 rounded-xl bg-gray-50 border border-gray-200
+              flex items-center justify-center hover:bg-emerald-50
+              hover:border-emerald-200 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+              <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+            </svg>
           </button>
-          <button
-            onClick={() => {}}
-            className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-500 font-black text-xs hover:bg-gray-200 transition-colors active:scale-95">
-            {isEn ? 'Ignore' : 'تجاهل'}
+          <button onClick={() => alert.onRate?.('down')}
+            className="w-7 h-7 rounded-xl bg-gray-50 border border-gray-200
+              flex items-center justify-center hover:bg-red-50
+              hover:border-red-200 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
+              <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+            </svg>
           </button>
+          <span className="text-[11px] text-gray-400 font-bold">
+            {isEn ? 'Helpful?' : 'مناسب؟'}
+          </span>
         </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className={`text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-100 ${isRtl ? 'text-right' : 'text-left'}`}>
-            {isEn ? 'Action taken automatically' : 'تم تنفيذ الإجراء تلقائياً'}
+
+        {/* Auto action - RIGHT side */}
+        {isManualMode ? (
+          <div className="flex gap-2">
+            <button onClick={() => alert.onConfirm?.()}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white
+                font-black text-xs hover:bg-emerald-700 transition-colors">
+              {isEn ? 'Confirm' : 'تأكيد'}
+            </button>
+            <button onClick={() => alert.onIgnore?.()}
+              className="px-3 py-1.5 rounded-xl bg-gray-100 text-gray-500
+                font-black text-xs hover:bg-gray-200 transition-colors">
+              {isEn ? 'Ignore' : 'تجاهل'}
+            </button>
           </div>
-          <div className="flex items-center w-full" dir="rtl">
-            <span className="text-[11px] text-gray-400 font-bold flex-1 text-right">
-              {isEn ? 'Was this appropriate?' : 'هل كان هذا مناسباً؟'}
+        ) : (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+            bg-emerald-50 border border-emerald-200">
+            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-xs font-black text-emerald-700">
+              {isEn ? 'Auto executed' : 'تم التنفيذ تلقائياً'}
             </span>
-            <div className="flex gap-2 mr-3 relative">
-              <button
-                onClick={() => { alert.onRate?.('down'); onFeedback?.(alert.id, 'down'); }}
-                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-colors ${alertFeedback?.[alert.id] === 'down' ? 'bg-red-50 border-red-300 text-red-600' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600'}`}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
-                  <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
-                </svg>
-              </button>
-              <button
-                onClick={() => { alert.onRate?.('up'); onFeedback?.(alert.id, 'up'); }}
-                className={`w-8 h-8 rounded-xl border flex items-center justify-center transition-colors ${alertFeedback?.[alert.id] === 'up' ? 'bg-emerald-50 border-emerald-300 text-emerald-600' : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
-                  <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
-                </svg>
-              </button>
-              {showAlertThanks?.includes(alert.id) && (
-                <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg whitespace-nowrap">
-                  {isEn ? 'Thanks!' : 'شكراً!'}
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* 4. TIMESTAMP */}
+      {/* Timestamp */}
       {(alert.created_at || alert.timestamp) && (
-        <p className={`text-[10px] text-gray-400 font-bold ${isRtl ? 'text-right' : 'text-left'}`}>
+        <div className={`px-4 pb-2 text-[10px] text-gray-300 font-bold
+          ${isRtl ? 'text-right' : 'text-left'}`}>
           {(() => {
             const date = new Date(alert.created_at || alert.timestamp);
             const diffMs = Date.now() - date.getTime();
@@ -552,11 +569,10 @@ function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAle
             if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
             if (diffMin < 60) return isEn ? `${diffMin} min ago` : `منذ ${diffMin} دقيقة`;
             if (diffHr < 24) return isEn ? `${diffHr}h ago` : `منذ ${diffHr} ساعة`;
-            return isEn
-              ? date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })
-              : date.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            return date.toLocaleTimeString(isEn ? 'en' : 'ar-SA', 
+              { hour: '2-digit', minute: '2-digit' });
           })()}
-        </p>
+        </div>
       )}
     </div>
   );

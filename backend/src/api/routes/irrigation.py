@@ -248,18 +248,20 @@ async def get_irrigation_resources(
 ):
     """Get water and power usage from sensor readings for a farm."""
     from sqlalchemy import func
-    from src.db.models.models import SensorReading, Device
+    from datetime import datetime, timezone, timedelta
+    from src.db.models.models import SensorReading
 
     # Today's and yesterday's boundaries
-    today_start = func.date_trunc('day', func.now())
-    yesterday_start = today_start - func.cast('1 day', func.interval)
+    saudi_tz = timezone(timedelta(hours=3))
+    now_saudi = datetime.now(saudi_tz)
+    today_start = datetime(now_saudi.year, now_saudi.month, now_saudi.day, tzinfo=saudi_tz).astimezone(timezone.utc).replace(tzinfo=None)
+    yesterday_start = today_start - timedelta(days=1)
 
     # Today's water usage
     water_today_res = await db.execute(
         select(func.sum(SensorReading.value))
-        .join(Device, SensorReading.device_id == Device.device_id)
         .where(
-            Device.farm_id == farm_id,
+            SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "water_usage",
             SensorReading.timestamp >= today_start
         )
@@ -269,9 +271,8 @@ async def get_irrigation_resources(
     # Yesterday's water usage
     water_yest_res = await db.execute(
         select(func.sum(SensorReading.value))
-        .join(Device, SensorReading.device_id == Device.device_id)
         .where(
-            Device.farm_id == farm_id,
+            SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "water_usage",
             SensorReading.timestamp >= yesterday_start,
             SensorReading.timestamp < today_start
@@ -282,9 +283,8 @@ async def get_irrigation_resources(
     # Today's power usage
     power_today_res = await db.execute(
         select(func.sum(SensorReading.value))
-        .join(Device, SensorReading.device_id == Device.device_id)
         .where(
-            Device.farm_id == farm_id,
+            SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "power_usage",
             SensorReading.timestamp >= today_start
         )
@@ -294,9 +294,8 @@ async def get_irrigation_resources(
     # Yesterday's power usage
     power_yest_res = await db.execute(
         select(func.sum(SensorReading.value))
-        .join(Device, SensorReading.device_id == Device.device_id)
         .where(
-            Device.farm_id == farm_id,
+            SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "power_usage",
             SensorReading.timestamp >= yesterday_start,
             SensorReading.timestamp < today_start
@@ -319,9 +318,8 @@ async def get_irrigation_resources(
     # Get fan status from latest air_temperature reading context
     fan_result = await db.execute(
         select(SensorReading.value)
-        .join(Device, SensorReading.device_id == Device.device_id)
         .where(
-            Device.farm_id == farm_id,
+            SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "air_temperature",
         )
         .order_by(SensorReading.timestamp.desc())

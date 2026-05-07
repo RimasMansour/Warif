@@ -498,7 +498,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
                   stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray="4 4"/>
                 <text x={pLeft - 45} y={yy} dominantBaseline="central"
                   textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
-                  {Math.round(val)}
+                  {val >= 1000 ? `${(val/1000).toFixed(1)}k` : val.toFixed(1)}
                 </text>
               </g>
             );
@@ -508,7 +508,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           <text x={40} y={pTop + (h - pTop - pBottom) / 2}
             transform={`rotate(-90, 40, ${pTop + (h - pTop - pBottom) / 2})`}
             textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
-            {isRtl ? 'معدل استهلاك الموارد (%)' : 'Resource Consumption (%)'}
+            {isRtl ? 'الاستهلاك' : 'Usage'}
           </text>
 
           {/* Area fills */}
@@ -527,7 +527,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           {data.map((d, i) => {
             const xx = getX(i);
             const isHov = hoveredIdx === i;
-            const step = Math.max(1, Math.floor(n / 8));
+            const step = Math.max(1, Math.floor(n / 6));
             const showLabel = i % step === 0;
 
             return (
@@ -544,18 +544,18 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
                     <circle cx={xx} cy={getY(d.power)} r={5}
                       fill="#f59e0b" stroke="white" strokeWidth="2"/>
                     <rect x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65))} y={pTop + 10}
-                      width={130} height={70} rx="10" fill="#111827"
+                      width={130} height={60} rx="10" fill="#111827"
                       filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
-                      y={pTop + 30} textAnchor="middle" fontSize="13" fill="#94a3b8" fontWeight="bold">
+                      y={pTop + 32} textAnchor="middle" fontSize="13" fill="#94a3b8" fontWeight="bold">
                       {d.label}
                     </text>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
-                      y={pTop + 50} textAnchor="middle" fontSize="14" fill="#3b82f6" fontWeight="900">
+                      y={pTop + 48} textAnchor="middle" fontSize="14" fill="#3b82f6" fontWeight="900">
                       {d.water.toFixed(2)} L
                     </text>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
-                      y={pTop + 70} textAnchor="middle" fontSize="14" fill="#f59e0b" fontWeight="900">
+                      y={pTop + 64} textAnchor="middle" fontSize="14" fill="#f59e0b" fontWeight="900">
                       {d.power.toFixed(3)} kWh
                     </text>
                   </g>
