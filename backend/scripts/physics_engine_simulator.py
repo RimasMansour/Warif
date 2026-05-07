@@ -148,7 +148,7 @@ def calculate_lux(is_day, cloudcover):
 # --- Simulation Registry ---
 # Only these farms will be managed by the physics engine.
 # Remove a Farm ID from this list when you connect real hardware to it.
-SIMULATED_FARM_IDS = [3, 4, 5, 6, 7, 12, 14, 19, 20]
+SIMULATED_FARM_IDS = [20]
 
 async def process_farm(db, farm, ext_temp, ext_hum, lux):
     fid = farm.id
