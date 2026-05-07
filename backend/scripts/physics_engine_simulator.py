@@ -462,13 +462,20 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
         print(f"[ALERT ERROR] Farm {fid}: {alert_err}")
     # === END SMART ALERTS ===
 
-    water_consumed = 0.0
+    # Water from irrigation pump
+    irrigation_water = (PUMP_FLOW_L_PER_MIN / 60.0) * INTERVAL if pump_on else 0.0
+    # Water from evaporative cooler (5 L/hr = 0.0833 L/min)
+    COOLER_WATER_L_PER_MIN = 5.0 / 60.0
+    cooler_water = COOLER_WATER_L_PER_MIN * INTERVAL if state["cooler_on"] else 0.0
+    water_consumed = irrigation_water + cooler_water
+
     energy_consumed = 0.0
 
     if pump_on:
         # Water flow per tick
         # Ref: FAO Paper 56 - drip irrigation flow rates
-        water_consumed = (PUMP_FLOW_L_PER_MIN / 60.0) * INTERVAL
+        # (water_consumed already calculated above)
+
         energy_consumed += (PUMP_POWER_KW / 3600.0) * INTERVAL
         # Soil moisture increase adjusted by crop water demand
         gain = SOIL_MOISTURE_GAIN_PER_TICK * profile["water_demand"]
