@@ -126,7 +126,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
   const waterUsage  = resourceData?.water_usage_liters ?? 0;
   const powerUsage  = resourceData?.power_usage_kwh ?? 0;
 
-  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const historyLimit = range === 'D' ? 288 : range === 'W' ? 6000 : range === 'M' ? 15000 : 365;
   const { data: rawWater } = useSensorHistory('water_usage', historyLimit);
   const { data: rawPower } = useSensorHistory('power_usage', historyLimit);
 
@@ -169,10 +169,12 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     // Function to map a timestamp to the correct fixed index
     const getIndex = (ts) => {
       const d = new Date(ts);
-      if (range === 'D') return d.getHours();
-      if (range === 'W') return d.getDay(); // 0=Sun, 6=Sat
-      if (range === 'M') return Math.min(targetLen - 1, d.getDate() - 1);
-      if (range === 'Y') return d.getMonth();
+      const localHour = (d.getUTCHours() + 3) % 24;
+      const localDate = new Date(d.getTime() + 3 * 60 * 60 * 1000);
+      if (range === 'D') return localHour;
+      if (range === 'W') return localDate.getDay();
+      if (range === 'M') return Math.min(targetLen - 1, localDate.getDate() - 1);
+      if (range === 'Y') return localDate.getMonth();
       return -1;
     };
 

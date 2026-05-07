@@ -387,18 +387,18 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
     { key: 'Y', label: T.yearLabel },
   ];
 
-  const h = 380; 
-  const pLeft = 80; 
+  const h = 360; 
+  const pLeft = 120; 
   const pRight = 80;
-  const pTop = 30; 
-  const pBottom = 60; 
+  const pTop = 24; 
+  const pBottom = 82; 
   
   const n = data.length;
-  const w = 900; 
+  const w = 860; 
   const segmentW = (w - pLeft - pRight) / (n - 1 || 1);
 
   const allValues = data.flatMap(d => [d.water || 0, d.power || 0]);
-  const yMax = 100; 
+  const yMax = Math.max(...allValues, 1); 
   const getY = (v) => h - pBottom - (v / (yMax || 1)) * (h - pTop - pBottom);
   const getX = (i) => pLeft + i * segmentW;
 
@@ -442,7 +442,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
             <span className="text-xl font-black text-gray-800 tracking-tight">
               {(data.reduce((a, b) => a + (b.water + b.power)/2, 0) / n).toFixed(1)}
             </span>
-            <span className="text-[12px] font-bold text-gray-400 font-black">٪</span>
+            <span className="text-[12px] font-bold text-gray-400 font-black">avg</span>
           </div>
           <div className="text-xs font-black text-emerald-600 mt-1 uppercase tracking-tighter">{T.periodAverage}</div>
         </div>
@@ -473,118 +473,109 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
         </div>
       </div>
 
-      <div className="w-full max-w-full mx-auto relative">
-        <svg width="100%" height={260} viewBox={`-100 0 1000 420`} preserveAspectRatio="xMidYMid meet" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
+      <div className="w-full" onMouseLeave={() => setHoveredIdx(null)}>
+        <svg width="100%" viewBox={`0 0 ${w} ${h}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="block overflow-visible">
           <defs>
-            <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#3B82F6" stopOpacity="0" />
+            <linearGradient id="waterAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25"/>
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02"/>
             </linearGradient>
-            <linearGradient id="powerGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FACC15" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#FACC15" stopOpacity="0" />
+            <linearGradient id="powerAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.2"/>
+              <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.02"/>
             </linearGradient>
           </defs>
 
-          {/* Vertical Y Label */}
-          <text 
-            x={- (h-pBottom)/2 - pTop} y={15} 
-            transform="rotate(-90)" textAnchor="middle" 
-            fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.6"
-          >
-            {isRtl ? 'معدل استهلاك الموارد (%)' : 'Resource Consumption (%)'}
-          </text>
-
-          {/* Horizontal X Label */}
-          <text 
-            x={pLeft + (w-pLeft-pRight)/2} y={h - pBottom + 70} 
-            textAnchor="middle" fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.6"
-          >
-            {isRtl ? 'الوقت' : 'Time'}
-          </text>
-          
-          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
-          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#E2E8F0" strokeWidth="4" />
-
-          {[0, 0.25, 0.5, 0.75, 1].map(i => {
-              const v = yMax * i;
-              const yy = getY(v);
-              return (
-                <g key={i}>
-                <line x1={pLeft} x2={w-pRight} y1={yy} y2={yy} stroke="#F1F5F9" strokeWidth="1.5" strokeDasharray="6 6" />
-                <text x={pLeft - 30} y={yy} dominantBaseline="central" textAnchor="end" fontSize="18" fontWeight="black" fill="#94A3B8">
-                  {Math.round(v)}
+          {/* Y axis grid lines */}
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+            const val = yMax * ratio;
+            const yy = getY(val);
+            return (
+              <g key={idx}>
+                <line x1={pLeft} x2={w - pRight} y1={yy} y2={yy}
+                  stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray="4 4"/>
+                <text x={pLeft - 8} y={yy} dominantBaseline="central"
+                  textAnchor="end" fontSize="18" fill="#94a3b8" fontWeight="bold">
+                  {val >= 1000 ? `${(val/1000).toFixed(1)}k` : val.toFixed(1)}
                 </text>
               </g>
-              );
+            );
           })}
 
-          {/* Area Gradients */}
-          <path d={getAreaPath('water')} fill="url(#waterGrad)" />
-          <path d={getAreaPath('power')} fill="url(#powerGrad)" />
-          
-          {/* Main Lines */}
-          <path d={getPath('water')} fill="none" stroke="var(--status-info)" strokeWidth="4.5" strokeLinecap="round" />
-          <path d={getPath('power')} fill="none" stroke="#EAB308" strokeWidth="4.5" strokeLinecap="round" />
+          {/* Y axis label */}
+          <text x={20} y={pTop + (h - pTop - pBottom) / 2}
+            transform={`rotate(-90, 20, ${pTop + (h - pTop - pBottom) / 2})`}
+            textAnchor="middle" fontSize="20" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'الاستهلاك' : 'Usage'}
+          </text>
 
+          {/* Area fills */}
+          <path d={getAreaPath('water')} fill="url(#waterAreaGrad)"/>
+          <path d={getAreaPath('power')} fill="url(#powerAreaGrad)"/>
+
+          {/* Lines */}
+          <path d={getPath('water')} fill="none"
+            stroke="#3b82f6" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round"/>
+          <path d={getPath('power')} fill="none"
+            stroke="#f59e0b" strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round"/>
+
+          {/* Hover dots + tooltips */}
           {data.map((d, i) => {
             const xx = getX(i);
-            const isHovered = hoveredIdx === i;
-            
-            let showLabel = false;
-            const step = Math.max(1, Math.ceil(n / 7)); // Shows approx 7 labels regardless of data points
-            if (i % step === 0) showLabel = true;
-
-            const tW = 175; // Increased width for better legibility
-            const tH = 100; 
-            const tX = Math.max(0, Math.min(w - tW, xx - tW / 2));
-            const topY = Math.min(getY(d.water), getY(d.power));
-            const tY = Math.max(-50, topY - tH - 40); 
+            const isHov = hoveredIdx === i;
+            const step = Math.max(1, Math.floor(n / 6));
+            const showLabel = i % step === 0;
 
             return (
-              <g key={i}>
-                <rect x={xx - segmentW/2} y={pTop} width={segmentW} height={h-pTop-pBottom} fill="transparent" onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer" />
-                {showLabel && (
-                  <text x={xx} y={h - pBottom + 28} textAnchor="middle" fontSize="16" fill="#94A3B8" fontWeight="black">{d.label}</text>
-                )}
-                {isHovered && (
-                  <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-                    <line x1={xx} y1={pTop} x2={xx} y2={h-pBottom} stroke="#E2E8F0" strokeWidth="2" strokeDasharray="4 4" />
-                    
-                    <foreignObject x={tX} y={tY} width={tW} height={tH + 35}>
-                      <div 
-                        className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-[22px] border border-white/10 shadow-2xl flex flex-col gap-2.5"
-                        style={{ direction: isRtl ? 'rtl' : 'ltr' }}
-                      >
-                        <div className={`flex items-center mb-0.5 border-b border-white/10 pb-2 ${isRtl ? 'justify-start' : 'justify-end'}`}>
-                          <span className="text-[16px] font-black text-slate-400 tracking-wide uppercase">{d.label}</span>
-                        </div>
-                        
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
-                            <span className="text-[16px] font-black text-slate-200">{T.waterLabel}</span>
-                          </div>
-                          <span className="text-[20px] font-black text-blue-400 tracking-tighter">{d.water.toFixed(1)}٪</span>
-                        </div>
+              <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
+                <rect x={xx - segmentW/2} y={pTop} width={segmentW} height={h - pTop - pBottom}
+                  fill="transparent" className="cursor-pointer"/>
 
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-3 h-3 rounded-full bg-[#EAB308] shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
-                            <span className="text-[16px] font-black text-slate-200">{T.powerLabel}</span>
-                          </div>
-                          <span className="text-[20px] font-black text-yellow-400 tracking-tighter">{d.power.toFixed(1)}٪</span>
-                        </div>
-                      </div>
-                    </foreignObject>
-
-                    <circle cx={xx} cy={getY(d.water)} r="6" fill="#3b82f6" stroke="white" strokeWidth="2.5" />
-                    <circle cx={xx} cy={getY(d.power)} r="6" fill="#EAB308" stroke="white" strokeWidth="2.5" />
+                {isHov && (
+                  <g pointerEvents="none">
+                    <line x1={xx} y1={pTop} x2={xx} y2={h - pBottom}
+                      stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 3" opacity="0.7"/>
+                    <circle cx={xx} cy={getY(d.water)} r={5}
+                      fill="#3b82f6" stroke="white" strokeWidth="2"/>
+                    <circle cx={xx} cy={getY(d.power)} r={5}
+                      fill="#f59e0b" stroke="white" strokeWidth="2"/>
+                    <rect x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65))} y={pTop + 10}
+                      width={130} height={60} rx="10" fill="#111827"
+                      filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
+                    <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
+                      y={pTop + 32} textAnchor="middle" fontSize="13" fill="#94a3b8" fontWeight="bold">
+                      {d.label}
+                    </text>
+                    <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
+                      y={pTop + 48} textAnchor="middle" fontSize="14" fill="#3b82f6" fontWeight="900">
+                      {d.water.toFixed(2)} L
+                    </text>
+                    <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
+                      y={pTop + 64} textAnchor="middle" fontSize="14" fill="#f59e0b" fontWeight="900">
+                      {d.power.toFixed(3)} kWh
+                    </text>
                   </g>
+                )}
+
+                {showLabel && (
+                  <text x={xx} y={h - pBottom + 20}
+                    textAnchor="middle" fontSize="18" fill="#94a3b8" fontWeight="bold">
+                    {d.label}
+                  </text>
                 )}
               </g>
             );
           })}
+
+          {/* Axes */}
+          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom}
+            stroke="#e2e8f0" strokeWidth="2"/>
+          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom}
+            stroke="#e2e8f0" strokeWidth="2"/>
         </svg>
       </div>
     </CardShell>
