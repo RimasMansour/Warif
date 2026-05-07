@@ -2,6 +2,7 @@
 from typing import Optional, List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -10,6 +11,10 @@ from src.db.models.models import Alert, AlertStatus
 from src.api.schemas.schemas import AlertOut
 
 router = APIRouter()
+
+
+class AlertFeedbackRequest(BaseModel):
+    helpful: bool
 
 
 @router.get("", response_model=List[dict])
@@ -71,6 +76,32 @@ async def resolve_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
     alert.resolved_at = datetime.now(timezone.utc)
     await db.flush()
     return alert
+
+
+@router.post("/{alert_id}/feedback")
+async def submit_alert_feedback(
+    alert_id: int,
+    feedback: AlertFeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    حفظ تقييم المستخدم على التنبيه (مفيد أم إزعاج).
+    هذا الفيدباك يُستخدم لتحسين نظام اكتشاف الشذوذ والتنبيهات.
+
+    Request body: {"helpful": true/false}
+    """
+    alert = await _get_or_404(alert_id, db)
+    alert.helpful = feedback.helpful
+    await db.commit()
+    await db.refresh(alert)
+
+    print(f"[Alert Feedback] التنبيه {alert_id}: {'✅ مفيد' if feedback.helpful else '❌ إزعاج'}")
+
+    return {
+        "id": alert.id,
+        "helpful": alert.helpful,
+        "message": "Alert feedback recorded successfully"
+    }
 
 
 async def _get_or_404(alert_id: int, db: AsyncSession) -> Alert:

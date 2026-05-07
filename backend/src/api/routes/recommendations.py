@@ -25,12 +25,13 @@ async def list_recommendations(
     farm_id: int,
     category: Optional[str] = Query(None, description="irrigation | temperature | humidity | soil | general"),
     severity: Optional[str] = Query(None, description="normal | warning | urgent"),
+    type: Optional[str] = Query(None, description="urgent | improvement"),
     unread_only: bool = Query(False),
     limit: int = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """List recommendations for a farm, filterable by category and severity."""
+    """List recommendations for a farm, filterable by category, severity, and type."""
     await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
 
     q = (
@@ -43,6 +44,10 @@ async def list_recommendations(
         q = q.where(Recommendation.category == category)
     if severity:
         q = q.where(Recommendation.severity == severity)
+    if type == "urgent":
+        q = q.where((Recommendation.is_alert == True) | (Recommendation.severity.in_(["urgent", "warning"])))
+    elif type == "improvement":
+        q = q.where((Recommendation.is_alert == False) & (Recommendation.severity == "normal"))
     if unread_only:
         q = q.where(Recommendation.is_read == False)
 

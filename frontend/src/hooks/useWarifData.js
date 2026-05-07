@@ -586,3 +586,65 @@ export function useDevices(providedFarmId = null) {
 
   return { devices, counts, loading };
 }
+
+export async function submitRecommendationFeedback(farmId, recId, helpful) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/feedback/${recId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ helpful })
+    });
+    if (!res.ok) throw new Error('Feedback submission failed');
+    const data = await res.json();
+    console.log('[Warif] Feedback submitted:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Feedback error:', err);
+    return null;
+  }
+}
+
+export async function executeRecommendation(category, farmId, durationMin = 15) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  try {
+    if (category === 'irrigation') {
+      return await triggerManualIrrigation('start', farmId, durationMin);
+    } else if (category === 'temperature' || category === 'humidity') {
+      return await triggerManualCooling('full', farmId);
+    } else {
+      console.warn('[Warif] Unsupported recommendation category:', category);
+      return null;
+    }
+  } catch (err) {
+    console.error('[Warif] Execute recommendation error:', err);
+    return null;
+  }
+}
+
+export async function submitAlertFeedback(alertId, helpful) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/alerts/${alertId}/feedback`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ helpful })
+    });
+    if (!res.ok) throw new Error('Alert feedback submission failed');
+    const data = await res.json();
+    console.log('[Warif] Alert feedback submitted:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Alert feedback error:', err);
+    return null;
+  }
+}

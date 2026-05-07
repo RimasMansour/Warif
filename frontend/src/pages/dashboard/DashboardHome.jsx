@@ -12,18 +12,20 @@ import {
   WindSharedIcon,
   IrrigationSmartIcon,
   EmptyState,
-  getRecommendationTheme
+  getRecommendationTheme,
+  RecommendationCard,
+  AlertCard
 } from './DashboardShared';
-import { 
+import {
   Donut,
   SoilTrendChart
 } from './DashboardCharts';
-import { 
-  formatLastUpdated, 
+import {
+  formatLastUpdated,
   generateDataForRange,
   getLabelForRange
 } from './dashboardUtils';
-import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources } from '../../hooks/useWarifData';
+import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources, submitRecommendationFeedback, executeRecommendation, submitAlertFeedback } from '../../hooks/useWarifData';
 
 // Liquid Wave Animation Styles
 const waveStyles = `
@@ -217,27 +219,9 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
     setShowAlertThanks(prev => [...prev, id]);
     setTimeout(() => setShowAlertThanks(prev => prev.filter(i => i !== id)), 2000);
 
-    // إرسال الفيدباك إلى الـ Backend
-    try {
-      const helpful = type === 'up';
-      const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
-      const farmId = userData.farmId;
-      const token = localStorage.getItem('warif_token');
-
-      if (farmId && token) {
-        const API_BASE = import.meta.env.VITE_API_URL || '';
-        await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/feedback/${id}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ helpful: helpful })
-        });
-      }
-    } catch (err) {
-      console.error('Feedback submission error:', err);
-    }
+    // إرسال الفيدباك إلى الـ Backend - للـ alerts (ليس recommendations)
+    const helpful = type === 'up';
+    await submitAlertFeedback(id, helpful);
   };
 
   // Map sensor types to categories
@@ -442,7 +426,7 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
           <>
             {/* كل الانذارات مرتبة حسب الشدة */}
             {[...urgentAlerts, ...warningAlerts].map((alert, i) => (
-              <AlertItem key={alert.id || i} onGo={onGo} alert={alert} isEn={isEn} getAlertTheme={getAlertTheme} getSensorCategory={getSensorCategory} getAlertAnalysis={getAlertAnalysis} getAlertAction={getAlertAction} onFeedback={handleAlertFeedback} globalAutoMode={globalAutoMode} alertFeedback={alertFeedback} showAlertThanks={showAlertThanks} />
+              <AlertCard key={alert.id || i} alert={alert} isEn={isEn} globalAutoMode={globalAutoMode} onAccept={onAccept} onFeedback={handleAlertFeedback} feedbackState={alertFeedback} showThanks={showAlertThanks} />
             ))}
           </>
         )}
@@ -451,16 +435,20 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
   );
 }
 
-function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAlertAnalysis, getAlertAction, onFeedback, globalAutoMode, alertFeedback, showAlertThanks }) {
+function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAlertAnalysis, getAlertAction, onFeedback, globalAutoMode, alertFeedback, showAlertThanks, onAccept }) {
   const isRtl = !isEn;
-  const isManualMode = !globalAutoMode; 
+  const isManualMode = !globalAutoMode;
 
-  const category = 
-    alert.sensor_type?.includes('temperature') || 
+  const category =
+    alert.sensor_type?.includes('temperature') ||
     alert.sensor_type?.includes('humidity') ? 'climate' :
     alert.sensor_type?.includes('soil') ? 'soil' :
-    alert.sensor_type?.includes('water') || 
+    alert.sensor_type?.includes('water') ||
     alert.sensor_type?.includes('irrigation') ? 'irrigation' : 'system';
+
+  const actionType =
+    category === 'climate' ? 'cool' :
+    category === 'irrigation' ? 'irrigate' : 'irrigate';
 
   const categoryLabel = isEn
     ? (category === 'climate' ? 'Climate & Ventilation' :
@@ -505,12 +493,12 @@ function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAle
       {isManualMode ? (
         <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
           <button
-            onClick={() => {}} 
+            onClick={() => onAccept?.(alert.id, actionType)}
             className="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white font-black text-xs hover:bg-emerald-700 transition-colors active:scale-95">
             {isEn ? 'Confirm Action' : 'تأكيد الإجراء'}
           </button>
           <button
-            onClick={() => {}} 
+            onClick={() => {}}
             className="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-500 font-black text-xs hover:bg-gray-200 transition-colors active:scale-95">
             {isEn ? 'Ignore' : 'تجاهل'}
           </button>
@@ -894,23 +882,8 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
 
     // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
-    try {
-      const helpful = type === 'up';
-      const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/api/v1/recommendations/${farmId}/feedback/${id}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          },
-          body: JSON.stringify({ helpful })
-        }
-      );
-      if (!response.ok) console.error('Failed to save feedback');
-    } catch (err) {
-      console.error('Error sending feedback:', err);
-    }
+    const helpful = type === 'up';
+    await submitRecommendationFeedback(farmId, id, helpful);
   };
 
   const handleRecommendationDecision = (id, decision) => {
@@ -990,112 +963,38 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
 
       <div className="flex-1 mt-4 overflow-y-auto max-h-[400px] pr-1 custom-scrollbar flex flex-col gap-3">
         {recommendations.length === 0 ? (
-          <EmptyState 
-            compact={true} 
-            title={isEn ? 'No active recommendations' : 'لا توجد توصيات نشطة'} 
+          <EmptyState
+            compact={true}
+            title={isEn ? 'No active recommendations' : 'لا توجد توصيات نشطة'}
             subtitle={isEn ? 'The system is monitoring for optimization opportunities.' : 'يقوم النظام بمراقبة الفرص المتاحة لتحسين الأداء.'}
             icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>}
           />
         ) : (
-          recommendations.map((rec, idx) => {
-            const status = interactedIds[rec.id];
-            if (status === 'later') return null;
-            const theme = getRecommendationTheme(rec.category, rec.title);
-
-            const borderRightClass = rec.category === 'irrigation' ? 'border-r-4 border-r-blue-500' :
-                                    rec.category === 'temperature' ? 'border-r-4 border-r-amber-500' :
-                                    rec.category === 'humidity' ? 'border-r-4 border-r-slate-400' :
-                                    'border-r-4 border-r-amber-400';
-
-            return (
-              <div key={rec.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
-                 <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-                    <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
-                        {theme.icon}
-                      </div>
-                      <div className="flex-1">
-                        <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-                          {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title}
-                        </h4>
-                      </div>
-                    </div>
-
-                    {rec.data_insight && (
-                      <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
-                        <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                        <div className="text-[11px] text-gray-800 leading-relaxed">{rec.data_insight}</div>
-                      </div>
-                    )}
-
-                    <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
-                      <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                      <div className="text-[11px] text-gray-800 leading-relaxed">{rec.suggestion || getRecActionText(rec)}</div>
-                    </div>
-
-                    {rec.benefit && (
-                      <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
-                        <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                        <div className="text-[11px] text-gray-800 leading-relaxed">{rec.benefit}</div>
-                      </div>
-                    )}
-
-                    {!globalAutoMode && (
-                      <div className="mt-2">
-                        {recommendationStatus[rec.id] ? (
-                          <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${recommendationStatus[rec.id] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                            {recommendationStatus[rec.id] === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                          </div>
-                        ) : (
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => handleRecommendationDecision(rec.id, 'accepted')}
-                              className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                            >
-                              {isEn ? 'Execute' : 'نفذ'}
-                            </button>
-                            <button 
-                              onClick={() => handleRecommendationDecision(rec.id, 'rejected')}
-                              className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-                            >
-                              {isEn ? 'Ignore' : 'تجاهل'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                 </div>
-
-                 {/* Feedback Section at the bottom */}
-                 <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
-                   <span className="text-[11px] font-bold text-gray-500">
-                     {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
-                   </span>
-                   <div className="flex items-center gap-2">
-                     <button
-                       onClick={() => handleFeedback(rec.id, 'down')}
-                       className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                       title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                     >
-                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                     </button>
-                     <button
-                       onClick={() => handleFeedback(rec.id, 'up')}
-                       className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                       title={isEn ? 'Helpful' : 'مفيدة'}
-                     >
-                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                     </button>
-                   </div>
-                   {showThanksIds.includes(rec.id) && (
-                     <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
-                       {isEn ? 'Thanks!' : 'شكراً!'}
-                     </div>
-                   )}
-                 </div>
-              </div>
-            );
-          })
+          recommendations.map((rec) => (
+            <RecommendationCard
+              key={rec.id}
+              rec={{
+                id: rec.id,
+                title: rec.title,
+                message: rec.suggestion || rec.title,
+                reasoning: rec.data_insight,
+                category: rec.category,
+                severity: rec.severity || 'normal'
+              }}
+              farmId={farmId}
+              globalAutoMode={globalAutoMode}
+              isEn={isEn}
+              onExecute={async (category, farmId) => {
+                await executeRecommendation(category, farmId);
+                handleRecommendationDecision(rec.id, 'accepted');
+              }}
+              onIgnore={() => handleRecommendationDecision(rec.id, 'rejected')}
+              onFeedback={handleFeedback}
+              feedbackState={feedback}
+              showThanks={showThanksIds}
+              compact={true}
+            />
+          ))
         )}
       </div>
 

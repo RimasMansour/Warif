@@ -1,9 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, getRecommendationTheme } from './DashboardShared';
+import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, getRecommendationTheme, RecommendationCard } from './DashboardShared';
 import { IrrigationActionButton, SustainabilityLineChart } from './DashboardCharts';
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations } from '../../hooks/useWarifData';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
 import { getLabelForRange } from './dashboardUtils';
 import { stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
 
@@ -277,101 +277,28 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
               </div>
               <div className="mt-6 flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                 {recommendations.length > 0 ? (
-                  recommendations.map((rec, i) => {
-                    const theme = getRecommendationTheme(rec.type, rec.title);
-                    const borderRightClass = rec.type === 'irrigation' ? 'border-r-4 border-r-blue-500' :
-                                            rec.type === 'temperature' ? 'border-r-4 border-r-amber-500' :
-                                            rec.type === 'humidity' ? 'border-r-4 border-r-slate-400' :
-                                            'border-r-4 border-r-amber-400';
-                    return (
-                    <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
-                       <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-                          <div className="flex items-start gap-3">
-                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
-                               {theme.icon}
-                             </div>
-                             <div className="flex-1">
-                               <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-                                 {isEn ? 'Recommendation:' : 'التوصية:'} {rec.title}
-                               </h4>
-                             </div>
-                          </div>
-
-                          {rec.reasoning && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
-                              <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                              <div className="text-[11px] text-gray-800 leading-relaxed">{rec.reasoning}</div>
-                            </div>
-                          )}
-
-                          <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
-                            <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                            <div className="text-[11px] text-gray-800 leading-relaxed">{rec.suggestion}</div>
-                          </div>
-
-                          {rec.benefit && (
-                            <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
-                              <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                              <div className="text-[11px] text-gray-800 leading-relaxed">{rec.benefit}</div>
-                            </div>
-                          )}
-
-                          {!globalAutoMode && (
-                            <div className="mt-2">
-                              {recommendationStatus[rec.id || i] ? (
-                                <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${recommendationStatus[rec.id || i] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                  {recommendationStatus[rec.id || i] === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                                </div>
-                              ) : (
-                                <div className="flex gap-2">
-                                  <button 
-                                    onClick={() => handleRecommendationDecision(rec.id || i, 'accepted')}
-                                    className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                                  >
-                                    {isEn ? 'Execute' : 'نفذ'}
-                                  </button>
-                                  <button 
-                                    onClick={() => handleRecommendationDecision(rec.id || i, 'rejected')}
-                                    className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-                                  >
-                                    {isEn ? 'Ignore' : 'تجاهل'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                       </div>
-
-                       {/* Feedback Section at the bottom */}
-                       <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
-                         <span className="text-[11px] font-bold text-gray-500">
-                           {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
-                         </span>
-                         <div className="flex items-center gap-2">
-                           <button
-                             onClick={() => handleFeedback(rec.id || i, 'down')}
-                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id || i] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                             title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                           >
-                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                           </button>
-                           <button
-                             onClick={() => handleFeedback(rec.id || i, 'up')}
-                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id || i] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                             title={isEn ? 'Helpful' : 'مفيدة'}
-                           >
-                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                           </button>
-                         </div>
-                         {showThanksIds.includes(rec.id || i) && (
-                           <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
-                             {isEn ? 'Thanks!' : 'شكراً!'}
-                           </div>
-                         )}
-                       </div>
-                    </div>
-                    );
-                  })
+                  recommendations.map((rec, i) => (
+                    <RecommendationCard
+                      key={rec.id || i}
+                      rec={{
+                        id: rec.id || i,
+                        title: rec.title || rec.text,
+                        message: rec.suggestion || rec.text,
+                        reasoning: rec.reasoning,
+                        category: rec.type || 'irrigation',
+                        severity: rec.severity || 'normal'
+                      }}
+                      farmId={farmId}
+                      globalAutoMode={globalAutoMode}
+                      isEn={isEn}
+                      onExecute={executeRecommendation}
+                      onIgnore={() => {}}
+                      onFeedback={handleFeedback}
+                      feedbackState={feedback}
+                      showThanks={showThanksIds}
+                      compact={false}
+                    />
+                  ))
                 ) : (
                   <EmptyState compact={true} title={T.noRecsTitle} subtitle={T.noRecsSub} />
                 )}

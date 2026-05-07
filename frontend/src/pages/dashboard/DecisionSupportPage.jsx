@@ -10,10 +10,11 @@ import {
   ListIcon,
   WindSharedIcon,
   EmptyState,
-  getRecommendationTheme
+  getRecommendationTheme,
+  RecommendationCard
 } from './DashboardShared';
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, useRecommendations } from '../../hooks/useWarifData';
+import { useLatestSensors, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
 
 export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
@@ -211,102 +212,28 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                 </div>
     
                 <div className="flex flex-col gap-4">
-                  {weekRecs.map((item, idx) => {
-                    const theme = getRecommendationTheme(item.type, item.title);
-                    const borderRightClass = item.type === 'irrigation' ? 'border-r-4 border-r-blue-500' :
-                                            item.type === 'temperature' ? 'border-r-4 border-r-amber-500' :
-                                            item.type === 'humidity' ? 'border-r-4 border-r-slate-400' :
-                                            'border-r-4 border-r-amber-400';
-                    return (
-                      <div key={item.id} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
-                        <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-                           <div className="flex items-start gap-3">
-                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
-                                {theme.icon}
-                              </div>
-                              <div className="flex-1">
-                                <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-                                  {isEn ? 'Recommendation:' : 'التوصية:'} {item.title}
-                                </h4>
-                              </div>
-                           </div>
-
-                           {item.reasoning && (
-                             <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
-                               <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                               <div className="text-[11px] text-gray-800 leading-relaxed">{item.reasoning}</div>
-                             </div>
-                           )}
-
-                           <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
-                             <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                             <div className="text-[11px] text-gray-800 leading-relaxed">{item.suggestion || item.title}</div>
-                           </div>
-
-                           {item.benefit && (
-                             <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
-                               <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                               <div className="text-[11px] text-gray-800 leading-relaxed">{item.benefit}</div>
-                             </div>
-                           )}
-
-                           {/* Action Interface */}
-                           {!globalAutoMode && (
-                             <div className="mt-2">
-                               {item.status === 'pending' ? (
-                                 <div className="flex gap-2">
-                                   <button
-                                     onClick={() => handleDecision(item.id, 'accepted')}
-                                     className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                                   >
-                                     {isEn ? 'Execute' : 'نفذ'}
-                                   </button>
-                                   <button
-                                     onClick={() => handleDecision(item.id, 'rejected')}
-                                     className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-                                   >
-                                     {isEn ? 'Ignore' : 'تجاهل'}
-                                   </button>
-                                 </div>
-                               ) : (
-                                 <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${item.status === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                   {item.status === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                                 </div>
-                               )}
-                             </div>
-                           )}
-                        </div>
-
-                        {/* Feedback Section at the bottom */}
-                        <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
-                          <span className="text-[11px] font-bold text-gray-500">
-                            {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleFeedback(item.id, 'down')}
-                              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                              title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                            </button>
-                            <button
-                              onClick={() => handleFeedback(item.id, 'up')}
-                              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${item.feedback === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                              title={isEn ? 'Helpful' : 'مفيدة'}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                            </button>
-                          </div>
-                          {showThanksIds.includes(item.id) && (
-                            <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
-                              {T.thanks}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {weekRecs.map((item, idx) => (
+                    <RecommendationCard
+                      key={item.id}
+                      rec={{
+                        id: item.id,
+                        title: item.title,
+                        message: item.suggestion || item.title,
+                        reasoning: item.reasoning,
+                        category: item.type || 'irrigation',
+                        severity: item.severity || 'normal'
+                      }}
+                      farmId={farmId}
+                      globalAutoMode={globalAutoMode}
+                      isEn={isEn}
+                      onExecute={executeRecommendation}
+                      onIgnore={() => {}}
+                      onFeedback={handleFeedback}
+                      feedbackState={{}}
+                      showThanks={showThanksIds}
+                      compact={false}
+                    />
+                  ))}
                 </div>
               </div>
             );
