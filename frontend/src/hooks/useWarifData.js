@@ -658,3 +658,36 @@ export async function submitAlertFeedback(alertId, helpful) {
     return null;
   }
 }
+
+export function useActivityLogs(farmId, limit = 20) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchLogs = useCallback(async () => {
+    try {
+      if (!farmId) { setLoading(false); return; }
+      const token = localStorage.getItem('warif_token');
+      const API_BASE = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(
+        `${API_BASE}/api/v1/logs?farm_id=${farmId}&limit=${limit}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!res.ok) throw new Error('Failed to fetch logs');
+      const data = await res.json();
+      setLogs(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Logs fetch error:', err);
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [farmId, limit]);
+
+  useEffect(() => {
+    fetchLogs();
+    const id = setInterval(fetchLogs, 30000);
+    return () => clearInterval(id);
+  }, [fetchLogs]);
+
+  return { logs, loading, refetch: fetchLogs };
+}

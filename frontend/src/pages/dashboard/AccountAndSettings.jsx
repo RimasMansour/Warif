@@ -15,6 +15,7 @@ import { guides } from './GuidesContent';
 import { updateUser, getMe, deleteAccount, getFarms, createFarm } from '../../services/api';
 import { fetchWithRetry, getAuthHeaders, apiConfig } from '../../config/api';
 import { useEffect } from 'react';
+import { useActivityLogs } from '../../hooks/useWarifData';
 
 export function AccountAndSettingsPages({ 
   initialPage = "profile", 
@@ -47,11 +48,15 @@ export function AccountAndSettingsPages({
   const [showAddFarm, setShowAddFarm] = useState(false);
   const [newFarmName, setNewFarmName] = useState('');
   const [newFarmType, setNewFarmType] = useState('greenhouse');
-  const [newFarmPlants, setNewFarmPlants] = useState(['tomatoes']);
+  const [newFarmPlants, setNewFarmPlants] = useState(['cucumber']);
   const [addFarmLoading, setAddFarmLoading] = useState(false);
   const [addFarmError, setAddFarmError] = useState('');
 
   const [farmDraftPlants, setFarmDraftPlants] = useState(['tomatoes']);
+  const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
+  const currentFarmId = sessionFarms[0]?.id || null;
+  const { logs, loading: logsLoading } = useActivityLogs(currentFarmId, 20);
+  const [showLogsModal, setShowLogsModal] = useState(false);
 
   const triggerToast = (msg) => {
     setToastMsg(msg || (isEn ? '✓ Saved successfully' : '✓ تم الحفظ بنجاح'));
@@ -405,6 +410,7 @@ export function AccountAndSettingsPages({
         
         setNewFarmName('');
         setNewFarmType('greenhouse');
+        setNewFarmPlants(['cucumber']);
         setShowAddFarm(false);
         triggerToast();
       }
@@ -650,6 +656,24 @@ export function AccountAndSettingsPages({
               </div>
 
               <div className="animate-fade-in-up delay-2">
+                <button
+                  onClick={() => setShowLogsModal(true)}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gray-50 border border-gray-200 hover:bg-emerald-50 hover:border-emerald-200 transition-colors group"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-gray-400 group-hover:text-emerald-600 transition-colors">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                  </svg>
+                  <span className="text-sm font-black text-gray-600 group-hover:text-emerald-700 transition-colors">
+                    {isEn ? 'Activity Log' : 'سجل النشاط'}
+                  </span>
+                </button>
+              </div>
+
+              <div className="animate-fade-in-up delay-3">
                 <Account_Card className="card-interactive">
                   <div className={`flex items-center justify-between mb-6`}>
                     <div className={isRtl ? 'text-right' : 'text-left'}>
@@ -688,14 +712,14 @@ export function AccountAndSettingsPages({
               </div>
 
               {/* My Greenhouses Section */}
-              <div className="animate-fade-in-up delay-3">
+              <div className="animate-fade-in-up delay-4">
                 <Account_Card className="card-interactive">
                   <div className="flex items-center justify-between mb-5 pb-2 border-b border-gray-50">
                     <div className={isRtl ? 'text-right' : 'text-left'}>
                       <div className="text-lg font-bold text-gray-800 tracking-tight">{isEn ? 'My Greenhouses' : 'محمياتي'}</div>
                       <div className="text-[12px] font-medium text-gray-400 mt-1">{isEn ? 'Manage your registered farm locations' : 'إدارة مواقع المحميات المسجلة'}</div>
                     </div>
-                    <button onClick={() => { setShowAddFarm(true); setAddFarmError(''); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-black flex items-center gap-2 transition-all shadow-md shadow-emerald-100">
+                    <button onClick={() => { setShowAddFarm(true); setAddFarmError(''); setNewFarmPlants(['cucumber']); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-black flex items-center gap-2 transition-all shadow-md shadow-emerald-100">
                       <Account_PlusIcon stroke="#fff" /> {isEn ? 'Add' : 'إضافة'}
                     </button>
                   </div>
@@ -807,29 +831,26 @@ export function AccountAndSettingsPages({
                                   </label>
                                   <div className="grid grid-cols-2 gap-2 mt-2">
                                     {[
-                                      { key: 'tomatoes', label: translations[lang].plantTomatoes, icon: '🍅' },
                                       { key: 'cucumber', label: translations[lang].plantCucumber, icon: '🥒' },
+                                      { key: 'tomatoes', label: translations[lang].plantTomatoes, icon: '🍅' },
                                       { key: 'pepper', label: translations[lang].plantPepper, icon: '🫑' },
                                       { key: 'herbs', label: translations[lang].plantHerbs, icon: '🌿' },
                                       { key: 'other', label: translations[lang].plantOther, icon: '🌱' }
                                     ].map(p => {
                                       const isSelected = newFarmPlants.includes(p.key);
+                                      const isCucumber = p.key === 'cucumber';
                                       return (
                                         <button
                                           key={p.key}
-                                          onClick={() => {
-                                            setNewFarmPlants(prev => {
-                                              if (prev.includes(p.key)) {
-                                                if (prev.length === 1) return prev;
-                                                return prev.filter(k => k !== p.key);
-                                              }
-                                              return [...prev, p.key];
-                                            });
-                                          }}
+                                          disabled={!isCucumber}
+                                          onClick={isCucumber ? () => {
+                                            setNewFarmPlants(['cucumber']);
+                                          } : undefined}
                                           className={`flex items-center gap-2 p-3 rounded-2xl border-2 transition-all text-xs font-bold
                                             ${isSelected 
                                               ? 'bg-emerald-50 border-emerald-500 text-emerald-900 shadow-sm' 
-                                              : 'bg-white border-gray-100 text-gray-500 hover:border-emerald-200'}`}
+                                              : 'bg-white border-gray-100 text-gray-500 hover:border-emerald-200'}
+                                            ${!isCucumber ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
                                         >
                                           <span className="text-lg">{p.icon}</span>
                                           <span className="truncate">{p.label}</span>
@@ -1184,6 +1205,177 @@ export function AccountAndSettingsPages({
             )}
           </div>
         </Account_ModalShell>
+      )}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+          onClick={() => setShowLogsModal(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]"
+            onClick={e => e.stopPropagation()}>
+
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100" dir="ltr">
+              <button onClick={() => setShowLogsModal(false)}
+                className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+              <div className={`${isRtl ? 'text-right ml-auto' : 'text-left'}`}>
+                <h3 className="text-base font-black text-gray-800">
+                  {isEn ? 'Activity Log' : 'سجل النشاط'}
+                </h3>
+                <p className="text-xs text-gray-400 font-bold mt-0.5">
+                  {isEn ? 'Last 20 system activities' : 'آخر 20 نشاط في النظام'}
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-1">
+              {logsLoading && (
+                <p className="text-xs text-gray-400 text-center py-6 animate-pulse">
+                  {isEn ? 'Loading...' : 'جاري التحميل...'}
+                </p>
+              )}
+              {!logsLoading && logs.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-6">
+                  {isEn ? 'No activity yet' : 'لا يوجد نشاط بعد'}
+                </p>
+              )}
+              {!logsLoading && logs.map((log, i) => {
+                const actionLabels = {
+                  irrigation_start: isEn ? 'Irrigation started' : 'بدء الري',
+                  irrigation_stop: isEn ? 'Irrigation stopped' : 'إيقاف الري',
+                  irrigation_auto_start: isEn ? 'Auto irrigation started' : 'بدء الري التلقائي',
+                  irrigation_auto_stop: isEn ? 'Auto irrigation stopped' : 'إيقاف الري التلقائي',
+                  cooler_auto_on: isEn ? 'Cooler activated' : 'تشغيل المبرد',
+                  cooler_auto_off: isEn ? 'Cooler stopped' : 'إيقاف المبرد',
+                  fan_auto_on: isEn ? 'Fan activated' : 'تشغيل المروحة',
+                  fan_auto_off: isEn ? 'Fan stopped' : 'إيقاف المروحة',
+                  pump_on: isEn ? 'Pump started' : 'تشغيل المضخة',
+                  pump_off: isEn ? 'Pump stopped' : 'إيقاف المضخة',
+                };
+
+                const getIcon = (type) => {
+                  if (type?.includes('fan')) return (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/>
+                      <path d="M12 12l-3 -10c5.4 1.1 9 5.9 9 10"/>
+                      <path d="M12 12l-10 3c1.1 -5.4 5.9 -9 10 -9"/>
+                      <path d="M12 12l3 10c-5.4 -1.1 -9 -5.9 -9 -10"/>
+                      <path d="M12 12l10 -3c-1.1 5.4 -5.9 9 -10 9"/>
+                    </svg>
+                  );
+                  if (type?.includes('cool') || type?.includes('cooler')) return (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <line x1="12" y1="2" x2="12" y2="22"/>
+                      <path d="M12 7l-5 3"/>
+                      <path d="M12 7l5 3"/>
+                      <path d="M12 17l-5 -3"/>
+                      <path d="M12 17l5 -3"/>
+                      <path d="M7 4l2 2"/>
+                      <path d="M17 4l-2 2"/>
+                      <path d="M7 20l2 -2"/>
+                      <path d="M17 20l-2 -2"/>
+                    </svg>
+                  );
+                  if (type?.includes('irrigation') || type?.includes('pump')) return (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                    </svg>
+                  );
+                  return (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="3"/>
+                      <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+                    </svg>
+                  );
+                };
+
+                const getIconColor = (type) => {
+                  if (type?.includes('fan')) return 'bg-blue-50 text-blue-500 border-blue-100';
+                  if (type?.includes('cool') || type?.includes('cooler')) return 'bg-cyan-50 text-cyan-500 border-cyan-100';
+                  if (type?.includes('irrigation') || type?.includes('pump')) return 'bg-emerald-50 text-emerald-500 border-emerald-100';
+                  return 'bg-gray-50 text-gray-500 border-gray-100';
+                };
+
+                const label = actionLabels[log.action_type] || log.action_type;
+                const isSystem = log.performed_by === 'system';
+                const date = new Date(log.created_at);
+                const diffMs = Date.now() - date.getTime();
+                const diffMin = Math.floor(diffMs / 60000);
+                const diffHr = Math.floor(diffMin / 60);
+                const timeStr = diffMin < 1 ? (isEn ? 'Just now' : 'الآن') :
+                  diffMin < 60 ? (isEn ? `${diffMin} min ago` : `منذ ${diffMin} د`) :
+                  diffHr < 24 ? (isEn ? `${diffHr}h ago` : `منذ ${diffHr} س`) :
+                  date.toLocaleDateString(isEn ? 'en' : 'ar-SA', { month: 'short', day: 'numeric' });
+
+                const fullDate = date.toLocaleTimeString(isEn ? 'en' : 'ar-SA',
+                  { hour: '2-digit', minute: '2-digit' });
+
+                return (
+                  <div key={log.id || i}
+                    className="flex items-center gap-3 py-3 px-2 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 rounded-xl transition-colors">
+                    {isRtl ? (
+                      <>
+                        <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${getIconColor(log.action_type)}`}>
+                          {getIcon(log.action_type)}
+                        </div>
+
+                        <div className="min-w-0 shrink-0 text-right">
+                          <p className="text-sm font-black text-gray-800 whitespace-nowrap">{label}</p>
+                        </div>
+
+                        <div className="min-w-0 shrink-0 text-right">
+                          <div className="flex items-center gap-2 whitespace-nowrap">
+                            <span className="text-xs text-gray-400 font-bold">{timeStr}</span>
+                            <span className="text-xs text-gray-300">•</span>
+                            <span className="text-xs text-gray-400">{fullDate}</span>
+                          </div>
+                        </div>
+
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 mr-auto
+                          ${isSystem
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                          {isSystem ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي')}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${getIconColor(log.action_type)}`}>
+                          {getIcon(log.action_type)}
+                        </div>
+
+                        <div className="flex-1 min-w-0 text-left">
+                          <p className="text-sm font-black text-gray-800 truncate">{label}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-gray-400 font-bold">{timeStr}</span>
+                            <span className="text-xs text-gray-300">•</span>
+                            <span className="text-xs text-gray-400">{fullDate}</span>
+                          </div>
+                        </div>
+
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0
+                          ${isSystem
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                          {isSystem ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي')}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
