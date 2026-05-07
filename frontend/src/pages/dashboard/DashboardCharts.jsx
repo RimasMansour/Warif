@@ -398,7 +398,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   const segmentW = (w - pLeft - pRight) / (n - 1 || 1);
 
   const allValues = data.flatMap(d => [d.water || 0, d.power || 0]);
-  const yMax = Math.max(...allValues, 1); 
+  const yMax = 100; 
   const getY = (v) => h - pBottom - (v / (yMax || 1)) * (h - pTop - pBottom);
   const getX = (i) => pLeft + i * segmentW;
 
@@ -473,10 +473,10 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
         </div>
       </div>
 
-      <div className="w-full" onMouseLeave={() => setHoveredIdx(null)}>
+      <div className="w-full max-w-[800px] mx-auto" style={{ maxHeight: '360px' }} onMouseLeave={() => setHoveredIdx(null)}>
         <svg width="100%" viewBox={`0 0 ${w} ${h}`}
           preserveAspectRatio="xMidYMid meet"
-          className="block overflow-visible">
+          className="block w-full h-auto overflow-visible">
           <defs>
             <linearGradient id="waterAreaGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.25"/>
@@ -496,19 +496,19 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
               <g key={idx}>
                 <line x1={pLeft} x2={w - pRight} y1={yy} y2={yy}
                   stroke="#f1f5f9" strokeWidth="1.5" strokeDasharray="4 4"/>
-                <text x={pLeft - 8} y={yy} dominantBaseline="central"
-                  textAnchor="end" fontSize="18" fill="#94a3b8" fontWeight="bold">
-                  {val >= 1000 ? `${(val/1000).toFixed(1)}k` : val.toFixed(1)}
+                <text x={pLeft - 45} y={yy} dominantBaseline="central"
+                  textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
+                  {Math.round(val)}
                 </text>
               </g>
             );
           })}
 
           {/* Y axis label */}
-          <text x={20} y={pTop + (h - pTop - pBottom) / 2}
-            transform={`rotate(-90, 20, ${pTop + (h - pTop - pBottom) / 2})`}
-            textAnchor="middle" fontSize="20" fill="#059669" fontWeight="900" opacity="0.6">
-            {isRtl ? 'الاستهلاك' : 'Usage'}
+          <text x={40} y={pTop + (h - pTop - pBottom) / 2}
+            transform={`rotate(-90, 40, ${pTop + (h - pTop - pBottom) / 2})`}
+            textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'معدل استهلاك الموارد (%)' : 'Resource Consumption (%)'}
           </text>
 
           {/* Area fills */}
@@ -527,7 +527,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           {data.map((d, i) => {
             const xx = getX(i);
             const isHov = hoveredIdx === i;
-            const step = Math.max(1, Math.floor(n / 6));
+            const step = Math.max(1, Math.floor(n / 8));
             const showLabel = i % step === 0;
 
             return (
@@ -544,32 +544,38 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
                     <circle cx={xx} cy={getY(d.power)} r={5}
                       fill="#f59e0b" stroke="white" strokeWidth="2"/>
                     <rect x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65))} y={pTop + 10}
-                      width={130} height={60} rx="10" fill="#111827"
+                      width={130} height={70} rx="10" fill="#111827"
                       filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
-                      y={pTop + 32} textAnchor="middle" fontSize="13" fill="#94a3b8" fontWeight="bold">
+                      y={pTop + 30} textAnchor="middle" fontSize="13" fill="#94a3b8" fontWeight="bold">
                       {d.label}
                     </text>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
-                      y={pTop + 48} textAnchor="middle" fontSize="14" fill="#3b82f6" fontWeight="900">
+                      y={pTop + 50} textAnchor="middle" fontSize="14" fill="#3b82f6" fontWeight="900">
                       {d.water.toFixed(2)} L
                     </text>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
-                      y={pTop + 64} textAnchor="middle" fontSize="14" fill="#f59e0b" fontWeight="900">
+                      y={pTop + 70} textAnchor="middle" fontSize="14" fill="#f59e0b" fontWeight="900">
                       {d.power.toFixed(3)} kWh
                     </text>
                   </g>
                 )}
 
                 {showLabel && (
-                  <text x={xx} y={h - pBottom + 20}
-                    textAnchor="middle" fontSize="18" fill="#94a3b8" fontWeight="bold">
+                  <text x={xx} y={h - pBottom + 34}
+                    textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
                     {d.label}
                   </text>
                 )}
               </g>
             );
           })}
+
+          {/* X axis title */}
+          <text x={pLeft + (w - pLeft - pRight) / 2} y={h - 10}
+            textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'الوقت' : 'Time'}
+          </text>
 
           {/* Axes */}
           <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom}

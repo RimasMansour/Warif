@@ -114,7 +114,7 @@ function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
             return (
               <g key={i}>
                 <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4"/>
-                <text x={padL - 10} y={y} dominantBaseline="central" textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
+                <text x={padL - 45} y={y} dominantBaseline="central" textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
                   {val >= 100000
                     ? `${(val / 1000).toFixed(0)}k`
                     : val >= 1000
@@ -277,7 +277,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   // const coolingActive = livesensors?.coolingActive ?? false; (Replaced by local state)
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 288 : range === 'W' ? 6000 : range === 'M' ? 15000 : 365;
+  const historyLimit = range === 'D' ? 2000 : range === 'W' ? 20000 : range === 'M' ? 45000 : 50000;
   const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit);
   const { data: rawHum } = useSensorHistory('air_humidity', historyLimit);
   const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);

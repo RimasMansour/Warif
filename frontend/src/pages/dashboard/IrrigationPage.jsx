@@ -368,7 +368,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
               <div className="flex items-center justify-between">
                  <div className="text-4xl font-black text-blue-600 tracking-tight">{waterUsage} <span className="text-sm font-bold text-gray-400">{T.liters}</span></div>
                  <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.water_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
-                   {resourceData?.water_diff_percent !== undefined ? `${resourceData.water_diff_percent > 0 ? '+' : ''}${resourceData.water_diff_percent}%` : '-12%'} {T.fromYesterday}
+                   {resourceData?.water_diff_percent !== undefined ? `${resourceData.water_diff_percent > 0 ? '+' : ''}${resourceData.water_diff_percent}%` : '0%'} {T.fromYesterday}
                  </div>
               </div>
               <div className="mt-6">
@@ -391,7 +391,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
               <div className="flex items-center justify-between">
                  <div className="text-4xl font-black text-yellow-600 tracking-tight">{powerUsage} <span className="text-sm font-bold text-gray-400">{T.kwh}</span></div>
                  <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.power_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
-                   {resourceData?.power_diff_percent !== undefined ? `${resourceData.power_diff_percent > 0 ? '+' : ''}${resourceData.power_diff_percent}%` : '-5%'} {T.fromYesterday}
+                   {resourceData?.power_diff_percent !== undefined ? `${resourceData.power_diff_percent > 0 ? '+' : ''}${resourceData.power_diff_percent}%` : '0%'} {T.fromYesterday}
                  </div>
               </div>
               <div className="mt-6">

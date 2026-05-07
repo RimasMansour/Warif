@@ -250,29 +250,71 @@ async def get_irrigation_resources(
     from sqlalchemy import func
     from src.db.models.models import SensorReading, Device
 
-    # Get today's total water usage
-    water_result = await db.execute(
+    # Today's and yesterday's boundaries
+    today_start = func.date_trunc('day', func.now())
+    yesterday_start = today_start - func.cast('1 day', func.interval)
+
+    # Today's water usage
+    water_today_res = await db.execute(
         select(func.sum(SensorReading.value))
         .join(Device, SensorReading.device_id == Device.device_id)
         .where(
             Device.farm_id == farm_id,
             SensorReading.sensor_type == "water_usage",
-            SensorReading.timestamp >= func.date_trunc('day', func.now())
+            SensorReading.timestamp >= today_start
         )
     )
-    water_total = water_result.scalar() or 0.0
+    water_today = water_today_res.scalar() or 0.0
 
-    # Get today's total power usage (in Wh → convert to kWh)
-    power_result = await db.execute(
+    # Yesterday's water usage
+    water_yest_res = await db.execute(
+        select(func.sum(SensorReading.value))
+        .join(Device, SensorReading.device_id == Device.device_id)
+        .where(
+            Device.farm_id == farm_id,
+            SensorReading.sensor_type == "water_usage",
+            SensorReading.timestamp >= yesterday_start,
+            SensorReading.timestamp < today_start
+        )
+    )
+    water_yesterday = water_yest_res.scalar() or 0.0
+
+    # Today's power usage
+    power_today_res = await db.execute(
         select(func.sum(SensorReading.value))
         .join(Device, SensorReading.device_id == Device.device_id)
         .where(
             Device.farm_id == farm_id,
             SensorReading.sensor_type == "power_usage",
-            SensorReading.timestamp >= func.date_trunc('day', func.now())
+            SensorReading.timestamp >= today_start
         )
     )
-    power_total_wh = power_result.scalar() or 0.0
+    power_today_wh = power_today_res.scalar() or 0.0
+
+    # Yesterday's power usage
+    power_yest_res = await db.execute(
+        select(func.sum(SensorReading.value))
+        .join(Device, SensorReading.device_id == Device.device_id)
+        .where(
+            Device.farm_id == farm_id,
+            SensorReading.sensor_type == "power_usage",
+            SensorReading.timestamp >= yesterday_start,
+            SensorReading.timestamp < today_start
+        )
+    )
+    power_yesterday_wh = power_yest_res.scalar() or 0.0
+
+    water_diff = 0
+    if water_yesterday > 0:
+        water_diff = round(((water_today - water_yesterday) / water_yesterday) * 100)
+    elif water_today > 0:
+        water_diff = 100
+
+    power_diff = 0
+    if power_yesterday_wh > 0:
+        power_diff = round(((power_today_wh - power_yesterday_wh) / power_yesterday_wh) * 100)
+    elif power_today_wh > 0:
+        power_diff = 100
 
     # Get fan status from latest air_temperature reading context
     fan_result = await db.execute(
@@ -289,8 +331,10 @@ async def get_irrigation_resources(
     fan_active = latest_temp >= 30.0
 
     return {
-        "water_usage_liters": round(water_total, 2),
-        "power_usage_kwh": round(power_total_wh / 1000, 3),
+        "water_usage_liters": round(water_today, 2),
+        "power_usage_kwh": round(power_today_wh / 1000, 3),
+        "water_diff_percent": water_diff,
+        "power_diff_percent": power_diff,
         "fan_active": fan_active,
         "farm_id": farm_id,
     }
