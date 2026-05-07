@@ -217,6 +217,8 @@ class Recommendation(Base):
     severity   = Column(SAEnum(RecommendationSeverity), default=RecommendationSeverity.normal)
     is_read    = Column(Boolean, default=False)
     helpful    = Column(Boolean, nullable=True)  # NULL = لم يعطِ فيدباك, True = مفيدة, False = غير مفيدة
+    is_alert   = Column(Boolean, default=False, index=True)  # تمييز التوصيات العاجلة
+    mode       = Column(String(10), nullable=True)  # 'auto' أو 'manual' وقت توليد التوصية
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     feedback_at= Column(DateTime(timezone=True), nullable=True)  # وقت إعطاء الفيدباك
     actual_outcome = Column(Boolean, nullable=True)  # هل كانت التوصية صحيحة فعلاً
@@ -252,6 +254,7 @@ class Alert(Base):
     message      = Column(Text, nullable=False)
     threshold    = Column(Float)
     actual_value = Column(Float)
+    helpful      = Column(Boolean, nullable=True)  # تقييم التنبيه: True = مفيد, False = إزعاج, NULL = لم يعطِ فيدباك
     created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at   = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
     resolved_at  = Column(DateTime(timezone=True), nullable=True)

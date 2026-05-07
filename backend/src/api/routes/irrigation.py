@@ -45,8 +45,8 @@ async def get_irrigation_status(
         return IrrigationStatusOut(status="idle", mode=None, duration_min=None, daily_rate=None, start_time=None)
 
     return IrrigationStatusOut(
-        status=event.status.value,
-        mode=event.command.mode.value,
+        status=event.status.value if hasattr(event.status, "value") else str(event.status or "idle"),
+        mode=event.command.mode.value if hasattr(event.command.mode, "value") else str(event.command.mode or "manual"),
         duration_min=event.command.duration_min,
         daily_rate=None,
         start_time=event.command.start_time,

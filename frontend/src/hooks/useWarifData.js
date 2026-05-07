@@ -87,14 +87,17 @@ export async function triggerManualCooling(mode = "stop", farmId = null) {
 }
 
 export function useLatestSensors(intervalMs = 10000) {
-  const [data, setData] = useState(globalCache.latestSensors)
+  const [data, setData] = useState(null)
   const [loading, setLoading] = useState(!globalCache.latestSensors)
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
-      const farmId = userData.farmId;
+      const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
+      const farmId = sessionFarms.length > 0
+        ? sessionFarms[0].id
+        : (userData.farmId || null);
       if (!farmId) return;
 
       let mapped = {}
@@ -115,11 +118,14 @@ export function useLatestSensors(intervalMs = 10000) {
           air_temperature: 31,
           air_humidity: 45,
           soil_temperature: 25,
-          soil_moisture: 42
+          soil_moisture: 42,
+          light_intensity: 0,
+          power_usage: 0,
+          water_usage: 0,
         }
       }
 
-      globalCache.latestSensors = mapped;
+      globalCache.latestSensors = null;
       setData(mapped)
       setError(null)
     } catch (err) {
@@ -185,14 +191,17 @@ export function useAutoMode(farmId) {
 
 export function useSensorHistory(sensor_type, limit = 100) {
   const cacheKey = `${sensor_type}_${limit}`;
-  const [data, setData] = useState(globalCache.history[cacheKey] || [])
+  const [data, setData] = useState([])
   const [loading, setLoading] = useState(!globalCache.history[cacheKey])
 
   const fetch_data = useCallback(async () => {
     if (!sensor_type) return
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
-      const farmId = userData.farmId;
+      const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
+      const farmId = sessionFarms.length > 0
+        ? sessionFarms[0].id
+        : (userData.farmId || null);
       if (!farmId) return;
 
       const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`, {
@@ -201,6 +210,7 @@ export function useSensorHistory(sensor_type, limit = 100) {
       if (res.ok) {
         const json = await res.json()
         const reversed = json.reverse();
+        globalCache.history[cacheKey] = null;
         globalCache.history[cacheKey] = reversed;
         setData(reversed)
       }
@@ -585,4 +595,66 @@ export function useDevices(providedFarmId = null) {
   };
 
   return { devices, counts, loading };
+}
+
+export async function submitRecommendationFeedback(farmId, recId, helpful) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/feedback/${recId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ helpful })
+    });
+    if (!res.ok) throw new Error('Feedback submission failed');
+    const data = await res.json();
+    console.log('[Warif] Feedback submitted:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Feedback error:', err);
+    return null;
+  }
+}
+
+export async function executeRecommendation(category, farmId, durationMin = 15) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  try {
+    if (category === 'irrigation') {
+      return await triggerManualIrrigation('start', farmId, durationMin);
+    } else if (category === 'temperature' || category === 'humidity') {
+      return await triggerManualCooling('full', farmId);
+    } else {
+      console.warn('[Warif] Unsupported recommendation category:', category);
+      return null;
+    }
+  } catch (err) {
+    console.error('[Warif] Execute recommendation error:', err);
+    return null;
+  }
+}
+
+export async function submitAlertFeedback(alertId, helpful) {
+  const token = localStorage.getItem('warif_token');
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/alerts/${alertId}/feedback`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ helpful })
+    });
+    if (!res.ok) throw new Error('Alert feedback submission failed');
+    const data = await res.json();
+    console.log('[Warif] Alert feedback submitted:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Alert feedback error:', err);
+    return null;
+  }
 }

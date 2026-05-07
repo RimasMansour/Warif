@@ -48,7 +48,7 @@ async def login(
     token = create_access_token({
         "sub": str(user.id),
         "username": user.username,
-        "role": user.role.value
+        "role": user.role.value if hasattr(user.role, "value") else str(user.role or "farmer")
     })
 
     # Get the user's first farm if exists

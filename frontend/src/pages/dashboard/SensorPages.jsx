@@ -1,25 +1,183 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { 
-  SensorTopBar, 
-  CardShell, 
-  PlantSoilIcon, 
-  WindSharedIcon, 
+import {
+  SensorTopBar,
+  CardShell,
+  PlantSoilIcon,
+  WindSharedIcon,
   EmptyState,
-  getRecommendationTheme
+  getRecommendationTheme,
+  RecommendationCard
 } from './DashboardShared';
 import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
 
-import { 
-  generateDataForRange, 
-  formatLastUpdated 
+import {
+  generateDataForRange,
+  formatLastUpdated
 } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling, triggerManualIrrigation, useSensorHistory, useRecommendations } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, triggerManualIrrigation, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
 import { getLabelForRange } from './dashboardUtils';
 
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
+function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
+  const [hoveredIdx, setHoveredIdx] = useState(null);
+  const ranges = [
+    { key: 'D', label: T.day || 'اليوم' },
+    { key: 'W', label: T.week || 'الأسبوع' },
+    { key: 'M', label: T.month || 'الشهر' },
+    { key: 'Y', label: T.year || 'السنة' },
+  ];
+  const n = data.length;
+  const maxVal = Math.max(...data.map(d => d.value), 100);
+  const currentVal = range === 'D'
+    ? Math.max(...data.map(d => d.value), 0)
+    : (data.reduce((a, b) => a + b.value, 0) / (n || 1));
+  const W = 860, H = 360, padL = 120, padR = 80, padT = 24, padB = 82;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const points = data.map((d, i) => ({
+    x: padL + (i / Math.max(n - 1, 1)) * chartW,
+    y: padT + chartH - (d.value / maxVal) * chartH,
+    value: d.value,
+    label: d.label,
+  }));
+  const linePath = points.length < 2 ? '' : points.map((p, i) => {
+    if (i === 0) return `M ${p.x} ${p.y}`;
+    const prev = points[i - 1];
+    const cpx = (prev.x + p.x) / 2;
+    return `C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`;
+  }).join(' ');
+  const areaPath = linePath
+    ? `${linePath} L ${points[n - 1]?.x} ${padT + chartH} L ${padL} ${padT + chartH} Z`
+    : '';
+  const getColor = (val) => {
+    if (val === 0) return '#9ca3af';
+    if (val < 1000) return '#fde68a';
+    if (val < 10000) return '#f59e0b';
+    if (val < 50000) return '#f97316';
+    return '#ef4444';
+  };
+  const getLabel = (val) => {
+    if (val === 0) return isRtl ? 'لا يوجد إضاءة' : 'No light';
+    if (val < 200) return isRtl ? 'خافتة جداً' : 'Very dim';
+    if (val < 1000) return isRtl ? 'إضاءة داخلية' : 'Indoor';
+    if (val < 10000) return isRtl ? 'مضيئة' : 'Bright';
+    if (val < 50000) return isRtl ? 'مشرقة جداً' : 'Very bright';
+    return isRtl ? 'ضوء شمس مباشر' : 'Direct sunlight';
+  };
+  const lineColor = getColor(currentVal);
+  return (
+    <CardShell className="p-5" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex justify-between items-center mb-4">
+        <div className={isRtl ? 'text-right' : 'text-left'}>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-lg font-black text-gray-800 leading-none">
+              {T.lightChart || 'مسار شدة الإضاءة'}
+            </h2>
+            <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-lg border border-amber-100 font-black uppercase tracking-tighter">
+              {T.realtimeAnalysis || 'تحليل فوري'}
+            </span>
+          </div>
+          <div className="text-[13px] font-bold text-gray-400">{getLabel(currentVal)}</div>
+        </div>
+        <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[110px]">
+          <div className="flex items-baseline gap-1">
+            <span className="text-xl font-black text-gray-800">{Math.round(currentVal).toLocaleString()}</span>
+            <span className="text-[11px] font-bold text-gray-400">Lux</span>
+          </div>
+          <div className="text-[10px] font-black mt-1 uppercase tracking-tighter" style={{ color: lineColor }}>
+            {T.periodAverage || 'متوسط الفترة'}
+          </div>
+        </div>
+      </div>
+      <div className="flex bg-gray-50 p-1 rounded-xl mb-4 gap-1 w-max mx-auto border border-gray-100 shadow-inner">
+        {ranges.map(r => (
+          <button key={r.key} onClick={() => onRangeChange(r.key)}
+            className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 ${range === r.key ? 'bg-white text-gray-800 shadow-md scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
+            {r.label}
+          </button>
+        ))}
+      </div>
+      <div className="w-full max-w-[800px] mx-auto" style={{ maxHeight: '360px' }} onMouseLeave={() => setHoveredIdx(null)}>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block w-full h-auto overflow-visible">
+          <defs>
+            <linearGradient id="lightAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.3"/>
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
+            </linearGradient>
+          </defs>
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const val = maxVal * ratio;
+            const y = padT + chartH - ratio * chartH;
+            return (
+              <g key={i}>
+                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4"/>
+                <text x={padL - 10} y={y} dominantBaseline="central" textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
+                  {val >= 100000
+                    ? `${(val / 1000).toFixed(0)}k`
+                    : val >= 1000
+                    ? `${(val / 1000).toFixed(1)}k`
+                    : Math.round(val)}
+                </text>
+              </g>
+            );
+          })}
+          <text x={40} y={padT + chartH / 2} transform={`rotate(-90, 40, ${padT + chartH / 2})`} textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'لوكس' : 'Lux'}
+          </text>
+          {areaPath && <path d={areaPath} fill="url(#lightAreaGrad)"/>}
+          {linePath && <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+          {points.map((p, i) => {
+            const show = i % Math.max(1, Math.floor(n / 8)) === 0;
+            const isHov = hoveredIdx === i;
+            return (
+              <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
+                <rect x={p.x - 10} y={padT} width={20} height={chartH} fill="transparent" className="cursor-pointer"/>
+                {(show || isHov) && (
+                  <circle cx={p.x} cy={p.y} r={isHov ? 6 : 3} fill={isHov ? lineColor : '#fff'} stroke={lineColor} strokeWidth="2" className="transition-all duration-200"/>
+                )}
+                {isHov && (
+                  <g pointerEvents="none">
+                    <line x1={p.x} y1={padT} x2={p.x} y2={padT + chartH} stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity="0.5"/>
+                    <rect x={p.x - 52} y={p.y - 54} width={104} height={38} rx="10" fill="#111827" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
+                    <text x={p.x} y={p.y - 30} textAnchor="middle" fontSize="11" fontWeight="900" fill="white">
+                      {Math.round(p.value).toLocaleString()} Lux
+                    </text>
+                    <path d={`M ${p.x - 6} ${p.y - 16} L ${p.x} ${p.y - 8} L ${p.x + 6} ${p.y - 16} Z`} fill="#111827"/>
+                  </g>
+                )}
+              </g>
+            );
+          })}
+          {points.map((p, i) => {
+            const show = i % Math.max(1, Math.floor(n / 6)) === 0;
+            return show ? (
+              <text key={i} x={p.x} y={H - padB + 34} textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
+                {p.label}
+              </text>
+            ) : null;
+          })}
+          <text
+            x={padL + chartW / 2}
+            y={H - 10}
+            textAnchor="middle"
+            fontSize="18"
+            fill="#059669"
+            fontWeight="900"
+            opacity="0.6"
+          >
+            {isRtl ? 'الوقت' : 'Time'}
+          </text>
+          <line x1={padL} y1={padT} x2={padL} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
+          <line x1={padL} y1={padT + chartH} x2={W - padR} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
+        </svg>
+      </div>
+    </CardShell>
+  );
+}
+
 export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
   const [activeAction, setActiveAction] = useState("");
@@ -119,7 +277,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   // const coolingActive = livesensors?.coolingActive ?? false; (Replaced by local state)
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const historyLimit = range === 'D' ? 288 : range === 'W' ? 6000 : range === 'M' ? 15000 : 365;
   const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit);
   const { data: rawHum } = useSensorHistory('air_humidity', historyLimit);
   const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);
@@ -134,15 +292,33 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (range === 'D') {
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
-        const item = rawData?.find(r => new Date(r.timestamp).getHours() === i);
-        return { label, value: item?.value ?? 0 };
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          const localHour = (d.getUTCHours() + 3) % 24;
+          return localHour === i;
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'W') {
+      const now = new Date();
       return Array.from({ length: 7 }, (_, i) => {
-        const label = isEn ? daysEn[i] : daysAr[i];
-        const item = rawData?.find(r => new Date(r.timestamp).getDay() === i);
-        return { label, value: item?.value ?? 0 };
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() - (6 - i));
+        const dayOfWeek = targetDate.getDay();
+        const label = isEn ? daysEn[dayOfWeek] : daysAr[dayOfWeek];
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getDate() === targetDate.getDate() &&
+                 d.getMonth() === targetDate.getMonth();
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'M') {
@@ -207,8 +383,13 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <span className="text-2xl font-black text-gray-800">{hum.toFixed(0)}%</span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
-                  <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{isEn ? 'Light Intensity' : 'شدة الإضاءة'}</span>
-                  <span className="text-2xl font-black text-gray-800">{Math.round(light).toLocaleString()} <span className="text-[14px]">Lux</span></span>
+                  <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">
+                    {isEn ? 'Light Intensity' : 'شدة الإضاءة'}
+                  </span>
+                  <span className="text-2xl font-black text-gray-800">
+                    {Math.round(light).toLocaleString()}
+                    <span className="text-[14px] font-bold text-gray-400 mr-1">Lux</span>
+                  </span>
                 </div>
               </div>
             </CardShell>
@@ -225,100 +406,30 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
               </div>
               <div className="flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                 {recommendations.length > 0 ? (
-                  recommendations.map((rec, i) => {
-                    const theme = getRecommendationTheme('temperature', rec.text);
-                    const borderRightClass = 'border-r-4 border-r-amber-500';
-                    return (
-                      <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
-                       <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-                          <div className="flex items-start gap-3">
-                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
-                               {theme.icon}
-                             </div>
-                             <div className="flex-1">
-                               <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-                                 {isEn ? 'Recommendation:' : 'التوصية:'} {rec.text}
-                               </h4>
-                             </div>
-                          </div>
-
-                          {rec.reasoning && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
-                              <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                              <div className="text-[11px] text-gray-800 leading-relaxed">{rec.reasoning}</div>
-                            </div>
-                          )}
-
-                          <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
-                            <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                            <div className="text-[11px] text-gray-800 leading-relaxed">{rec.text}</div>
-                          </div>
-
-                          {rec.benefit && (
-                            <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
-                              <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                              <div className="text-[11px] text-gray-800 leading-relaxed">{rec.benefit}</div>
-                            </div>
-                          )}
-
-                          {!globalAutoMode && (
-                            <div className="mt-2">
-                              {recommendationStatus[rec.id || i] ? (
-                                <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${recommendationStatus[rec.id || i] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                  {recommendationStatus[rec.id || i] === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                                </div>
-                              ) : (
-                                <div className="flex gap-2">
-                                  <button 
-                                    onClick={() => handleRecommendationDecision(rec.id || i, 'accepted')}
-                                    className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                                  >
-                                    {isEn ? 'Execute' : 'نفذ'}
-                                  </button>
-                                  <button 
-                                    onClick={() => handleRecommendationDecision(rec.id || i, 'rejected')}
-                                    className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-                                  >
-                                    {isEn ? 'Ignore' : 'تجاهل'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                       </div>
-
-                       {/* Feedback Section at the bottom */}
-                       <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
-                         <span className="text-[11px] font-bold text-gray-500">
-                           {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
-                         </span>
-                         <div className="flex items-center gap-2">
-                           <button
-                             onClick={() => handleFeedback(rec.id || i, 'down')}
-                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id || i] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                             title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                           >
-                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                           </button>
-                           <button
-                             onClick={() => handleFeedback(rec.id || i, 'up')}
-                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id || i] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                             title={isEn ? 'Helpful' : 'مفيدة'}
-                           >
-                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                           </button>
-                         </div>
-                         {showThanksIds.includes(rec.id || i) && (
-                           <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
-                             {isEn ? 'Thanks!' : 'شكراً!'}
-                           </div>
-                         )}
-                       </div>
-                      </div>
-                    );
-                  })
+                  recommendations.map((rec, i) => (
+                    <RecommendationCard
+                      key={rec.id || i}
+                      rec={{
+                        id: rec.id || i,
+                        title: rec.text,
+                        message: rec.text,
+                        reasoning: rec.reasoning,
+                        category: 'temperature',
+                        severity: rec.severity || 'normal'
+                      }}
+                      farmId={farmId}
+                      globalAutoMode={globalAutoMode}
+                      isEn={isEn}
+                      onExecute={executeRecommendation}
+                      onIgnore={() => {}}
+                      onFeedback={handleFeedback}
+                      feedbackState={feedback}
+                      showThanks={showThanksIds}
+                      compact={true}
+                    />
+                  ))
                 ) : (
-                  <EmptyState 
+                  <EmptyState
                     compact={true}
                     title={T.noRecsTitle}
                     subtitle={T.noRecsSub}
@@ -444,10 +555,10 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
               isRtl={isRtl}
             />
             <div className="lg:col-span-2">
-              <HealthStyleBarChart 
-                range={range} onRangeChange={setRange} data={lightSeries} 
-                unit=" Lux" metricName={T.lightChart} color="#f59e0b" 
-                yAxisTitle={T.lightY}
+              <LightAreaChart
+                data={lightSeries}
+                range={range}
+                onRangeChange={setRange}
                 T={translations[lang]}
                 isRtl={isRtl}
               />
@@ -650,100 +761,30 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
               </div>
               <div className="flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
                 {soilRecs.length > 0 ? (
-                  soilRecs.map((rec, i) => {
-                    const theme = getRecommendationTheme('soil', rec.text);
-                    const borderRightClass = 'border-r-4 border-r-amber-400';
-                    return (
-                    <div key={i} className={`p-3 rounded-[24px] border flex flex-col ${theme.bg} ${theme.border} ${borderRightClass} shadow-sm transition-all animate-fade-in`}>
-                       <div className={`flex-1 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-2 ${isRtl ? 'text-right' : 'text-left'}`}>
-                          <div className="flex items-start gap-3">
-                             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm transition-all ${theme.iconBg}`}>
-                               {theme.icon}
-                             </div>
-                             <div className="flex-1">
-                               <h4 className={`text-[13px] font-black leading-tight ${theme.text} mt-2`}>
-                                 {isEn ? 'Recommendation:' : 'التوصية:'} {rec.text}
-                               </h4>
-                             </div>
-                          </div>
-
-                          {rec.reasoning && (
-                            <div className="bg-white/60 backdrop-blur-sm rounded-xl p-2 border border-gray-100/50 mt-1">
-                              <div className="text-[11px] font-bold text-gray-800 mb-0.5">{isEn ? 'Analysis:' : 'التحليل:'}</div>
-                              <div className="text-[11px] text-gray-800 leading-relaxed">{rec.reasoning}</div>
-                            </div>
-                          )}
-
-                          <div className={`${theme.actionBg} rounded-xl p-2 border ${theme.actionBorder}`}>
-                            <div className={`text-[11px] font-bold ${theme.actionText} mb-0.5`}>{isEn ? 'Action:' : 'الإجراء:'}</div>
-                            <div className="text-[11px] text-gray-800 leading-relaxed">{rec.text}</div>
-                          </div>
-
-                          {rec.benefit && (
-                            <div className="bg-purple-50/30 rounded-xl p-2 border border-purple-100/50">
-                              <div className="text-[11px] font-bold text-purple-800 mb-0.5">{isEn ? 'Expected Result:' : 'النتيجة المتوقعة:'}</div>
-                              <div className="text-[11px] text-gray-800 leading-relaxed">{rec.benefit}</div>
-                            </div>
-                          )}
-
-                          {!globalAutoMode && (
-                            <div className="mt-2">
-                              {recommendationStatus[rec.id || i] ? (
-                                <div className={`px-4 py-1.5 rounded-xl text-[11px] font-black text-center border ${recommendationStatus[rec.id || i] === 'accepted' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                  {recommendationStatus[rec.id || i] === 'accepted' ? (isEn ? 'Executed' : 'تم التنفيذ') : (isEn ? 'Ignored' : 'تم التجاهل')}
-                                </div>
-                              ) : (
-                                <div className="flex gap-2">
-                                  <button 
-                                    onClick={() => handleRecommendationDecision(rec.id || i, 'accepted')}
-                                    className="flex-1 px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-black rounded-xl hover:bg-emerald-700 transition-all shadow-sm active:scale-95 flex items-center justify-center"
-                                  >
-                                    {isEn ? 'Execute' : 'نفذ'}
-                                  </button>
-                                  <button 
-                                    onClick={() => handleRecommendationDecision(rec.id || i, 'rejected')}
-                                    className="flex-1 px-3 py-1.5 bg-white border border-gray-100 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:text-red-600 transition-all flex items-center justify-center"
-                                  >
-                                    {isEn ? 'Ignore' : 'تجاهل'}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                       </div>
-
-                       {/* Feedback Section at the bottom */}
-                       <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between gap-2 shrink-0 relative">
-                         <span className="text-[11px] font-bold text-gray-500">
-                           {isEn ? 'Was this helpful?' : 'هل كان مفيدًا؟'}
-                         </span>
-                         <div className="flex items-center gap-2">
-                           <button
-                             onClick={() => handleFeedback(rec.id || i, 'down')}
-                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id || i] === 'down' ? 'border-red-300 bg-red-50 text-red-600' : 'border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50'}`}
-                             title={isEn ? 'Not helpful' : 'غير مفيدة'}
-                           >
-                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3"/></svg>
-                           </button>
-                           <button
-                             onClick={() => handleFeedback(rec.id || i, 'up')}
-                             className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all ${feedback[rec.id || i] === 'up' ? 'border-emerald-300 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-300 hover:bg-emerald-50'}`}
-                             title={isEn ? 'Helpful' : 'مفيدة'}
-                           >
-                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
-                           </button>
-                         </div>
-                         {showThanksIds.includes(rec.id || i) && (
-                           <div className="absolute top-[-25px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2 py-1 rounded-md text-[9px] font-bold animate-fade-in z-10 shadow-lg">
-                             {isEn ? 'Thanks!' : 'شكراً!'}
-                           </div>
-                         )}
-                       </div>
-                      </div>
-                    );
-                  })
+                  soilRecs.map((rec, i) => (
+                    <RecommendationCard
+                      key={rec.id || i}
+                      rec={{
+                        id: rec.id || i,
+                        title: rec.text,
+                        message: rec.text,
+                        reasoning: rec.reasoning,
+                        category: 'soil',
+                        severity: rec.severity || 'normal'
+                      }}
+                      farmId={farmId}
+                      globalAutoMode={globalAutoMode}
+                      isEn={isEn}
+                      onExecute={executeRecommendation}
+                      onIgnore={() => {}}
+                      onFeedback={handleFeedback}
+                      feedbackState={feedback}
+                      showThanks={showThanksIds}
+                      compact={true}
+                    />
+                  ))
                 ) : (
-                  <EmptyState 
+                  <EmptyState
                     compact={true}
                     title={T.noRecsTitle}
                     subtitle={T.noRecsSub}
