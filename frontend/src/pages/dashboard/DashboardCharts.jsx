@@ -387,14 +387,14 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
     { key: 'Y', label: T.yearLabel },
   ];
 
-  const h = 380; 
-  const pLeft = 80; 
-  const pRight = 80;
-  const pTop = 30; 
-  const pBottom = 60; 
+  const h = 220; 
+  const pLeft = 65; 
+  const pRight = 15;
+  const pTop = 10; 
+  const pBottom = 45; 
   
   const n = data.length;
-  const w = 900; 
+  const w = 800; 
   const segmentW = (w - pLeft - pRight) / (n - 1 || 1);
 
   const allValues = data.flatMap(d => [d.water || 0, d.power || 0]);
@@ -490,7 +490,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           <text 
             x={- (h-pBottom)/2 - pTop} y={15} 
             transform="rotate(-90)" textAnchor="middle" 
-            fontSize="24" fontWeight="1000" fill="#2E7D32" opacity="0.6"
+            fontSize="16" fontWeight="1000" fill="#2E7D32" opacity="0.6"
           >
             {isRtl ? 'معدل استهلاك الموارد (%)' : 'Resource Consumption (%)'}
           </text>
@@ -512,7 +512,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
               return (
                 <g key={i}>
                 <line x1={pLeft} x2={w-pRight} y1={yy} y2={yy} stroke="#F1F5F9" strokeWidth="1.5" strokeDasharray="6 6" />
-                <text x={pLeft - 30} y={yy} dominantBaseline="central" textAnchor="end" fontSize="18" fontWeight="black" fill="#94A3B8">
+                <text x={pLeft - 30} y={yy} dominantBaseline="central" textAnchor="end" fontSize="16" fontWeight="black" fill="#94A3B8">
                   {Math.round(v)}
                 </text>
               </g>
@@ -532,11 +532,11 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
             const isHovered = hoveredIdx === i;
             
             let showLabel = false;
-            const step = Math.max(1, Math.ceil(n / 7)); // Shows approx 7 labels regardless of data points
+            const step = Math.max(1, Math.floor(n / 8));
             if (i % step === 0) showLabel = true;
 
             const tW = 175; // Increased width for better legibility
-            const tH = 100; 
+            const tH = 70; 
             const tX = Math.max(0, Math.min(w - tW, xx - tW / 2));
             const topY = Math.min(getY(d.water), getY(d.power));
             const tY = Math.max(-50, topY - tH - 40); 
@@ -553,27 +553,27 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
                     
                     <foreignObject x={tX} y={tY} width={tW} height={tH + 35}>
                       <div 
-                        className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-[22px] border border-white/10 shadow-2xl flex flex-col gap-2.5"
+                        className="bg-slate-900/95 backdrop-blur-md text-white p-3.5 rounded-[22px] border border-white/10 shadow-2xl flex flex-col gap-1"
                         style={{ direction: isRtl ? 'rtl' : 'ltr' }}
                       >
-                        <div className={`flex items-center mb-0.5 border-b border-white/10 pb-2 ${isRtl ? 'justify-start' : 'justify-end'}`}>
-                          <span className="text-[16px] font-black text-slate-400 tracking-wide uppercase">{d.label}</span>
+                        <div className={`flex items-center mb-0.5 border-b border-white/10 pb-1 ${isRtl ? 'justify-start' : 'justify-end'}`}>
+                          <span className="text-[13px] font-black text-slate-400 tracking-wide uppercase">{d.label}</span>
                         </div>
                         
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5">
                             <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.6)]" />
-                            <span className="text-[16px] font-black text-slate-200">{T.waterLabel}</span>
+                            <span className="text-[14px] font-black text-slate-200">{T.waterLabel}</span>
                           </div>
-                          <span className="text-[20px] font-black text-blue-400 tracking-tighter">{d.water.toFixed(1)}٪</span>
+                          <span className="text-[14px] font-black text-blue-400 tracking-tighter">{d.water.toFixed(1)}٪</span>
                         </div>
 
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5">
                             <div className="w-3 h-3 rounded-full bg-[#EAB308] shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
-                            <span className="text-[16px] font-black text-slate-200">{T.powerLabel}</span>
+                            <span className="text-[14px] font-black text-slate-200">{T.powerLabel}</span>
                           </div>
-                          <span className="text-[20px] font-black text-yellow-400 tracking-tighter">{d.power.toFixed(1)}٪</span>
+                          <span className="text-[14px] font-black text-yellow-400 tracking-tighter">{d.power.toFixed(1)}٪</span>
                         </div>
                       </div>
                     </foreignObject>
