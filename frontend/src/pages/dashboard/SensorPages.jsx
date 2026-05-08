@@ -293,12 +293,15 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     if (range === 'D') {
+      const saudiToday = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
+      const saudiTodayStr = `${saudiToday.getUTCFullYear()}-${saudiToday.getUTCMonth()}-${saudiToday.getUTCDate()}`;
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
         const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          const localHour = (d.getUTCHours() + 3) % 24;
-          return localHour === i;
+          const d = new Date(new Date(r.timestamp).getTime() + 3 * 60 * 60 * 1000);
+          const localHour = d.getUTCHours();
+          const rDateStr = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+          return localHour === i && rDateStr === saudiTodayStr;
         }) || [];
         const value = items.length > 0
           ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
@@ -327,16 +330,33 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     }
     if (range === 'M') {
       return Array.from({ length: 30 }, (_, i) => {
-        const label = `${i + 1}`;
-        const item = rawData?.find(r => new Date(r.timestamp).getDate() === i + 1);
-        return { label, value: item?.value ?? 0 };
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() - 29 + i);
+        const label = `${targetDate.getDate()}`;
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getDate() === targetDate.getDate() &&
+                 d.getMonth() === targetDate.getMonth() &&
+                 d.getFullYear() === targetDate.getFullYear();
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'Y') {
       return Array.from({ length: 12 }, (_, i) => {
-        const label = isEn ? monthsEn[i] : monthsAr[i];
-        const item = rawData?.find(r => new Date(r.timestamp).getMonth() === i);
-        return { label, value: item?.value ?? 0 };
+        const targetMonth = (now.getMonth() - 11 + i + 12) % 12;
+        const label = isEn ? monthsEn[targetMonth] : monthsAr[targetMonth];
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getMonth() === targetMonth && d.getFullYear() === (now.getFullYear() - (now.getMonth() < targetMonth ? 1 : 0));
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     return [];
@@ -679,12 +699,15 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     if (range === 'D') {
+      const saudiToday = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
+      const saudiTodayStr = `${saudiToday.getUTCFullYear()}-${saudiToday.getUTCMonth()}-${saudiToday.getUTCDate()}`;
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
         const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          const localHour = (d.getUTCHours() + 3) % 24;
-          return localHour === i;
+          const d = new Date(new Date(r.timestamp).getTime() + 3 * 60 * 60 * 1000);
+          const localHour = d.getUTCHours();
+          const rDateStr = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+          return localHour === i && rDateStr === saudiTodayStr;
         }) || [];
         const value = items.length > 0
           ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
@@ -713,16 +736,33 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     }
     if (range === 'M') {
       return Array.from({ length: 30 }, (_, i) => {
-        const label = `${i + 1}`;
-        const item = rawData?.find(r => new Date(r.timestamp).getDate() === i + 1);
-        return { label, value: item?.value ?? 0 };
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() - 29 + i);
+        const label = `${targetDate.getDate()}`;
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getDate() === targetDate.getDate() &&
+                 d.getMonth() === targetDate.getMonth() &&
+                 d.getFullYear() === targetDate.getFullYear();
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'Y') {
       return Array.from({ length: 12 }, (_, i) => {
-        const label = isEn ? monthsEn[i] : monthsAr[i];
-        const item = rawData?.find(r => new Date(r.timestamp).getMonth() === i);
-        return { label, value: item?.value ?? 0 };
+        const targetMonth = (now.getMonth() - 11 + i + 12) % 12;
+        const label = isEn ? monthsEn[targetMonth] : monthsAr[targetMonth];
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getMonth() === targetMonth && d.getFullYear() === (now.getFullYear() - (now.getMonth() < targetMonth ? 0 : 1));
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     return [];

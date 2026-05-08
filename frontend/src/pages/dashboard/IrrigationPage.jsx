@@ -191,7 +191,15 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     };
 
     // Fill data into the fixed slots with cumulative summing (accumulation)
+    const saudiToday = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
+    const saudiTodayStr = `${saudiToday.getUTCFullYear()}-${saudiToday.getUTCMonth()}-${saudiToday.getUTCDate()}`;
+
     rawWater?.forEach(item => {
+      if (range === 'D') {
+        const itemD = new Date(new Date(item.timestamp).getTime() + 3 * 60 * 60 * 1000);
+        const itemDateStr = `${itemD.getUTCFullYear()}-${itemD.getUTCMonth()}-${itemD.getUTCDate()}`;
+        if (itemDateStr !== saudiTodayStr) return; // Skip if not today
+      }
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
         points[idx].water = Number((points[idx].water + (item.value || 0)).toFixed(2));
@@ -201,6 +209,11 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     });
 
     rawPower?.forEach(item => {
+      if (range === 'D') {
+        const itemD = new Date(new Date(item.timestamp).getTime() + 3 * 60 * 60 * 1000);
+        const itemDateStr = `${itemD.getUTCFullYear()}-${itemD.getUTCMonth()}-${itemD.getUTCDate()}`;
+        if (itemDateStr !== saudiTodayStr) return; // Skip if not today
+      }
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
         points[idx].power = Number((points[idx].power + (item.value || 0)).toFixed(3));
