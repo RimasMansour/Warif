@@ -751,16 +751,16 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
         <div className={`flex flex-col gap-5 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Soil Temp' : 'حرارة التربة'}</div>
-            <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {soilTemp.toFixed(1)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">°C</span>
+            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+              {soilTemp.toFixed(1)}<span className="text-[12px] font-bold text-gray-400 mx-1">°C</span>
             </div>
           </div>
           <div className="flex flex-col">
             <div className={`text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight flex items-center gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
               {isEn ? 'Soil Moisture' : 'رطوبة التربة'}
             </div>
-            <div className={`text-[26px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
-              {soilMoist.toFixed(0)}<span className="text-[14px] font-bold text-gray-400 mx-1.5">%</span>
+            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+              {soilMoist.toFixed(0)}<span className="text-[12px] font-bold text-gray-400 mx-1">%</span>
             </div>
           </div>
         </div>
