@@ -42,47 +42,6 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     noActionsSub: isEn ? "AI logic will appear here as the system monitors your farm." : "ستظهر هنا قرارات الذكاء الاصطناعي بمجرد تحليل بيانات المزرعة.",
   };
 
-  const getRecStyles = (type) => {
-    switch (type) {
-      case 'heat': 
-        return { 
-          icon: <TempSunIcon />,
-          border: isRtl ? "border-r-4 border-r-orange-400" : "border-l-4 border-l-orange-400",
-          iconBg: "bg-orange-50 text-orange-500 border-orange-100"
-        };
-      case 'humidity': 
-        return { 
-          icon: <AirHumidityIcon />,
-          border: isRtl ? "border-r-4 border-r-sky-400" : "border-l-4 border-l-sky-400",
-          iconBg: "bg-sky-50 text-sky-500 border-sky-100"
-        };
-      case 'climate': 
-        return { 
-          icon: <WindSharedIcon />, 
-          border: isRtl ? "border-r-4 border-r-blue-400" : "border-l-4 border-l-blue-400",
-          iconBg: "bg-blue-50 text-blue-500 border-blue-100"
-        };
-      case 'irrigation': 
-        return { 
-          icon: <IrrigationSmartIcon />, 
-          border: isRtl ? "border-r-4 border-r-emerald-500" : "border-l-4 border-l-emerald-500",
-          iconBg: "bg-emerald-50 text-emerald-600 border-emerald-100"
-        };
-      case 'soil': 
-        return { 
-          icon: <PlantSoilIcon />, 
-          border: isRtl ? "border-r-4 border-r-emerald-600" : "border-l-4 border-l-emerald-600",
-          iconBg: "bg-emerald-50 text-emerald-600 border-emerald-100"
-        };
-      default: 
-        return { 
-          icon: <ListIcon />, 
-          border: isRtl ? "border-r-4 border-r-emerald-500" : "border-l-4 border-l-emerald-500",
-          iconBg: "bg-emerald-50 text-emerald-600 border-emerald-100"
-        };
-    }
-  };
-
   useEffect(() => {
     const timer = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(timer);
@@ -101,7 +60,7 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
         mode: 'auto',
         type: r.category || 'irrigation',
         title: r.message || 'توصية',
-        reasoning: r.reasoning || '',
+        reasoning: r.data_insight || r.reasoning || '',
         time: isEn ? 'Just now' : 'الآن',
         status: r.is_read ? 'accepted' : 'pending',
         week: isEn ? 'This Week' : 'هذا الأسبوع',

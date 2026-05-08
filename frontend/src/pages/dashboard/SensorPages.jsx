@@ -372,7 +372,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (!apiRecs) return [];
     return apiRecs.map(r => ({
       text: r.message,
-      reasoning: r.message
+      reasoning: r.data_insight || r.reasoning || r.message
     }));
   }, [apiRecs]);
 
@@ -391,8 +391,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="animate-fade-in-up delay-1 h-full">
-            <CardShell className="p-5 flex flex-col gap-4 h-full card-interactive">
+          <div className="animate-fade-in-up delay-1">
+            <CardShell className="p-5 flex flex-col gap-4 min-h-[400px] card-interactive">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.readings}</div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{lastUpdateLabel}</div>
@@ -418,8 +418,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-2 h-full">
-            <CardShell className="p-6 flex flex-col gap-4 h-full card-interactive">
+          <div className="animate-fade-in-up delay-2">
+            <CardShell className="p-6 flex flex-col gap-4 min-h-[400px] card-interactive">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight flex items-center gap-2">
                   {T.recs} 
@@ -427,7 +427,13 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.recsSub}</div>
               </div>
-              <div className="flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+              <div
+                className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto ${isRtl ? 'pl-2' : 'pr-2'}`}
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#d1d5db transparent'
+                }}
+              >
                 {recommendations.length > 0 ? (
                   recommendations.map((rec, i) => (
                     <RecommendationCard
@@ -777,7 +783,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (!apiRecs) return [];
     return apiRecs.map(r => ({
       text: r.message,
-      reasoning: r.message
+      reasoning: r.data_insight || r.reasoning || r.message
     }));
   }, [apiRecs]);
 
@@ -796,8 +802,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="animate-fade-in-up delay-1 h-full">
-            <CardShell className="p-5 flex flex-col gap-4 bg-white border-gray-100 shadow-sm min-h-[220px] h-full card-interactive">
+          <div className="animate-fade-in-up delay-1">
+            <CardShell className="p-5 flex flex-col gap-4 bg-white border-gray-100 shadow-sm min-h-[400px] card-interactive">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.soilData}</div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{lastUpdateLabel}</div>
@@ -815,8 +821,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-2 h-full">
-            <CardShell className="p-6 flex flex-col gap-4 bg-white border-gray-100 shadow-sm min-h-[220px] h-full card-interactive">
+          <div className="animate-fade-in-up delay-2">
+            <CardShell className="p-6 flex flex-col gap-4 bg-white border-gray-100 shadow-sm min-h-[400px] card-interactive">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight flex items-center gap-2">
                   {T.soilRecs} 
@@ -824,7 +830,13 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{isEn ? 'Suggested actions for root health.' : 'إجراءات مقترحة للحفاظ على صحة وسلامة الجذور.'}</div>
               </div>
-              <div className="flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+              <div
+                className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto ${isRtl ? 'pl-2' : 'pr-2'}`}
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#d1d5db transparent'
+                }}
+              >
                 {soilRecs.length > 0 ? (
                   soilRecs.map((rec, i) => (
                     <RecommendationCard

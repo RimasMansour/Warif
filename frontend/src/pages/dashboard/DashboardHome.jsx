@@ -165,7 +165,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
 
         {/* Perfectly Aligned 3-Column Layout: Uniform Row Heights & Custom Column Widths */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-4 lg:gap-5 items-stretch w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-4 lg:gap-5 items-start w-full">
           
           {/* Row 1: Top Aligned Cards */}
           <div className="animate-fade-in-up delay-2">
@@ -996,7 +996,30 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
         />
       </div>
 
-      <div className="flex-1 mt-4 overflow-y-auto max-h-[400px] pr-1 custom-scrollbar flex flex-col gap-3">
+      <div
+        className={`flex-1 mt-4 overflow-y-auto max-h-[400px] flex flex-col gap-3 ${isRtl ? 'pl-2' : 'pr-2'}`}
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#d1d5db transparent'
+        }}
+      >
+        <style>{`
+          .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+          }
+          .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #d1d5db;
+            border-radius: 3px;
+          }
+          .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+          }
+        `}</style>
+
         {recommendations.length === 0 ? (
           <EmptyState
             compact={true}

@@ -1,6 +1,65 @@
 import * as React from 'react';
 import { useMemo, useState } from 'react';
 
+// ─── PARSING UTILITY ─────────────────────────────────────────────────
+// Splits reasoning text into Issue + Solution based on keywords
+export function parseReasoningText(reasoningText) {
+  if (!reasoningText) return { issue: '', solution: '' };
+
+  const arabicKeywords = ['التوصية:', 'الإجراء:'];
+  const englishKeywords = ['Recommendation:', 'Action:'];
+  const allKeywords = [...arabicKeywords, ...englishKeywords];
+
+  let issue = reasoningText;
+  let solution = '';
+
+  for (const keyword of allKeywords) {
+    const index = reasoningText.indexOf(keyword);
+    if (index !== -1) {
+      issue = reasoningText.substring(0, index).trim();
+      solution = reasoningText.substring(index + keyword.length).trim();
+      break;
+    }
+  }
+
+  return { issue, solution };
+}
+
+// ─── GLOBAL SCROLLBAR STYLES ─────────────────────────────────────────
+const SCROLLBAR_STYLES = `
+  /* WebKit browsers (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d1d5db transparent;
+  }
+`;
+
+// Inject global styles once
+if (typeof document !== 'undefined') {
+  const styleTag = document.createElement('style');
+  styleTag.innerHTML = SCROLLBAR_STYLES;
+  document.head.appendChild(styleTag);
+}
+
 function CardShell({ children, className = "", onClick }) {
   return (
     <section
@@ -434,7 +493,13 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
         </div>
       </div>
       
-      <div className="max-h-[400px] overflow-y-auto p-2 flex flex-col gap-2">
+      <div
+        className="max-h-[400px] overflow-y-auto p-2 flex flex-col gap-2"
+        style={{
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#d1d5db transparent'
+        }}
+      >
         {alerts.length === 0 ? (
           <EmptyState 
             compact={true}
@@ -593,6 +658,7 @@ export function RecommendationCard({
   const actionType = rec.category || rec.type || 'general';
   const [isLoading, setIsLoading] = React.useState(false);
   const [executionSuccess, setExecutionSuccess] = React.useState(false);
+  const [showFullReasoning, setShowFullReasoning] = React.useState(false);
 
   const handleExecute = async () => {
     setIsLoading(true);
@@ -607,104 +673,193 @@ export function RecommendationCard({
     }
   };
 
+  // Get severity icon
+  const getSeverityIcon = () => {
+    switch(rec.severity) {
+      case 'urgent':
+        return (
+          <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/>
+          </svg>
+        );
+      case 'warning':
+        return (
+          <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2L2 20h20L12 2zm0 3.88L19.12 20H4.88L12 5.88z"/>
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+          </svg>
+        );
+    }
+  };
+
+  const reasoningLines = rec.reasoning?.split('\n') || [];
+  const hasLongReasoning = reasoningLines.length > 2 || (rec.reasoning?.length || 0) > 150;
+
+  // Parse reasoning into Issue + Solution
+  const { issue, solution } = parseReasoningText(rec.reasoning);
+
   return (
     <div
-      className={`rounded-3xl border shadow-sm transition-all animate-fade-in flex flex-col ${theme.bg} ${theme.border}`}
-      style={{ padding: '16px' }}
+      className="rounded-3xl border border-gray-100 shadow-sm transition-all animate-fade-in flex flex-col h-auto bg-white"
       dir={isRtl ? 'rtl' : 'ltr'}
+      style={{
+        padding: '12px',
+        fontFamily: isRtl ? '"Cairo", "Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' : 'inherit'
+      }}
     >
-      {/* Header: Icon + Title + Severity Badge */}
-      <div className={`flex items-start gap-3 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-sm ${theme.iconBg}`}>
-          {theme.icon}
-        </div>
+      {/* Header: Category Badge + Severity Icon + Title */}
+      <div className={`flex items-start gap-2 mb-1 ${isRtl ? 'flex-row-reverse' : ''}`}>
+        {/* Category Badge */}
+        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0 ${theme.text}`}
+          style={{ backgroundColor: theme.iconBg.includes('blue') ? '#dbeafe' : theme.iconBg.includes('amber') ? '#fef3c7' : '#d0f0fe' }}
+        >
+          {isEn
+            ? (rec.category === 'irrigation' ? 'Water' : rec.category === 'temperature' ? 'Heat' : rec.category === 'humidity' ? 'Humidity' : rec.category === 'soil' ? 'Soil' : 'Health')
+            : (rec.category === 'irrigation' ? 'الري' : rec.category === 'temperature' ? 'الحرارة' : rec.category === 'humidity' ? 'الرطوبة' : rec.category === 'soil' ? 'التربة' : 'الصحة')
+          }
+        </span>
+
+        {/* Title + Severity Icon */}
         <div className="flex-1">
-          <h4 className={`text-sm font-black leading-tight ${theme.text}`}>
-            {rec.title || rec.message?.substring(0, 40)}
-          </h4>
-          {rec.severity && (
-            <span className="text-[10px] font-bold text-gray-500 mt-1">
-              {isEn ? 'Severity: ' : 'الأهمية: '}{rec.severity}
-            </span>
-          )}
+          <div className={`flex items-start gap-1.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
+            <h4
+              className={`text-base font-bold leading-snug flex-1 text-black`}
+              style={{
+                wordBreak: 'break-word',
+                overflow: 'hidden',
+                display: compact ? '-webkit-box' : 'block',
+                WebkitLineClamp: compact ? 1 : 'unset',
+                WebkitBoxOrient: 'vertical',
+              }}
+              title={compact ? (rec.title || rec.message) : undefined}
+            >
+              {rec.title || rec.message}
+            </h4>
+            {getSeverityIcon()}
+          </div>
         </div>
       </div>
 
-      {/* Body: Reasoning (only if !compact) */}
-      {!compact && rec.reasoning && (
-        <div className={`mt-3 p-2.5 rounded-2xl bg-white/60 backdrop-blur-sm border border-gray-100/50 ${isRtl ? 'text-right' : 'text-left'}`}
-          dir={isRtl ? 'rtl' : 'ltr'}
-          style={{ lineHeight: '1.6' }}
+      {/* Reasoning Section - SCROLLABLE ONLY FOR CONTENT */}
+      {rec.reasoning && (
+        <div
+          className={`mt-1.5 max-h-[250px] overflow-y-auto space-y-2 ${isRtl ? 'pl-2' : 'pr-2'}`}
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#d1d5db transparent'
+          }}
         >
-          <div className="text-[11px] font-bold text-gray-700 mb-1">
-            {isEn ? 'Analysis:' : 'التحليل:'}
-          </div>
-          <div className="text-xs text-gray-800 leading-relaxed">
-            {rec.reasoning}
+          <style>{`
+            [data-reasoning-scroll]::-webkit-scrollbar {
+              width: 6px;
+            }
+            [data-reasoning-scroll]::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            [data-reasoning-scroll]::-webkit-scrollbar-thumb {
+              background: #d1d5db;
+              border-radius: 3px;
+            }
+            [data-reasoning-scroll]::-webkit-scrollbar-thumb:hover {
+              background: #9ca3af;
+            }
+          `}</style>
+          <div data-reasoning-scroll>
+            {/* ISSUE Section */}
+            <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+              <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 mt-1 ${theme.iconBg}`}>
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold text-black mb-0.5 leading-tight">
+                  {isEn ? 'Issue' : 'المشكلة'}
+                </div>
+                <p className={`text-xs text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
+                  {issue || rec.reasoning}
+                </p>
+              </div>
+            </div>
+
+            {/* SOLUTION Section */}
+            {solution && (
+              <div className={`p-2 rounded-xl bg-gray-50 border border-gray-100 flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100`}>
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-bold text-black mb-0.5 leading-tight">
+                    {isEn ? 'Solution' : 'الحل'}
+                  </div>
+                  <p className={`text-xs text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
+                    {solution}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Action Block */}
-      <div className={`mt-3 p-3 rounded-2xl ${theme.actionBg} border ${theme.actionBorder}`}
-        dir={isRtl ? 'rtl' : 'ltr'}
-        style={{ lineHeight: '1.5' }}
-      >
-        <div className={`text-[11px] font-black ${theme.actionText} mb-1`}>
-          {isEn ? 'Action:' : 'الإجراء:'}
-        </div>
-        <div className="text-xs text-gray-800">
-          {rec.suggestion || (isEn ? 'Review and apply this recommendation.' : 'راجع وطبق هذه التوصية.')}
-        </div>
-      </div>
-
       {/* Footer: Feedback + Execute/Ignore */}
-      <div className={`mt-4 pt-3 border-t border-gray-200 flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+      <div className={`mt-2 pt-2 border-t border-gray-200 flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
         {/* Feedback Buttons */}
-        <div className={`flex items-center gap-1.5 relative ${isRtl ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap">
+        <div className={`flex items-center gap-1 relative ${isRtl ? 'flex-row-reverse' : ''}`}>
+          <span className="text-[9px] font-semibold text-gray-500 whitespace-nowrap">
             {isEn ? 'Helpful?' : 'مفيدة؟'}
           </span>
           <button
             onClick={() => onFeedback?.(rec.id, 'down')}
-            className={`w-7 h-7 flex items-center justify-center rounded-xl border transition-all transform
+            className={`w-6 h-6 flex items-center justify-center rounded-lg border transition-all transform
               ${feedbackState[rec.id] === 'down'
                 ? 'bg-red-50 border-red-300 text-red-600 scale-110'
                 : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:scale-105'
               }`}
             title={isEn ? 'Not helpful' : 'غير مفيدة'}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
             </svg>
           </button>
           <button
             onClick={() => onFeedback?.(rec.id, 'up')}
-            className={`w-7 h-7 flex items-center justify-center rounded-xl border transition-all transform
+            className={`w-6 h-6 flex items-center justify-center rounded-lg border transition-all transform
               ${feedbackState[rec.id] === 'up'
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
                 : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 hover:scale-105'
               }`}
             title={isEn ? 'Helpful' : 'مفيدة'}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
             </svg>
           </button>
           {showThanks?.includes(rec.id) && (
-            <div className="absolute top-[-24px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[9px] font-bold whitespace-nowrap z-10 animate-bounce">
-              {isEn ? 'Thanks for feedback!' : 'شكراً على رأيك!'}
+            <div className="absolute top-[-24px] right-0 bg-emerald-600 text-white px-2 py-0.5 rounded-md text-[8px] font-bold whitespace-nowrap z-10 animate-bounce"
+              style={{ direction: 'ltr' }}
+            >
+              {isEn ? 'Thanks!' : 'شكراً!'}
             </div>
           )}
         </div>
 
         {/* Execute/Ignore Buttons (Manual Mode) OR Auto Badge (Auto Mode) */}
         {!globalAutoMode ? (
-          <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
+          <div className={`flex gap-1 ${isRtl ? 'flex-row-reverse' : ''}`}>
             <button
               onClick={handleExecute}
               disabled={isLoading || executionSuccess}
-              className={`px-3 py-1.5 text-white text-[11px] font-black rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 text-white text-[10px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1 whitespace-nowrap ${
                 executionSuccess
                   ? 'bg-emerald-600 border border-emerald-600'
                   : 'bg-emerald-600 hover:bg-emerald-700 border border-emerald-600'
@@ -712,15 +867,15 @@ export function RecommendationCard({
             >
               {isLoading ? (
                 <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" opacity="0.25"/>
                     <path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
                   </svg>
-                  {isEn ? 'Running...' : 'جاري...'}
+                  {isEn ? 'Run' : 'نفذ'}
                 </>
               ) : executionSuccess ? (
                 <>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                   {isEn ? 'Done' : 'تم'}
@@ -731,17 +886,15 @@ export function RecommendationCard({
             </button>
             <button
               onClick={() => onIgnore?.(rec.id)}
-              className="px-3 py-1.5 bg-white border border-gray-200 text-gray-500 text-[11px] font-bold rounded-xl hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95"
+              className="px-2.5 py-1 bg-white border border-gray-200 text-gray-500 text-[10px] font-bold rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95 whitespace-nowrap"
             >
               {isEn ? 'Ignore' : 'تجاهل'}
             </button>
           </div>
         ) : (
-          <div className="px-3 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg border border-emerald-200 flex items-center gap-1.5">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="10"/>
-            </svg>
-            {isEn ? 'Auto Executed' : 'تم التنفيذ تلقائياً'}
+          <div className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-200 flex items-center gap-1 whitespace-nowrap shadow-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            {isEn ? 'Auto' : 'تلقائي'}
           </div>
         )}
       </div>
@@ -845,7 +998,7 @@ export function AlertCard({
       </div>
 
       {/* Message */}
-      <p className={`mt-3 text-sm font-bold text-gray-800 leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}
+      <p className={`mt-3 text-sm font-bold text-black leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}
         dir={isRtl ? 'rtl' : 'ltr'}
       >
         {alert.message || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}

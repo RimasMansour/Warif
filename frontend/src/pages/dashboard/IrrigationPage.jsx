@@ -140,7 +140,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
         type: r.category,
         title: r.title,
         text: r.message,
-        reasoning: r.reason,
+        reasoning: r.data_insight || r.reasoning || r.reason || r.message,
         suggestion: r.suggestion,
         benefit: r.benefit
       }));
@@ -250,8 +250,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="animate-fade-in-up delay-1 h-full">
-            <CardShell className="p-6 h-full card-interactive overflow-hidden relative">
+          <div className="animate-fade-in-up delay-1">
+            <CardShell className="p-6 min-h-[400px] card-interactive overflow-hidden relative">
               <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-50 rounded-full blur-3xl opacity-60 animate-pulse" />
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight flex items-center justify-between">
@@ -293,8 +293,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-2 h-full">
-            <CardShell className="p-6 h-full card-interactive">
+          <div className="animate-fade-in-up delay-2">
+            <CardShell className="p-6 min-h-[400px] card-interactive">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight flex items-center gap-2">
                   {T.latestRecs} 
@@ -302,7 +302,13 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                 </div>
                 <div className="text-[12px] text-gray-400 mt-1 font-medium">{T.dssSub}</div>
               </div>
-              <div className="mt-6 flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
+              <div
+                className={`mt-6 flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto ${isRtl ? 'pl-2' : 'pr-2'}`}
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: '#d1d5db transparent'
+                }}
+              >
                 {recommendations.length > 0 ? (
                   recommendations.map((rec, i) => (
                     <RecommendationCard
@@ -323,7 +329,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                       onFeedback={handleFeedback}
                       feedbackState={feedback}
                       showThanks={showThanksIds}
-                      compact={false}
+                      compact={true}
                     />
                   ))
                 ) : (
