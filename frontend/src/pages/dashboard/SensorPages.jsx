@@ -293,15 +293,16 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     if (range === 'D') {
-      const saudiToday = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
-      const saudiTodayStr = `${saudiToday.getUTCFullYear()}-${saudiToday.getUTCMonth()}-${saudiToday.getUTCDate()}`;
+      const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
         const items = rawData?.filter(r => {
-          const d = new Date(new Date(r.timestamp).getTime() + 3 * 60 * 60 * 1000);
-          const localHour = d.getUTCHours();
-          const rDateStr = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
-          return localHour === i && rDateStr === saudiTodayStr;
+          const itemDate = new Date(r.timestamp);
+          const itemDateStr = itemDate.toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
+          if (itemDateStr !== todayStr) return false;
+
+          const localHour = new Date(itemDate.getTime() + 3 * 60 * 60 * 1000).getUTCHours();
+          return localHour === i;
         }) || [];
         const value = items.length > 0
           ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
@@ -705,15 +706,16 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
     if (range === 'D') {
-      const saudiToday = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
-      const saudiTodayStr = `${saudiToday.getUTCFullYear()}-${saudiToday.getUTCMonth()}-${saudiToday.getUTCDate()}`;
+      const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
         const items = rawData?.filter(r => {
-          const d = new Date(new Date(r.timestamp).getTime() + 3 * 60 * 60 * 1000);
-          const localHour = d.getUTCHours();
-          const rDateStr = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
-          return localHour === i && rDateStr === saudiTodayStr;
+          const itemDate = new Date(r.timestamp);
+          const itemDateStr = itemDate.toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
+          if (itemDateStr !== todayStr) return false;
+
+          const localHour = new Date(itemDate.getTime() + 3 * 60 * 60 * 1000).getUTCHours();
+          return localHour === i;
         }) || [];
         const value = items.length > 0
           ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
