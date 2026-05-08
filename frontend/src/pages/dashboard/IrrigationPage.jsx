@@ -191,14 +191,12 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     };
 
     // Fill data into the fixed slots with cumulative summing (accumulation)
-    const saudiToday = new Date(new Date().getTime() + 3 * 60 * 60 * 1000);
-    const saudiTodayStr = `${saudiToday.getUTCFullYear()}-${saudiToday.getUTCMonth()}-${saudiToday.getUTCDate()}`;
+    const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
 
     rawWater?.forEach(item => {
       if (range === 'D') {
-        const itemD = new Date(new Date(item.timestamp).getTime() + 3 * 60 * 60 * 1000);
-        const itemDateStr = `${itemD.getUTCFullYear()}-${itemD.getUTCMonth()}-${itemD.getUTCDate()}`;
-        if (itemDateStr !== saudiTodayStr) return; // Skip if not today
+        const itemDateStr = new Date(item.timestamp).toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
+        if (itemDateStr !== todayStr) return; // Skip if not today
       }
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
@@ -210,9 +208,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
 
     rawPower?.forEach(item => {
       if (range === 'D') {
-        const itemD = new Date(new Date(item.timestamp).getTime() + 3 * 60 * 60 * 1000);
-        const itemDateStr = `${itemD.getUTCFullYear()}-${itemD.getUTCMonth()}-${itemD.getUTCDate()}`;
-        if (itemDateStr !== saudiTodayStr) return; // Skip if not today
+        const itemDateStr = new Date(item.timestamp).toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
+        if (itemDateStr !== todayStr) return; // Skip if not today
       }
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
