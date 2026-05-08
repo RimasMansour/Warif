@@ -890,11 +890,22 @@ export function AlertCard({
           </div>
         ) : (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200">
-            <div className="w-2 h-2 rounded-full bg-emerald-500" />
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-black text-emerald-700">
-              {isEn ? 'Auto executed' : 'تم التنفيذ تلقائياً'}
+              {(() => {
+                if (category === 'climate') {
+                  return isEn ? "Fans & Ventilation Activated Automatically" : "تم تشغيل المروحة والتهوية تلقائياً";
+                }
+                if (category === 'irrigation') {
+                  return isEn ? "Irrigation Pump Activated Automatically" : "تم تشغيل مضخة الري تلقائياً";
+                }
+                if (category === 'soil') {
+                  return isEn ? "Soil Environment Adjusted Automatically" : "تم ضبط بيئة التربة تلقائياً";
+                }
+                return isEn ? "Auto executed" : "تم التنفيذ تلقائياً";
+              })()}
             </span>
-            </div>
+          </div>
         )}
       </div>
 
