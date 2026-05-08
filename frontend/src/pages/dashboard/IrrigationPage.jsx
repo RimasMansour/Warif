@@ -248,7 +248,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="animate-fade-in-up delay-1">
-            <CardShell className="p-6 min-h-[400px] card-interactive overflow-hidden relative">
+            <CardShell className="p-6 h-[320px] card-interactive overflow-hidden relative flex flex-col justify-start">
               <div className="absolute -top-4 -right-4 w-24 h-24 bg-emerald-50 rounded-full blur-3xl opacity-60 animate-pulse" />
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight flex items-center justify-between">
@@ -291,7 +291,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
           </div>
 
           <div className="animate-fade-in-up delay-2">
-            <CardShell className="p-6 min-h-[400px] card-interactive">
+            <CardShell className="p-6 h-[320px] card-interactive flex flex-col justify-start overflow-hidden">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight flex items-center gap-2">
                   {T.latestRecs} 
@@ -407,8 +407,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-5 h-full">
-            <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-full card-interactive">
+          <div className="animate-fade-in-up delay-5">
+            <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-[320px] card-interactive justify-start flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
                   <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyPower}</div>

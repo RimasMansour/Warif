@@ -393,7 +393,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="animate-fade-in-up delay-1">
-            <CardShell className="p-5 flex flex-col gap-4 min-h-[400px] card-interactive">
+            <CardShell className="p-5 flex flex-col gap-4 h-[320px] card-interactive justify-start">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.readings}</div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{lastUpdateLabel}</div>
@@ -420,7 +420,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
           </div>
 
           <div className="animate-fade-in-up delay-2">
-            <CardShell className="p-6 flex flex-col gap-4 min-h-[400px] card-interactive">
+            <CardShell className="p-6 flex flex-col gap-4 h-[320px] card-interactive justify-start overflow-hidden">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight flex items-center gap-2">
                   {T.recs} 
@@ -469,8 +469,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-3 h-full">
-            <CardShell className="p-6 flex flex-col gap-4 h-full card-interactive">
+          <div className="animate-fade-in-up delay-3">
+            <CardShell className="p-6 flex flex-col gap-4 h-[320px] card-interactive justify-start overflow-hidden">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.control}</div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.autoSub}</div>
@@ -805,12 +805,12 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="animate-fade-in-up delay-1">
-            <CardShell className="p-5 flex flex-col gap-4 bg-white border-gray-100 shadow-sm min-h-[400px] card-interactive">
+            <CardShell className="p-5 flex flex-col gap-4 bg-white border-gray-100 shadow-sm h-[280px] card-interactive justify-start">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.soilData}</div>
-                <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{lastUpdateLabel}</div>
+                <div className="text-[12px] font-medium text-gray-400 mt-1 mb-3">{lastUpdateLabel}</div>
               </div>
-              <div className="flex-1 flex flex-col gap-4 justify-center">
+              <div className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-white hover:shadow-sm transition-all group">
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">{T.soilTemp}</span>
                   <span className="text-2xl font-black text-gray-800">{soilTemp.toFixed(1)}°C</span>
@@ -824,7 +824,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
           </div>
 
           <div className="animate-fade-in-up delay-2">
-            <CardShell className="p-6 flex flex-col gap-4 bg-white border-gray-100 shadow-sm min-h-[400px] card-interactive">
+            <CardShell className="p-6 flex flex-col gap-3 bg-white border-gray-100 shadow-sm h-[280px] card-interactive justify-start overflow-hidden">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight flex items-center gap-2">
                   {T.soilRecs} 

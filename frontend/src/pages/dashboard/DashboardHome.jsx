@@ -165,16 +165,16 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
 
         {/* Perfectly Aligned 3-Column Layout: Uniform Row Heights & Custom Column Widths */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-4 lg:gap-5 items-start w-full">
-          
-          {/* Row 1: Top Aligned Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1.12fr] gap-4 lg:gap-5 w-full">
+
+          {/* Row 1: Top Aligned Cards - Compact Fixed Height */}
           <div className="animate-fade-in-up delay-2">
             <MicroclimateGlanceCard onGo={onGo} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
           </div>
           <div className="animate-fade-in-up delay-3">
             <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} crops={crops} />
           </div>
-          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 h-full self-stretch">
+          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2">
             <DashboardAlertsCard
               onGo={onGo}
               alerts={alerts}
@@ -186,15 +186,15 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
             />
           </div>
 
-          {/* Row 2: Bottom Aligned Cards */}
+          {/* Row 2: Bottom Aligned Cards - Compact Fixed Height */}
           <div className="animate-fade-in-up delay-5">
-            <IrrigationGlanceCard 
-              onGo={onGo} 
-              globalAutoMode={globalAutoMode} 
-              activeFarm={activeFarm} 
+            <IrrigationGlanceCard
+              onGo={onGo}
+              globalAutoMode={globalAutoMode}
+              activeFarm={activeFarm}
               water={irrigationResources?.water_usage_liters ?? 0}
               power={irrigationResources?.power_usage_kwh ?? 0}
-              dashboardData={dashboardData} 
+              dashboardData={dashboardData}
             />
           </div>
           <div className="animate-fade-in-up delay-6">
