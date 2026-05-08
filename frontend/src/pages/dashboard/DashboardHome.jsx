@@ -807,7 +807,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   
   const waterPercent = dashboardData?.water_tank_level || 0;
-  const energyKwh = dashboardData?.energy_kwh || power || 0;
+  const energyKwh = power || 0;
   const irrigationData = dashboardData;
 
   return (
@@ -887,9 +887,11 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
             </div>
             <span className="text-xs text-gray-500 font-bold">{isEn ? 'Energy' : 'الكهرباء'}</span>
             <span className="text-sm font-black text-gray-700">
-              {(energyKwh).toFixed(1)}
+              {energyKwh < 1 ? (energyKwh * 1000).toFixed(1) : energyKwh.toFixed(1)}
             </span>
-            <span className={`text-[10px] font-bold text-gray-400 ${isEn ? '' : 'order-last'}`}>{isEn ? 'kWh' : 'كيلو واط'}</span>
+            <span className={`text-[10px] font-bold text-gray-400 ${isEn ? '' : 'order-last'}`}>
+              {energyKwh < 1 ? (isEn ? 'Wh' : 'واط ساعي') : (isEn ? 'kWh' : 'كيلو واط')}
+            </span>
           </div>
         </div>
         <div className="hidden">

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useLatestSensors, useAutoAlerts, triggerManualCooling, useDevices, useAutoMode } from "../../hooks/useWarifData";
 import { startManualIrrigation, getMe, getFarms } from "../../services/api";
 import { translations } from "../../i18n";
@@ -100,6 +100,7 @@ const DeviceRow = ({ s, T, isEn, isRtl }) => (
 ========================================================= */
 
 export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
+  const mainScrollRef = useRef(null);
   const [userFullName, setUserFullName] = useState('');
   const [userFullNameEn, setUserFullNameEn] = useState('');
   const [language, setLanguage] = useState(propLang || 'ar');
@@ -272,7 +273,9 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   // Global UX: Scroll to top whenever page changes
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (mainScrollRef.current) {
+      mainScrollRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
   }, [page]);
   const [activeFarm, setActiveFarm] = useState(0); 
   const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
@@ -633,7 +636,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
           )}
 
           {/* Content Area */}
-          <div className="flex-1 min-h-0 overflow-auto w-full flex flex-col">
+          <div ref={mainScrollRef} className="flex-1 min-h-0 overflow-auto w-full flex flex-col">
             <DashboardErrorBoundary>
               {page === "dashboard" ? (
                 <DashboardHome 

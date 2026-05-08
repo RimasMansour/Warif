@@ -126,7 +126,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
   const waterUsage  = resourceData?.water_usage_liters ?? 0;
   const powerUsage  = resourceData?.power_usage_kwh ?? 0;
 
-  const historyLimit = range === 'D' ? 288 : range === 'W' ? 6000 : range === 'M' ? 15000 : 365;
+  const historyLimit = range === 'D' ? 10000 : range === 'W' ? 50000 : range === 'M' ? 50000 : 50000;
   const { data: rawWater } = useSensorHistory('water_usage', historyLimit);
   const { data: rawPower } = useSensorHistory('power_usage', historyLimit);
 
@@ -155,7 +155,13 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
         const monthsAr = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
         const monthsEn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         if (range === 'D') return `${i}:00`;
-        if (range === 'W') return isEn ? daysEn[i % 7] : daysAr[i % 7];
+        if (range === 'W') {
+          const now = new Date();
+          const targetDate = new Date(now);
+          targetDate.setDate(now.getDate() - now.getDay() + i);
+          const dayIdx = targetDate.getDay();
+          return isEn ? daysEn[dayIdx] : daysAr[dayIdx];
+        }
         if (range === 'M') return `${i + 1}`;
         if (range === 'Y') return isEn ? monthsEn[i % 12] : monthsAr[i % 12];
         return `${i}`;
@@ -172,18 +178,24 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
       const localHour = (d.getUTCHours() + 3) % 24;
       const localDate = new Date(d.getTime() + 3 * 60 * 60 * 1000);
       if (range === 'D') return localHour;
-      if (range === 'W') return localDate.getDay();
+      if (range === 'W') {
+        const now = new Date();
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        const diffDays = Math.floor((localDate - startOfWeek) / (1000 * 60 * 60 * 24));
+        return Math.min(6, Math.max(0, diffDays));
+      }
       if (range === 'M') return Math.min(targetLen - 1, localDate.getDate() - 1);
       if (range === 'Y') return localDate.getMonth();
       return -1;
     };
 
-    // Fill data into the fixed slots
+    // Fill data into the fixed slots with cumulative summing (accumulation)
     rawWater?.forEach(item => {
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
-        points[idx].water = item.value;
-        points[idx].value = item.value;
+        points[idx].water = Number((points[idx].water + (item.value || 0)).toFixed(2));
+        points[idx].value = Number((points[idx].value + (item.value || 0)).toFixed(2));
         points[idx].hasData = true;
       }
     });
@@ -191,7 +203,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     rawPower?.forEach(item => {
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
-        points[idx].power = item.value;
+        points[idx].power = Number((points[idx].power + (item.value || 0)).toFixed(3));
         points[idx].hasData = true;
       }
     });

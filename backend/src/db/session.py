@@ -7,8 +7,8 @@ from src.core.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=3,
+    max_overflow=5,
     pool_timeout=30,
     pool_recycle=1800,      # Recycle connections every 30 min
     pool_pre_ping=True,     # Test connection before using it

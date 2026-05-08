@@ -210,16 +210,22 @@ export function HealthStyleBarChart({
   ];
 
   const h = 240; 
-  const pLeft = 95; 
-  const pRight = 95;
+  const n = data.length;
+  const isDay = range === 'D';
+  const isWeek = range === 'W';
+  const isMonth = range === 'M';
+  const isYear = range === 'Y';
+
+  const pLeft = 85; 
+  const pRight = 45;
   const padTop = 15; 
   const padBottom = 35; 
   
-  const n = data.length;
   const w = 900; 
   
-  const gapBetweenGroups = 12;
-  const barW = Math.min(32, (w - pLeft - pRight - (n - 1) * gapBetweenGroups) / (n * 2));
+  const gapBetweenGroups = isDay ? 4 : isWeek ? 16 : isMonth ? 4 : 12;
+  const slotW = (w - pLeft - pRight) / n;
+  const barW = (slotW - gapBetweenGroups) / 2;
   const totalContentW = n * (barW * 2) + (n - 1) * gapBetweenGroups;
   const startOffset = (w - pLeft - pRight - totalContentW) / 2;
   const x = (i) => pLeft + startOffset + i * (barW * 2 + gapBetweenGroups);
@@ -398,7 +404,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   const segmentW = (w - pLeft - pRight) / (n - 1 || 1);
 
   const allValues = data.flatMap(d => [d.water || 0, d.power || 0]);
-  const yMax = 100; 
+  const yMax = Math.ceil(Math.max(...allValues, 2) / 5) * 5; 
   const getY = (v) => h - pBottom - (v / (yMax || 1)) * (h - pTop - pBottom);
   const getX = (i) => pLeft + i * segmentW;
 

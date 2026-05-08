@@ -247,6 +247,9 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     tempChart: isEn ? "Temperature Trend" : "مسار درجة الحرارة",
     humChart: isEn ? "Air Humidity Trend" : "مسار رطوبة الهواء",
     lightChart: isEn ? "Light Intensity Trend" : "مسار شدة الإضاءة",
+    airTempChart: isEn ? 'Air Temperature Trend' : 'مسار درجة حرارة الهواء',
+    soilTempChart: isEn ? 'Soil Temperature Patterns' : 'أنماط حرارة التربة',
+    soilMoistChart: isEn ? 'Soil Moisture Patterns' : 'أنماط رطوبة التربة المكتشفة',
     tempY: isEn ? "Temp (°C)" : "درجة الحرارة (°C)",
     humY: isEn ? "Humidity (%)" : "رطوبة الهواء (٪)",
     lightY: isEn ? "Lux" : "لوكس",
@@ -277,7 +280,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   // const coolingActive = livesensors?.coolingActive ?? false; (Replaced by local state)
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 2000 : range === 'W' ? 20000 : range === 'M' ? 45000 : 50000;
+  const historyLimit = range === 'D' ? 10000 : range === 'W' ? 50000 : range === 'M' ? 50000 : 50000;
   const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit);
   const { data: rawHum } = useSensorHistory('air_humidity', historyLimit);
   const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);
@@ -307,13 +310,14 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
       const now = new Date();
       return Array.from({ length: 7 }, (_, i) => {
         const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() - (6 - i));
+        targetDate.setDate(now.getDate() - now.getDay() + i);
         const dayOfWeek = targetDate.getDay();
         const label = isEn ? daysEn[dayOfWeek] : daysAr[dayOfWeek];
         const items = rawData?.filter(r => {
           const d = new Date(r.timestamp);
           return d.getDate() === targetDate.getDate() &&
-                 d.getMonth() === targetDate.getMonth();
+                 d.getMonth() === targetDate.getMonth() &&
+                 d.getFullYear() === targetDate.getFullYear();
         }) || [];
         const value = items.length > 0
           ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
@@ -386,9 +390,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <span className="text-[13px] font-bold text-gray-500 group-hover:text-gray-700">
                     {isEn ? 'Light Intensity' : 'شدة الإضاءة'}
                   </span>
-                  <span className="text-2xl font-black text-gray-800">
-                    {Math.round(light).toLocaleString()}
-                    <span className="text-[14px] font-bold text-gray-400 mr-1">Lux</span>
+                  <span className="text-2xl font-black text-gray-800" dir="ltr">
+                    {Math.round(light).toLocaleString()} Lux
                   </span>
                 </div>
               </div>
@@ -542,7 +545,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <HealthStyleBarChart 
               range={range} onRangeChange={setRange} data={tempSeries} 
-              unit="°C" metricName={T.tempChart} color="#10b981" 
+              unit="°C" metricName={T.airTempChart || T.tempChart} color="#10b981" 
               yAxisTitle={T.tempY}
               T={translations[lang]}
               isRtl={isRtl}
@@ -632,6 +635,9 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     bioSub: isEn ? "Tracking changes in productivity parameters." : "رصد تغيرات المعايير المؤثرة بالإنتاجية",
     tempChart: isEn ? "Soil Temp Patterns" : "أنماط حرارة التربة",
     moistChart: isEn ? "Soil Moisture Patterns" : "أنماط رطوبة التربة المكتشفة",
+    airTempChart: isEn ? 'Air Temperature Trend' : 'مسار درجة حرارة الهواء',
+    soilTempChart: isEn ? 'Soil Temperature Patterns' : 'أنماط حرارة التربة',
+    soilMoistChart: isEn ? 'Soil Moisture Patterns' : 'أنماط رطوبة التربة المكتشفة',
     tempY: isEn ? "Soil Temp (°C)" : "حرارة التربة (°C)",
     moistY: isEn ? "Soil Moisture (%)" : "رطوبة التربة (٪)",
     lastUpdateAr: "آخر تحديث",
@@ -661,7 +667,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilMoist = livesensors2?.soil_moisture    ?? 0;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
+  const historyLimit = range === 'D' ? 10000 : range === 'W' ? 50000 : range === 'M' ? 50000 : 50000;
   const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit);
   const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit);
 
@@ -675,15 +681,34 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (range === 'D') {
       return Array.from({ length: 24 }, (_, i) => {
         const label = `${i}:00`;
-        const item = rawData?.find(r => new Date(r.timestamp).getHours() === i);
-        return { label, value: item?.value ?? 0 };
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          const localHour = (d.getUTCHours() + 3) % 24;
+          return localHour === i;
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'W') {
+      const now = new Date();
       return Array.from({ length: 7 }, (_, i) => {
-        const label = isEn ? daysEn[i] : daysAr[i];
-        const item = rawData?.find(r => new Date(r.timestamp).getDay() === i);
-        return { label, value: item?.value ?? 0 };
+        const targetDate = new Date(now);
+        targetDate.setDate(now.getDate() - now.getDay() + i);
+        const dayOfWeek = targetDate.getDay();
+        const label = isEn ? daysEn[dayOfWeek] : daysAr[dayOfWeek];
+        const items = rawData?.filter(r => {
+          const d = new Date(r.timestamp);
+          return d.getDate() === targetDate.getDate() &&
+                 d.getMonth() === targetDate.getMonth() &&
+                 d.getFullYear() === targetDate.getFullYear();
+        }) || [];
+        const value = items.length > 0
+          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
+          : 0;
+        return { label, value: Math.round(value) };
       });
     }
     if (range === 'M') {
@@ -803,14 +828,14 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <HealthStyleBarChart 
               range={range} onRangeChange={setRange} data={soilTempSeries} 
-              unit="°C" metricName={T.tempChart} color="#10b981" 
+              unit="°C" metricName={T.soilTempChart || T.tempChart} color="#10b981" 
               yAxisTitle={T.tempY}
               T={translations[lang]}
               isRtl={isRtl}
             />
             <HealthStyleBarChart 
               range={range} onRangeChange={setRange} data={soilMoistSeries} 
-              unit="٪" metricName={T.moistChart} color="#10b981" 
+              unit="٪" metricName={T.soilMoistChart || T.moistChart} color="#10b981" 
               yAxisTitle={T.moistY}
               T={translations[lang]}
               isRtl={isRtl}

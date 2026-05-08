@@ -73,8 +73,12 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
       error = new ApiError(`Connection timeout. Please check your internet connection or server status.`, 408)
     }
 
-    if (error instanceof ApiError && error.status >= 500 && retries < maxRetries) {
-      debugLog(`Retry attempt ${retries + 1}/${maxRetries} for ${url}`)
+    const isTransientError = 
+      error.name === 'TypeError' || 
+      (error instanceof ApiError && (error.status >= 500 || error.status === 408));
+
+    if (isTransientError && retries < maxRetries) {
+      debugLog(`Retry attempt ${retries + 1}/${maxRetries} for ${url} due to transient error: ${error.message}`)
       await new Promise(resolve => setTimeout(resolve, retryDelay * (retries + 1)))
       return fetchWithRetry(url, options, retries + 1)
     }

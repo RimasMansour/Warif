@@ -548,21 +548,6 @@ export function useDevices(providedFarmId = null) {
           results = Array.isArray(res) ? res : [];
           console.log(`[useDevices] Found ${results.length} devices in DB`);
         }
-
-        // 3. Fallback to localStorage ONLY if the DB is truly empty for this user
-        if (results.length === 0) {
-          const saved = JSON.parse(localStorage.getItem('warif_user') || '{}');
-          if (saved.sensorList && saved.sensorList.length > 0) {
-            console.log(`[useDevices] DB empty, falling back to ${saved.sensorList.length} localStorage sensors`);
-            results = saved.sensorList.map(s => ({
-              id: s.id || `local_${Math.random()}`,
-              name: s.name,
-              type: (s.type?.toLowerCase().includes('sensor') || s.type?.includes('حساس')) ? 'sensor' : 'actuator',
-              status: (s.status === 'normal' || s.status === 'active') ? 'active' : 'inactive',
-              isLocal: true
-            }));
-          }
-        }
         
         setDevices(results);
       } catch (err) { 
