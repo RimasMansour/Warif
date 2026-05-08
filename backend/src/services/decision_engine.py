@@ -72,6 +72,15 @@ class SmartDecisionEngine:
             "actionBorder": "border-amber-100/50",
             "actionText": "text-amber-700",
         },
+        "general": {
+            "color": "bg-emerald-50/20",
+            "border": "border-emerald-100/60",
+            "text": "text-emerald-700",
+            "iconBg": "bg-emerald-100 text-emerald-600 border-emerald-200/50",
+            "actionBg": "bg-emerald-50/50",
+            "actionBorder": "border-emerald-100/50",
+            "actionText": "text-emerald-800",
+        },
     }
 
     # Class-level cache to prevent duplicate recommendations
@@ -367,9 +376,19 @@ class SmartDecisionEngine:
                     confidence=0.79,
                 ))
 
-        # Filter: Keep only 'normal' severity recommendations (tips for system improvement)
-        # 'warning' and 'urgent' are handled by the Alerts system
-        recommendations = [r for r in recommendations if r.severity == "normal"]
+        # NOTE: Removed the filter that was deleting all recommendations!
+        # All recommendations (normal/warning/urgent) should be returned for display in UI
+        # 'warning' and 'urgent' are ALSO shown in the Decision Support page, not just alerts
+
+        # If no issues found, return a "Healthy Status" recommendation
+        if not recommendations:
+            recommendations.append(SmartRecommendation(
+                message="النظام يعمل بشكل مثالي",
+                reasoning=f"جميع المؤشرات ضمن النطاق المثالي: رطوبة التربة {soil_moisture:.0f}%, حرارة {air_temperature:.0f}°م, رطوبة {air_humidity:.0f}%",
+                category="general",
+                severity="normal",
+                confidence=0.95,
+            ))
 
         return recommendations
 

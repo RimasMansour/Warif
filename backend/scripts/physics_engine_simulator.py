@@ -624,20 +624,24 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
     # Call Decision Engine for recommendations and anomaly detection
     try:
         from src.services.decision_engine import SmartDecisionEngine
-        
+        from sqlalchemy import and_
+
         engine = SmartDecisionEngine()
         intelligence_report = await engine.analyze_with_intelligence(
             full_sensor_data, fid
         )
-        
+
         # Save recommendations with 5-minute cooldown
         cooldown_5min = datetime.now(timezone.utc) - timedelta(minutes=5)
         for rec in intelligence_report.get('recommendations', []):
+            # Use proper AND logic for SQLAlchemy
             existing = await db.execute(
                 select(Recommendation).where(
-                    Recommendation.farm_id == fid,
-                    Recommendation.message == rec.message,
-                    Recommendation.created_at >= cooldown_5min
+                    and_(
+                        Recommendation.farm_id == fid,
+                        Recommendation.message == rec.message,
+                        Recommendation.created_at >= cooldown_5min
+                    )
                 )
             )
             if not existing.scalar_one_or_none():
@@ -649,6 +653,7 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
                     severity=rec.severity,
                     is_read=False,
                 ))
+                print(f"[REC] Farm {fid} | Added: {rec.message} ({rec.category})")
         
         # Save alerts with 30-minute cooldown
         cooldown_30min = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -656,21 +661,24 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
             if anomaly['severity'] in ['critical', 'high']:
                 existing_alert = await db.execute(
                     select(Alert).where(
-                        Alert.sensor_type == anomaly['sensor'],
-                        Alert.farm_id == fid,
-                        Alert.status == AlertStatus.open,
-                        Alert.created_at >= cooldown_30min
+                        and_(
+                            Alert.sensor_type == anomaly['sensor'],
+                            Alert.farm_id == fid,
+                            Alert.status == AlertStatus.open,
+                            Alert.created_at >= cooldown_30min
+                        )
                     )
                 )
                 if not existing_alert.scalar_one_or_none():
                     db.add(Alert(
                         farm_id=fid,
                         sensor_type=anomaly['sensor'],
-                        message=f"🚨 {anomaly['description']}",
-                        severity=AlertSeverity.critical if anomaly['severity'] == 'critical' 
+                        message=f"[ANOMALY] {anomaly['description']}",
+                        severity=AlertSeverity.critical if anomaly['severity'] == 'critical'
                                  else AlertSeverity.warning,
                         status=AlertStatus.open,
                     ))
+                    print(f"[ALERT] Farm {fid} | {anomaly['sensor']}: {anomaly['severity']}")
         # === AUTO IRRIGATION DECISION ===
         if farm_auto_mode and not pump_on:
             irrigation_action = intelligence_report.get("irrigation_action", {})
@@ -712,6 +720,12 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
 
     except Exception as de_err:
         print(f"[DE] Farm {fid} decision engine error: {de_err}")
+
+    # Flush all pending operations to ensure data consistency
+    try:
+        await db.flush()
+    except Exception as flush_err:
+        print(f"[FLUSH] Farm {fid} flush error: {flush_err}")
 
     mode_str = "AUTO" if farm_auto_mode else "MANUAL"
     print(
