@@ -836,24 +836,29 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                             const isCooler  = device.name.includes('مكيف') || nameLower.includes('cool');
                             const isIrrig   = device.name.includes('ري') || device.name.includes('مضخة') || nameLower.includes('irrig');
                             
-                            const val = 
-                              isSoil    ? `${liveSensors?.soil_moisture?.toFixed(1) || '--'}%` :
-                              isClimate ? `${liveSensors?.air_temperature?.toFixed(1) || '--'}°C` :
-                              isTemp    ? `${liveSensors?.air_temperature?.toFixed(1) || '--'}°C` :
-                              isHum     ? `${liveSensors?.air_humidity?.toFixed(1) || '--'}%` :
-                              isFan     ? (device.status === 'active' ? 'تعمل' : 'متوقفة') :
-                              isCooler  ? (device.status === 'active' ? 'تعمل' : 'متوقفة') :
-                              isIrrig   ? `${liveSensors?.water_usage?.toFixed(1) || '0'} L` : '';
+                            const isConnected = device.status === 'active' || device.status === 'normal';
+                            const connectedLabel = isConnected
+                              ? (isEn ? 'Connected and running' : 'تعمل')
+                              : (isEn ? 'Disconnected' : 'غير متصلة');
+                            const description =
+                              isSoil    ? (isEn ? 'Measures soil moisture and soil temperature.' : 'يقيس رطوبة التربة ودرجة حرارة التربة.') :
+                              isClimate ? (isEn ? 'Measures air temperature, humidity, and light levels.' : 'يقيس حرارة الهواء والرطوبة وقراءات الإضاءة.') :
+                              isTemp    ? (isEn ? 'Measures greenhouse temperature in real time.' : 'يقيس درجة حرارة المحمية بشكل لحظي.') :
+                              isHum     ? (isEn ? 'Measures air humidity around the crops.' : 'يقيس رطوبة الهواء المحيط بالمحصول.') :
+                              isFan     ? (isEn ? 'Ventilation fan for air circulation inside the greenhouse.' : 'مروحة تهوية لتحريك الهواء داخل المحمية.') :
+                              isCooler  ? (isEn ? 'Cooling unit used to reduce greenhouse heat.' : 'وحدة تكييف لتخفيف حرارة المحمية.') :
+                              isIrrig   ? (isEn ? 'Smart irrigation pump for water delivery and control.' : 'مضخة ري ذكية لتغذية المياه والتحكم بالتدفق.') :
+                              (isEn ? 'Connected hardware device.' : 'جهاز متصل بالنظام.');
                             
-                            const iconBg = isTemp ? 'bg-orange-50 border-orange-100/30' : isHum ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
-                            const iconColor = isTemp ? 'text-[#F97316]' : isHum ? 'text-[#0EA5E9]' : 'text-[#059669]';
+                            const iconBg = isTemp || isClimate ? 'bg-orange-50 border-orange-100/30' : isHum ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
+                            const iconColor = isTemp || isClimate ? 'text-[#F97316]' : isHum ? 'text-[#0EA5E9]' : 'text-[#059669]';
                             
                             return (
                               <div key={device.id} className="flex items-center justify-between p-3.5 bg-white/60 hover:bg-white rounded-[22px] border border-transparent hover:border-gray-100 hover:shadow-sm transition-all group/device">
                                 <div className={`flex items-center gap-4`}>
                                   <div className={`w-12 h-12 rounded-2xl ${iconBg} border flex items-center justify-center transition-all group-hover/device:scale-105`}>
-                                    {isTemp ? (
-                                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}><path d="M14 14.7V3a2 2 0 0 0-4 0v11.7a4.5 4.5 0 1 0 4 0z"/></svg>
+                                    {isTemp || isClimate ? (
+                                      <TempSunIcon className={iconColor} strokeWidth="1.8" />
                                     ) : isHum ? (
                                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}>
                                         <path d="M12 22c4.4 0 8-3.6 8-8 0-6-8-12-8-12S4 8 4 14c0 4.4 3.6 8 8 8z" />
@@ -868,17 +873,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                                   <div className={isRtl ? 'text-right' : 'text-left'}>
                                     <p className="text-[15px] font-black text-gray-800 leading-tight">{device.name}</p>
                                     <p className="text-[11px] font-bold text-gray-400 mt-0.5">
-                                      {isSoil    ? 'رطوبة + حرارة التربة' :
-                                       isClimate ? 'حرارة + رطوبة + إضاءة' :
-                                       isTemp    ? 'درجة الحرارة' :
-                                       isHum     ? 'رطوبة الهواء' :
-                                       isFan     ? 'مروحة التهوية' :
-                                       isCooler  ? 'مكيف صحراوي' :
-                                       isIrrig   ? 'مضخة مياه' : 'تحليل فوري'}
+                                      {description}
                                     </p>
                                   </div>
                                 </div>
-                                <div className="text-lg font-black tracking-tighter" style={{ color: iconColor }}>{val}</div>
+                                <div className={`text-[14px] font-black ${isConnected ? 'text-emerald-600' : 'text-gray-400'}`}>{connectedLabel}</div>
                               </div>
                             );
                           })}
@@ -894,13 +893,14 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                           {devices.filter(d => d.type === 'actuator').map(device => {
                             const nameLower = device.name?.toLowerCase() || '';
                             const isPump = nameLower.includes('pump') || nameLower.includes('مضخ') || nameLower.includes('valve');
-                            const isCool = nameLower.includes('fan') || nameLower.includes('مروح') || nameLower.includes('cool') || nameLower.includes('تبريد');
+                            const isFanActuator = nameLower.includes('fan') || nameLower.includes('مروح');
+                            const isCoolerActuator = nameLower.includes('cool') || nameLower.includes('تبريد') || nameLower.includes('مكيف');
                             
                             const isActive = device.status === 'active';
                             const statusText = isActive ? (isEn ? "Working" : "تعمل") : (isEn ? "Idle" : "خامل");
                             
-                            const iconBg = isPump ? 'bg-blue-50 border-blue-100/30' : 'bg-emerald-50 border-emerald-100/30';
-                            const iconColor = isPump ? 'text-[#0EA5E9]' : 'text-[#059669]';
+                            const iconBg = isPump ? 'bg-blue-50 border-blue-100/30' : isCoolerActuator ? 'bg-cyan-50 border-cyan-100/30' : 'bg-emerald-50 border-emerald-100/30';
+                            const iconColor = isPump ? 'text-[#0EA5E9]' : isCoolerActuator ? 'text-[#06B6D4]' : 'text-[#059669]';
                             
                             return (
                               <div key={device.id} className="flex items-center justify-between p-3.5 bg-white/60 hover:bg-white rounded-[22px] border border-transparent hover:border-gray-100 hover:shadow-sm transition-all group/device">
@@ -908,6 +908,24 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                                   <div className={`w-12 h-12 rounded-2xl ${iconBg} border flex items-center justify-center transition-all group-hover/device:scale-105`}>
                                     {isPump ? (
                                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5s-3 3.5-3 5.5a7 7 0 0 0 7 7z"/></svg>
+                                    ) : isCoolerActuator ? (
+                                      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={iconColor}>
+                                        <line x1="12" y1="5.2" x2="12" y2="18.8"/>
+                                        <line x1="6.4" y1="7.9" x2="17.6" y2="16.1"/>
+                                        <line x1="17.6" y1="7.9" x2="6.4" y2="16.1"/>
+                                        <path d="M12 5.2l1.55-1.85"/>
+                                        <path d="M12 5.2l-1.55-1.85"/>
+                                        <path d="M12 18.8l1.55 1.85"/>
+                                        <path d="M12 18.8l-1.55 1.85"/>
+                                        <path d="M6.4 7.9l-2.45.18"/>
+                                        <path d="M6.4 7.9l-.82-2.25"/>
+                                        <path d="M17.6 16.1l2.45-.18"/>
+                                        <path d="M17.6 16.1l.82 2.25"/>
+                                        <path d="M17.6 7.9l2.45.18"/>
+                                        <path d="M17.6 7.9l.82-2.25"/>
+                                        <path d="M6.4 16.1l-2.45-.18"/>
+                                        <path d="M6.4 16.1l-.82 2.25"/>
+                                      </svg>
                                     ) : (
                                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={iconColor}>
                                         <path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" />
@@ -919,7 +937,13 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                                   </div>
                                   <div className={isRtl ? 'text-right' : 'text-left'}>
                                     <p className="text-[15px] font-black text-gray-800 leading-tight">{device.name}</p>
-                                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">{isPump ? (isEn ? "Water Pump" : "مضخة مياه") : (isEn ? "Fan" : "مروحة")}</p>
+                                    <p className="text-[11px] font-bold text-gray-400 mt-0.5">
+                                      {isPump
+                                        ? (isEn ? "Water Pump" : "مضخة مياه")
+                                        : isCoolerActuator
+                                          ? (isEn ? "Cooling Unit" : "وحدة تكييف")
+                                          : (isEn ? "Fan" : "مروحة")}
+                                    </p>
                                   </div>
                                 </div>
                                 <div className={`text-[14px] font-black ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{statusText}</div>

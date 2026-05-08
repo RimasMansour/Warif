@@ -830,7 +830,13 @@ export function AlertCard({
     >
       {/* Header: Severity Badge + Category Label */}
       <div className={`flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${config.text} ${config.border} bg-white`}>
+        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+          severity === 'critical' || severity === 'high'
+            ? 'bg-red-50 text-red-700 border-red-200'
+            : severity === 'warning'
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-blue-50 text-blue-700 border-blue-200'
+        }`}>
           {config.label}
         </span>
         <span className="text-[15px] font-black text-gray-800">

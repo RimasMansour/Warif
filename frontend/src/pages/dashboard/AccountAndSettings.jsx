@@ -55,7 +55,7 @@ export function AccountAndSettingsPages({
   const [farmDraftPlants, setFarmDraftPlants] = useState(['tomatoes']);
   const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
   const currentFarmId = sessionFarms[0]?.id || null;
-  const { logs, loading: logsLoading } = useActivityLogs(currentFarmId, 20);
+  const { logs, loading: logsLoading } = useActivityLogs(currentFarmId, 200);
   const [showLogsModal, setShowLogsModal] = useState(false);
 
   const triggerToast = (msg) => {
@@ -154,6 +154,48 @@ export function AccountAndSettingsPages({
   const t = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en') ? guides['en'] : guides['ar'];
 
   const sensors = propSensors || [];
+
+  const getDeviceDescription = (device) => {
+    const name = `${device?.name || ''}`.toLowerCase();
+    const type = `${device?.type || ''}`.toLowerCase();
+
+    if (name.includes('حساس التربة') || name.includes('soil')) {
+      return isEn
+        ? 'Measures soil moisture and soil temperature.'
+        : 'يقيس رطوبة التربة ودرجة حرارة التربة.';
+    }
+    if (name.includes('حساس المناخ') || name.includes('climate')) {
+      return isEn
+        ? 'Measures air temperature, humidity, and light readings.'
+        : 'يقيس حرارة الهواء والرطوبة وقراءات الإضاءة.';
+    }
+    if (name.includes('مروحة') || name.includes('fan')) {
+      return isEn
+        ? 'Ventilation unit for airflow control.'
+        : 'وحدة تهوية للتحكم في تدفق الهواء.';
+    }
+    if (name.includes('مكيف') || name.includes('cooling')) {
+      return isEn
+        ? 'Cooling unit for greenhouse temperature control.'
+        : 'وحدة تبريد للتحكم في درجة حرارة المحمية.';
+    }
+    if (name.includes('مضخة') || name.includes('ري') || name.includes('irrigation') || name.includes('pump')) {
+      return isEn
+        ? 'Irrigation unit for smart water delivery.'
+        : 'وحدة ري لتوزيع المياه بشكل ذكي.';
+    }
+
+    return type === 'sensor'
+      ? (isEn ? 'Connected monitoring sensor.' : 'حساس مراقبة متصل بالنظام.')
+      : (isEn ? 'Connected control device.' : 'جهاز تحكم متصل بالنظام.');
+  };
+
+  const getConnectionStatus = (device) => {
+    const active = device?.status === 'active' || device?.status === 'normal';
+    return active
+      ? (isEn ? 'Connected and running' : 'تعمل')
+      : (isEn ? 'Disconnected' : 'غير متصلة');
+  };
 
   const [sensorModal, setSensorModal] = useState({
     open: false,
@@ -658,17 +700,21 @@ export function AccountAndSettingsPages({
               <div className="animate-fade-in-up delay-2">
                 <button
                   onClick={() => setShowLogsModal(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gray-50 border border-gray-200 hover:bg-emerald-50 hover:border-emerald-200 transition-colors group"
+                  className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm hover:border-emerald-200 hover:bg-emerald-50/40 transition-all active:scale-95 ${isRtl ? 'flex-row text-right' : 'text-left'}`}
+                  dir={isRtl ? 'rtl' : 'ltr'}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-gray-400 group-hover:text-emerald-600 transition-colors">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                    <polyline points="14 2 14 8 20 8"/>
-                    <line x1="16" y1="13" x2="8" y2="13"/>
-                    <line x1="16" y1="17" x2="8" y2="17"/>
-                    <polyline points="10 9 9 9 8 9"/>
-                  </svg>
-                  <span className="text-sm font-black text-gray-600 group-hover:text-emerald-700 transition-colors">
-                    {isEn ? 'Activity Log' : 'سجل النشاط'}
+                  <div className="flex items-center gap-3">
+                    <div className={`flex flex-col flex-1 ${isRtl ? 'items-end text-right' : 'items-start text-left'}`}>
+                      <div className={`w-full text-lg font-bold text-gray-800 tracking-tight ${isRtl ? 'text-right' : 'text-left'}`}>
+                        {isEn ? 'Activity Log' : 'سجل النشاط'}
+                      </div>
+                      <div className={`w-full text-[12px] font-medium text-gray-400 mt-0.5 ${isRtl ? 'text-right' : 'text-left'}`}>
+                        {isEn ? 'Review recent system actions' : 'مراجعة آخر إجراءات النظام'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="bg-emerald-100 text-emerald-700 text-sm font-black px-3 py-1 rounded-full min-w-[36px] text-center shrink-0">
+                    {logs.length || 0}
                   </span>
                 </button>
               </div>
@@ -698,7 +744,7 @@ export function AccountAndSettingsPages({
                           </div>
                           <div className={isRtl ? 'text-right' : 'text-left'}>
                             <div className="text-[13px] font-black text-gray-800">{s.name}</div>
-                            <div className="text-[12px] font-bold text-gray-400">{s.type} • {s.id}</div>
+                            <div className="text-[12px] font-medium text-gray-500">{s.type}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1207,7 +1253,7 @@ export function AccountAndSettingsPages({
         </Account_ModalShell>
       )}
       {showLogsModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4"
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 p-4"
           onClick={() => setShowLogsModal(false)}>
           <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]"
             onClick={e => e.stopPropagation()}>
@@ -1223,11 +1269,11 @@ export function AccountAndSettingsPages({
                 </svg>
               </button>
               <div className={`${isRtl ? 'text-right ml-auto' : 'text-left'}`}>
-                <h3 className="text-base font-black text-gray-800">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">
                   {isEn ? 'Activity Log' : 'سجل النشاط'}
                 </h3>
                 <p className="text-xs text-gray-400 font-bold mt-0.5">
-                  {isEn ? 'Last 20 system activities' : 'آخر 20 نشاط في النظام'}
+                  {isEn ? 'All recent system activities' : 'كل أنشطة النظام الحديثة'}
                 </p>
               </div>
             </div>
@@ -1250,8 +1296,8 @@ export function AccountAndSettingsPages({
                   irrigation_stop: isEn ? 'Irrigation stopped' : 'إيقاف الري',
                   irrigation_auto_start: isEn ? 'Auto irrigation started' : 'بدء الري التلقائي',
                   irrigation_auto_stop: isEn ? 'Auto irrigation stopped' : 'إيقاف الري التلقائي',
-                  cooler_auto_on: isEn ? 'Cooler activated' : 'تشغيل المبرد',
-                  cooler_auto_off: isEn ? 'Cooler stopped' : 'إيقاف المبرد',
+                  cooler_auto_on: isEn ? 'Cooler activated' : 'تشغيل التكييف',
+                  cooler_auto_off: isEn ? 'Cooler stopped' : 'إيقاف التكييف',
                   fan_auto_on: isEn ? 'Fan activated' : 'تشغيل المروحة',
                   fan_auto_off: isEn ? 'Fan stopped' : 'إيقاف المروحة',
                   pump_on: isEn ? 'Pump started' : 'تشغيل المضخة',
@@ -1260,38 +1306,43 @@ export function AccountAndSettingsPages({
 
                 const getIcon = (type) => {
                   if (type?.includes('fan')) return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/>
-                      <path d="M12 12l-3 -10c5.4 1.1 9 5.9 9 10"/>
-                      <path d="M12 12l-10 3c1.1 -5.4 5.9 -9 10 -9"/>
-                      <path d="M12 12l3 10c-5.4 -1.1 -9 -5.9 -9 -10"/>
-                      <path d="M12 12l10 -3c-1.1 5.4 -5.9 9 -10 9"/>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" />
+                      <path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" />
+                      <path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" />
+                      <path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" />
                     </svg>
                   );
                   if (type?.includes('cool') || type?.includes('cooler')) return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <line x1="12" y1="2" x2="12" y2="22"/>
-                      <path d="M12 7l-5 3"/>
-                      <path d="M12 7l5 3"/>
-                      <path d="M12 17l-5 -3"/>
-                      <path d="M12 17l5 -3"/>
-                      <path d="M7 4l2 2"/>
-                      <path d="M17 4l-2 2"/>
-                      <path d="M7 20l2 -2"/>
-                      <path d="M17 20l-2 -2"/>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="5.2" x2="12" y2="18.8"/>
+                      <line x1="6.4" y1="7.9" x2="17.6" y2="16.1"/>
+                      <line x1="17.6" y1="7.9" x2="6.4" y2="16.1"/>
+                      <path d="M12 5.2l1.55-1.85"/>
+                      <path d="M12 5.2l-1.55-1.85"/>
+                      <path d="M12 18.8l1.55 1.85"/>
+                      <path d="M12 18.8l-1.55 1.85"/>
+                      <path d="M6.4 7.9l-2.45.18"/>
+                      <path d="M6.4 7.9l-.82-2.25"/>
+                      <path d="M17.6 16.1l2.45-.18"/>
+                      <path d="M17.6 16.1l.82 2.25"/>
+                      <path d="M17.6 7.9l2.45.18"/>
+                      <path d="M17.6 7.9l.82-2.25"/>
+                      <path d="M6.4 16.1l-2.45-.18"/>
+                      <path d="M6.4 16.1l-.82 2.25"/>
                     </svg>
                   );
                   if (type?.includes('irrigation') || type?.includes('pump')) return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5s-3 3.5-3 5.5a7 7 0 0 0 7 7z"/>
                     </svg>
                   );
                   return (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="3"/>
                       <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
                     </svg>
@@ -1299,9 +1350,9 @@ export function AccountAndSettingsPages({
                 };
 
                 const getIconColor = (type) => {
-                  if (type?.includes('fan')) return 'bg-blue-50 text-blue-500 border-blue-100';
+                  if (type?.includes('fan')) return 'bg-emerald-50 text-emerald-500 border-emerald-100';
                   if (type?.includes('cool') || type?.includes('cooler')) return 'bg-cyan-50 text-cyan-500 border-cyan-100';
-                  if (type?.includes('irrigation') || type?.includes('pump')) return 'bg-emerald-50 text-emerald-500 border-emerald-100';
+                  if (type?.includes('irrigation') || type?.includes('pump')) return 'bg-blue-50 text-blue-500 border-blue-100';
                   return 'bg-gray-50 text-gray-500 border-gray-100';
                 };
 
@@ -1324,23 +1375,23 @@ export function AccountAndSettingsPages({
                     className="flex items-center gap-3 py-3 px-2 border-b border-gray-50 last:border-0 hover:bg-gray-50/50 rounded-xl transition-colors">
                     {isRtl ? (
                       <>
-                        <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${getIconColor(log.action_type)}`}>
+                        <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${getIconColor(log.action_type)}`}>
                           {getIcon(log.action_type)}
                         </div>
 
                         <div className="min-w-0 shrink-0 text-right">
-                          <p className="text-sm font-black text-gray-800 whitespace-nowrap">{label}</p>
+                          <p className="text-[15px] font-black text-gray-800 whitespace-nowrap">{label}</p>
                         </div>
 
                         <div className="min-w-0 shrink-0 text-right">
                           <div className="flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-xs text-gray-400 font-bold">{timeStr}</span>
-                            <span className="text-xs text-gray-300">•</span>
-                            <span className="text-xs text-gray-400">{fullDate}</span>
+                            <span className="text-[11px] text-gray-400 font-medium">{timeStr}</span>
+                            <span className="text-[11px] text-gray-300">•</span>
+                            <span className="text-[11px] text-gray-400 font-medium">{fullDate}</span>
                           </div>
                         </div>
 
-                        <span className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0 mr-auto
+                        <span className={`text-[13px] font-black px-3 py-1.5 rounded-full shrink-0 mr-auto
                           ${isSystem
                             ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                             : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
@@ -1349,20 +1400,20 @@ export function AccountAndSettingsPages({
                       </>
                     ) : (
                       <>
-                        <div className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 ${getIconColor(log.action_type)}`}>
+                        <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${getIconColor(log.action_type)}`}>
                           {getIcon(log.action_type)}
                         </div>
 
                         <div className="flex-1 min-w-0 text-left">
-                          <p className="text-sm font-black text-gray-800 truncate">{label}</p>
+                          <p className="text-[15px] font-black text-gray-800 truncate">{label}</p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-gray-400 font-bold">{timeStr}</span>
-                            <span className="text-xs text-gray-300">•</span>
-                            <span className="text-xs text-gray-400">{fullDate}</span>
+                            <span className="text-[11px] text-gray-400 font-medium">{timeStr}</span>
+                            <span className="text-[11px] text-gray-300">•</span>
+                            <span className="text-[11px] text-gray-400 font-medium">{fullDate}</span>
                           </div>
                         </div>
 
-                        <span className={`text-xs font-black px-2.5 py-1 rounded-full shrink-0
+                        <span className={`text-[13px] font-black px-3 py-1.5 rounded-full shrink-0
                           ${isSystem
                             ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                             : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
