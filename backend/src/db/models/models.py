@@ -132,13 +132,16 @@ class Device(Base):
     name      = Column(String(128))
     type      = Column(String(32))   # sensor | actuator
     status    = Column(String(16), default="active")
+    last_seen = Column(DateTime(timezone=True), nullable=True, index=True)  # آخر اتصال معروف
+    is_online = Column(Boolean, default=True, index=True)  # حالة الاتصال الحالية
+    connection_lost_at = Column(DateTime(timezone=True), nullable=True)  # وقت قطع الاتصال
 
     farm     = relationship("Farm", back_populates="devices")
     readings = relationship("SensorReading", back_populates="device")
     actuator = relationship("Actuator", back_populates="device", uselist=False)
 
     def __repr__(self):
-        return f"<Device {self.device_id}>"
+        return f"<Device {self.device_id} online={self.is_online}>"
 
 
 class SensorReading(Base):

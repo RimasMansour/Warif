@@ -124,8 +124,15 @@ async def ingest_sensor_reading(
             select(Device).where(Device.device_id == device_id)
         )
         device_obj = device_result.scalar_one_or_none()
-        
+
         farm_id = device_obj.farm_id if device_obj else None
+
+        # Update connectivity status - mark device as online
+        try:
+            from src.services.connectivity_monitor import ConnectivityMonitor
+            await ConnectivityMonitor.update_device_seen(device_id, db)
+        except Exception as e:
+            print(f"[Warning] Connectivity update failed for {device_id}: {e}")
 
         reading = SensorReading(
             device_id=device_id,
@@ -136,6 +143,22 @@ async def ingest_sensor_reading(
         )
         db.add(reading)
         await db.flush()
+
+        # Check for anomalies in sensor readings
+        try:
+            from src.services.anomaly_alert_system import get_anomaly_alert_system
+            anomaly_system = get_anomaly_alert_system()
+            anomaly_alert = await anomaly_system.check_sensor_reading_anomalies(
+                device_id=device_id,
+                farm_id=farm_id,
+                sensor_type=sensor_type,
+                value=value,
+                db=db
+            )
+            if anomaly_alert:
+                print(f"[Anomaly Alert] Generated for {device_id}: {anomaly_alert.message[:50]}...")
+        except Exception as e:
+            print(f"[Warning] Anomaly detection failed for {device_id}: {e}")
 
         thresh_result = await db.execute(
             select(SensorThreshold).where(SensorThreshold.sensor_type == sensor_type)

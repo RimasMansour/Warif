@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import settings
-from src.chatbot.chatbot_api import router as chatbot_router
+# DISABLED LOCALLY - Rimas's work on Chatbot
+# from src.chatbot.chatbot_api import router as chatbot_router
 from src.api.routes import (
     auth,
     sensors,
@@ -49,7 +50,8 @@ app.include_router(commands.router,        prefix="/api/v1/commands",        tag
 app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
 app.include_router(logs.router,            prefix="/api/v1/logs",            tags=["Logs"])
-app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
+# DISABLED LOCALLY - Rimas's work on Chatbot
+# app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
 
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
@@ -65,7 +67,7 @@ async def startup_monitoring():
         print(msg)
 
     async def continuous_monitoring():
-        """المراقبة المستمرة للفيدباك والدقة"""
+        """المراقبة المستمرة للفيدباك والدقة والاتصال"""
         await asyncio.sleep(5)  # انتظر 5 ثواني حتى يبدأ الـ API
 
         while True:
@@ -73,6 +75,7 @@ async def startup_monitoring():
                 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
                 from sqlalchemy.orm import sessionmaker
                 from src.ml.feedback_integration import FeedbackLearningBridge
+                from src.services.connectivity_monitor import ConnectivityMonitor
                 from src.db.models.models import Farm
                 from sqlalchemy import select
 
@@ -85,6 +88,7 @@ async def startup_monitoring():
 
                     for farm in farms:
                         try:
+                            # مراقبة الفيدباك والدقة
                             bridge = FeedbackLearningBridge(db)
                             stats = await bridge.calculate_feedback_accuracy(farm.id, days=7)
                             accuracy = stats['overall_accuracy']
@@ -96,13 +100,20 @@ async def startup_monitoring():
                                 elif accuracy < 85:
                                     print(f"⚠️  [WARNING] المزرعة {farm.id}: {accuracy:.1f}%")
 
+                            # مراقبة اتصال الأجهزة
+                            monitor = ConnectivityMonitor()
+                            alerts = await monitor.check_farm_connectivity(farm.id, db)
+                            if alerts:
+                                print(f"🔌 [Connectivity] {len(alerts)} تنبيه اتصال جديد للمزرعة {farm.id}")
+
                         except Exception as e:
-                            pass  # خطأ صامت لتجنب إغلاق الـ task
+                            print(f"[Monitor Error] Farm {farm.id}: {e}")
 
                 await engine.dispose()
                 await asyncio.sleep(60)
 
             except Exception as e:
+                print(f"[Monitor Fatal Error]: {e}")
                 await asyncio.sleep(60)
 
     # بدء المراقبة كـ background task
