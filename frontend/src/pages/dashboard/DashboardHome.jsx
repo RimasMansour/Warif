@@ -409,7 +409,7 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="flex-1 mt-4 overflow-y-auto pr-1 custom-scrollbar flex flex-col gap-4">
+      <div className="flex-1 mt-4 flex flex-col gap-3">
         {alerts.length === 0 ? (
           <EmptyState
             compact={true}

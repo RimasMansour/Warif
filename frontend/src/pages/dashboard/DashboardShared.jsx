@@ -820,27 +820,27 @@ export function RecommendationCard({
           </span>
           <button
             onClick={() => onFeedback?.(rec.id, 'down')}
-            className={`w-6 h-6 flex items-center justify-center rounded-lg border transition-all transform
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
               ${feedbackState[rec.id] === 'down'
                 ? 'bg-red-50 border-red-300 text-red-600 scale-110'
                 : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:scale-105'
               }`}
             title={isEn ? 'Not helpful' : 'غير مفيدة'}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
             </svg>
           </button>
           <button
             onClick={() => onFeedback?.(rec.id, 'up')}
-            className={`w-6 h-6 flex items-center justify-center rounded-lg border transition-all transform
+            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
               ${feedbackState[rec.id] === 'up'
                 ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
                 : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 hover:scale-105'
               }`}
             title={isEn ? 'Helpful' : 'مفيدة'}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
             </svg>
           </button>
@@ -855,11 +855,11 @@ export function RecommendationCard({
 
         {/* Execute/Ignore Buttons (Manual Mode) OR Auto Badge (Auto Mode) */}
         {!globalAutoMode ? (
-          <div className={`flex gap-1 ${isRtl ? 'flex-row-reverse' : ''}`}>
+          <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
             <button
               onClick={handleExecute}
               disabled={isLoading || executionSuccess}
-              className={`px-2.5 py-1 text-white text-[10px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1 whitespace-nowrap ${
+              className={`px-3 py-1.5 text-white text-xs font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap ${
                 executionSuccess
                   ? 'bg-emerald-600 border border-emerald-600'
                   : 'bg-emerald-600 hover:bg-emerald-700 border border-emerald-600'
@@ -867,15 +867,15 @@ export function RecommendationCard({
             >
               {isLoading ? (
                 <>
-                  <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" opacity="0.25"/>
                     <path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
                   </svg>
-                  {isEn ? 'Run' : 'نفذ'}
+                  {isEn ? 'Executing' : 'جاري التنفيذ'}
                 </>
               ) : executionSuccess ? (
                 <>
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                   {isEn ? 'Done' : 'تم'}
@@ -886,15 +886,15 @@ export function RecommendationCard({
             </button>
             <button
               onClick={() => onIgnore?.(rec.id)}
-              className="px-2.5 py-1 bg-white border border-gray-200 text-gray-500 text-[10px] font-bold rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95 whitespace-nowrap"
+              className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95 whitespace-nowrap"
             >
               {isEn ? 'Ignore' : 'تجاهل'}
             </button>
           </div>
         ) : (
-          <div className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-200 flex items-center gap-1 whitespace-nowrap shadow-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            {isEn ? 'Auto' : 'تلقائي'}
+          <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 flex items-center gap-1.5 whitespace-nowrap shadow-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {isEn ? 'Automated' : 'تم التنفيذ تلقائياً'}
           </div>
         )}
       </div>
@@ -977,8 +977,11 @@ export function AlertCard({
 
   return (
     <div
-      className={`rounded-2xl border shadow-sm transition-all animate-fade-in flex flex-col bg-white ${config.border}`}
-      style={{ padding: '14px' }}
+      className={`rounded-3xl border border-gray-100 shadow-sm transition-all animate-fade-in flex flex-col bg-white`}
+      style={{
+        padding: '12px',
+        fontFamily: isRtl ? '"Cairo", "Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' : 'inherit'
+      }}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       {/* Header: Severity Badge + Category Label */}
@@ -998,8 +1001,15 @@ export function AlertCard({
       </div>
 
       {/* Message */}
-      <p className={`mt-3 text-sm font-bold text-black leading-relaxed ${isRtl ? 'text-right' : 'text-left'}`}
+      <p className={`mt-1.5 text-base font-bold leading-snug flex-1 text-black ${isRtl ? 'text-right' : 'text-left'}`}
         dir={isRtl ? 'rtl' : 'ltr'}
+        style={{
+          wordBreak: 'break-word',
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+        }}
       >
         {alert.message || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
       </p>
@@ -1010,7 +1020,7 @@ export function AlertCard({
             <button
               onClick={handleConfirm}
               disabled={isLoading || executionSuccess}
-              className={`px-4 py-2 text-white text-[12px] font-black rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 text-white text-xs font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap ${
                 executionSuccess
                   ? 'bg-emerald-600 border border-emerald-600'
                   : 'bg-emerald-600 hover:bg-emerald-700 border border-emerald-600'
@@ -1018,45 +1028,34 @@ export function AlertCard({
             >
               {isLoading ? (
                 <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="10" opacity="0.25"/>
                     <path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
                   </svg>
-                  {isEn ? 'Acting...' : 'جاري...'}
+                  {isEn ? 'Executing' : 'جاري التنفيذ'}
                 </>
               ) : executionSuccess ? (
                 <>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                   {isEn ? 'Done' : 'تم'}
                 </>
               ) : (
-                isEn ? 'Confirm' : 'تأكيد'
+                isEn ? 'Execute' : 'نفذ'
               )}
             </button>
             <button
-              className="px-4 py-2 bg-gray-100 border border-gray-200 text-gray-500 text-[12px] font-black rounded-xl hover:bg-gray-200 transition-all active:scale-95"
+              className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95 whitespace-nowrap"
             >
               {isEn ? 'Ignore' : 'تجاهل'}
             </button>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-black text-emerald-700">
-              {(() => {
-                if (category === 'climate') {
-                  return isEn ? "Fans & Ventilation Activated Automatically" : "تم تشغيل المروحة والتهوية تلقائياً";
-                }
-                if (category === 'irrigation') {
-                  return isEn ? "Irrigation Pump Activated Automatically" : "تم تشغيل مضخة الري تلقائياً";
-                }
-                if (category === 'soil') {
-                  return isEn ? "Soil Environment Adjusted Automatically" : "تم ضبط بيئة التربة تلقائياً";
-                }
-                return isEn ? "Auto executed" : "تم التنفيذ تلقائياً";
-              })()}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 shadow-sm">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs font-bold text-emerald-700">
+              {isEn ? 'Automated' : 'تم التنفيذ تلقائياً'}
             </span>
           </div>
         )}
