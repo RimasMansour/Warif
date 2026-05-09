@@ -49,16 +49,20 @@ app.include_router(commands.router,        prefix="/api/v1/commands",        tag
 app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
 app.include_router(logs.router,            prefix="/api/v1/logs",            tags=["Logs"])
-# app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])  # Disabled temporarily
+app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
 
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_monitoring():
     """بدء نظام المراقبة 24/7 عند تشغيل الخادم"""
-    print("\n" + "="*70)
-    print("🚀 Warif نظام المراقبة 24/7 بدأ")
-    print("   يراقب الفيدباك والدقة...")
-    print("="*70 + "\n")
+    import sys
+    out = sys.stdout.buffer if hasattr(sys.stdout, 'buffer') else None
+    msg = "\n" + "="*70 + "\nWarif - System monitoring started (24/7)\n" + "="*70 + "\n"
+    if out:
+        out.write(msg.encode('utf-8'))
+        out.flush()
+    else:
+        print(msg)
 
     async def continuous_monitoring():
         """المراقبة المستمرة للفيدباك والدقة"""

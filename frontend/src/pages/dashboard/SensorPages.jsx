@@ -9,7 +9,7 @@ import {
   getRecommendationTheme,
   RecommendationCard
 } from './DashboardShared';
-import { HealthStyleBarChart, IrrigationActionButton } from './DashboardCharts';
+import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
 import {
   generateDataForRange,
@@ -21,162 +21,6 @@ import { getLabelForRange } from './dashboardUtils';
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
-function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const ranges = [
-    { key: 'D', label: T.day || 'اليوم' },
-    { key: 'W', label: T.week || 'الأسبوع' },
-    { key: 'M', label: T.month || 'الشهر' },
-    { key: 'Y', label: T.year || 'السنة' },
-  ];
-  const n = data.length;
-  const maxVal = Math.max(...data.map(d => d.value), 100);
-  const currentVal = range === 'D'
-    ? Math.max(...data.map(d => d.value), 0)
-    : (data.reduce((a, b) => a + b.value, 0) / (n || 1));
-  const W = 860, H = 360, padL = 120, padR = 80, padT = 24, padB = 82;
-  const chartW = W - padL - padR;
-  const chartH = H - padT - padB;
-  const points = data.map((d, i) => ({
-    x: padL + (i / Math.max(n - 1, 1)) * chartW,
-    y: padT + chartH - (d.value / maxVal) * chartH,
-    value: d.value,
-    label: d.label,
-  }));
-  const linePath = points.length < 2 ? '' : points.map((p, i) => {
-    if (i === 0) return `M ${p.x} ${p.y}`;
-    const prev = points[i - 1];
-    const cpx = (prev.x + p.x) / 2;
-    return `C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`;
-  }).join(' ');
-  const areaPath = linePath
-    ? `${linePath} L ${points[n - 1]?.x} ${padT + chartH} L ${padL} ${padT + chartH} Z`
-    : '';
-  const getColor = (val) => {
-    if (val === 0) return '#9ca3af';
-    if (val < 1000) return '#fde68a';
-    if (val < 10000) return '#f59e0b';
-    if (val < 50000) return '#f97316';
-    return '#ef4444';
-  };
-  const getLabel = (val) => {
-    if (val === 0) return isRtl ? 'لا يوجد إضاءة' : 'No light';
-    if (val < 200) return isRtl ? 'خافتة جداً' : 'Very dim';
-    if (val < 1000) return isRtl ? 'إضاءة داخلية' : 'Indoor';
-    if (val < 10000) return isRtl ? 'مضيئة' : 'Bright';
-    if (val < 50000) return isRtl ? 'مشرقة جداً' : 'Very bright';
-    return isRtl ? 'ضوء شمس مباشر' : 'Direct sunlight';
-  };
-  const lineColor = getColor(currentVal);
-  return (
-    <CardShell className="p-5" dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="flex justify-between items-center mb-4">
-        <div className={isRtl ? 'text-right' : 'text-left'}>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-lg font-black text-gray-800 leading-none">
-              {T.lightChart || 'مسار شدة الإضاءة'}
-            </h2>
-            <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-lg border border-amber-100 font-black uppercase tracking-tighter">
-              {T.realtimeAnalysis || 'تحليل فوري'}
-            </span>
-          </div>
-          <div className="text-[13px] font-bold text-gray-400">{getLabel(currentVal)}</div>
-        </div>
-        <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[110px]">
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-black text-gray-800">{Math.round(currentVal).toLocaleString()}</span>
-            <span className="text-[11px] font-bold text-gray-400">Lux</span>
-          </div>
-          <div className="text-[10px] font-black mt-1 uppercase tracking-tighter" style={{ color: lineColor }}>
-            {T.periodAverage || 'متوسط الفترة'}
-          </div>
-        </div>
-      </div>
-      <div className="flex bg-gray-50 p-1 rounded-xl mb-4 gap-1 w-max mx-auto border border-gray-100 shadow-inner">
-        {ranges.map(r => (
-          <button key={r.key} onClick={() => onRangeChange(r.key)}
-            className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 ${range === r.key ? 'bg-white text-gray-800 shadow-md scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
-            {r.label}
-          </button>
-        ))}
-      </div>
-      <div className="w-full max-w-[800px] mx-auto" style={{ maxHeight: '360px' }} onMouseLeave={() => setHoveredIdx(null)}>
-        <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block w-full h-auto overflow-visible">
-          <defs>
-            <linearGradient id="lightAreaGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={lineColor} stopOpacity="0.3"/>
-              <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
-            </linearGradient>
-          </defs>
-          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
-            const val = maxVal * ratio;
-            const y = padT + chartH - ratio * chartH;
-            return (
-              <g key={i}>
-                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4"/>
-                <text x={padL - 45} y={y} dominantBaseline="central" textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
-                  {val >= 100000
-                    ? `${(val / 1000).toFixed(0)}k`
-                    : val >= 1000
-                    ? `${(val / 1000).toFixed(1)}k`
-                    : Math.round(val)}
-                </text>
-              </g>
-            );
-          })}
-          <text x={40} y={padT + chartH / 2} transform={`rotate(-90, 40, ${padT + chartH / 2})`} textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
-            {isRtl ? 'لوكس' : 'Lux'}
-          </text>
-          {areaPath && <path d={areaPath} fill="url(#lightAreaGrad)"/>}
-          {linePath && <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
-          {points.map((p, i) => {
-            const show = i % Math.max(1, Math.floor(n / 8)) === 0;
-            const isHov = hoveredIdx === i;
-            return (
-              <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
-                <rect x={p.x - 10} y={padT} width={20} height={chartH} fill="transparent" className="cursor-pointer"/>
-                {(show || isHov) && (
-                  <circle cx={p.x} cy={p.y} r={isHov ? 6 : 3} fill={isHov ? lineColor : '#fff'} stroke={lineColor} strokeWidth="2" className="transition-all duration-200"/>
-                )}
-                {isHov && (
-                  <g pointerEvents="none">
-                    <line x1={p.x} y1={padT} x2={p.x} y2={padT + chartH} stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity="0.5"/>
-                    <rect x={p.x - 52} y={p.y - 54} width={104} height={38} rx="10" fill="#111827" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
-                    <text x={p.x} y={p.y - 30} textAnchor="middle" fontSize="11" fontWeight="900" fill="white">
-                      {Math.round(p.value).toLocaleString()} Lux
-                    </text>
-                    <path d={`M ${p.x - 6} ${p.y - 16} L ${p.x} ${p.y - 8} L ${p.x + 6} ${p.y - 16} Z`} fill="#111827"/>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-          {points.map((p, i) => {
-            const show = i % Math.max(1, Math.floor(n / 6)) === 0;
-            return show ? (
-              <text key={i} x={p.x} y={H - padB + 34} textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
-                {p.label}
-              </text>
-            ) : null;
-          })}
-          <text
-            x={padL + chartW / 2}
-            y={H - 10}
-            textAnchor="middle"
-            fontSize="18"
-            fill="#059669"
-            fontWeight="900"
-            opacity="0.6"
-          >
-            {isRtl ? 'الوقت' : 'Time'}
-          </text>
-          <line x1={padL} y1={padT} x2={padL} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
-          <line x1={padL} y1={padT + chartH} x2={W - padR} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
-        </svg>
-      </div>
-    </CardShell>
-  );
-}
 
 export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
@@ -280,10 +124,10 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   // const coolingActive = livesensors?.coolingActive ?? false; (Replaced by local state)
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 10000 : range === 'W' ? 50000 : range === 'M' ? 50000 : 50000;
-  const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit);
-  const { data: rawHum } = useSensorHistory('air_humidity', historyLimit);
-  const { data: rawLight } = useSensorHistory('light_intensity', historyLimit);
+  const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
+  const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit, 1800000);
+  const { data: rawHum } = useSensorHistory('air_humidity', historyLimit, 1800000);
+  const { data: rawLight } = useSensorHistory('light_intensity', historyLimit, 1800000);
 
   const formatPoints = (rawData) => {
     const now = new Date();
@@ -294,69 +138,65 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 
     if (range === 'D') {
       const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
-      return Array.from({ length: 24 }, (_, i) => {
-        const label = `${i}:00`;
-        const items = rawData?.filter(r => {
-          const itemDate = new Date(r.timestamp);
-          const itemDateStr = itemDate.toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
-          if (itemDateStr !== todayStr) return false;
-
-          const localHour = new Date(itemDate.getTime() + 3 * 60 * 60 * 1000).getUTCHours();
-          return localHour === i;
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
-        return { label, value: Math.round(value) };
+      const buckets = Array.from({ length: 48 }, () => []);
+      rawData?.forEach(r => {
+        const itemDate = new Date(r.timestamp);
+        if (itemDate.toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' }) !== todayStr) return;
+        const localDate = new Date(itemDate.getTime() + 3 * 60 * 60 * 1000);
+        const slot = localDate.getUTCHours() * 2 + (localDate.getUTCMinutes() >= 30 ? 1 : 0);
+        buckets[slot].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
+        const hour = Math.floor(i / 2);
+        const label = i % 2 === 0 ? `${hour}:00` : `${hour}:30`;
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
+        return { label, value: Math.round(value * 10) / 10 };
       });
     }
     if (range === 'W') {
-      const now = new Date();
-      return Array.from({ length: 7 }, (_, i) => {
-        const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() - now.getDay() + i);
-        const dayOfWeek = targetDate.getDay();
-        const label = isEn ? daysEn[dayOfWeek] : daysAr[dayOfWeek];
-        const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          return d.getDate() === targetDate.getDate() &&
-                 d.getMonth() === targetDate.getMonth() &&
-                 d.getFullYear() === targetDate.getFullYear();
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const buckets = Array.from({ length: 7 }, () => []);
+      rawData?.forEach(r => {
+        const diffDays = Math.floor((new Date(r.timestamp) - startOfWeek) / 86400000);
+        if (diffDays >= 0 && diffDays < 7) buckets[diffDays].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
+        const targetDate = new Date(startOfWeek);
+        targetDate.setDate(startOfWeek.getDate() + i);
+        const label = isEn ? daysEn[targetDate.getDay()] : daysAr[targetDate.getDay()];
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
         return { label, value: Math.round(value) };
       });
     }
     if (range === 'M') {
-      return Array.from({ length: 30 }, (_, i) => {
-        const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() - 29 + i);
-        const label = `${targetDate.getDate()}`;
-        const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          return d.getDate() === targetDate.getDate() &&
-                 d.getMonth() === targetDate.getMonth() &&
-                 d.getFullYear() === targetDate.getFullYear();
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
-        return { label, value: Math.round(value) };
+      const startDate = new Date(now);
+      startDate.setDate(now.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      const buckets = Array.from({ length: 30 }, () => []);
+      rawData?.forEach(r => {
+        const diffDays = Math.floor((new Date(r.timestamp) - startDate) / 86400000);
+        if (diffDays >= 0 && diffDays < 30) buckets[diffDays].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
+        const targetDate = new Date(startDate);
+        targetDate.setDate(startDate.getDate() + i);
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
+        return { label: `${targetDate.getDate()}`, value: Math.round(value) };
       });
     }
     if (range === 'Y') {
-      return Array.from({ length: 12 }, (_, i) => {
+      const buckets = Array.from({ length: 12 }, () => []);
+      rawData?.forEach(r => {
+        const d = new Date(r.timestamp);
+        const monthsAgo = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        if (monthsAgo >= 0 && monthsAgo < 12) buckets[11 - monthsAgo].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
         const targetMonth = (now.getMonth() - 11 + i + 12) % 12;
         const label = isEn ? monthsEn[targetMonth] : monthsAr[targetMonth];
-        const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          return d.getMonth() === targetMonth && d.getFullYear() === (now.getFullYear() - (now.getMonth() < targetMonth ? 1 : 0));
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
         return { label, value: Math.round(value) };
       });
     }
@@ -694,9 +534,9 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilMoist = livesensors2?.soil_moisture    ?? 0;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 10000 : range === 'W' ? 50000 : range === 'M' ? 50000 : 50000;
-  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit);
-  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit);
+  const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
+  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit, 1800000);
+  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit, 1800000);
 
   const formatPoints = (rawData) => {
     const now = new Date();
@@ -707,69 +547,65 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
 
     if (range === 'D') {
       const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
-      return Array.from({ length: 24 }, (_, i) => {
-        const label = `${i}:00`;
-        const items = rawData?.filter(r => {
-          const itemDate = new Date(r.timestamp);
-          const itemDateStr = itemDate.toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
-          if (itemDateStr !== todayStr) return false;
-
-          const localHour = new Date(itemDate.getTime() + 3 * 60 * 60 * 1000).getUTCHours();
-          return localHour === i;
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
-        return { label, value: Math.round(value) };
+      const buckets = Array.from({ length: 48 }, () => []);
+      rawData?.forEach(r => {
+        const itemDate = new Date(r.timestamp);
+        if (itemDate.toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' }) !== todayStr) return;
+        const localDate = new Date(itemDate.getTime() + 3 * 60 * 60 * 1000);
+        const slot = localDate.getUTCHours() * 2 + (localDate.getUTCMinutes() >= 30 ? 1 : 0);
+        buckets[slot].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
+        const hour = Math.floor(i / 2);
+        const label = i % 2 === 0 ? `${hour}:00` : `${hour}:30`;
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
+        return { label, value: Math.round(value * 10) / 10 };
       });
     }
     if (range === 'W') {
-      const now = new Date();
-      return Array.from({ length: 7 }, (_, i) => {
-        const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() - now.getDay() + i);
-        const dayOfWeek = targetDate.getDay();
-        const label = isEn ? daysEn[dayOfWeek] : daysAr[dayOfWeek];
-        const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          return d.getDate() === targetDate.getDate() &&
-                 d.getMonth() === targetDate.getMonth() &&
-                 d.getFullYear() === targetDate.getFullYear();
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      const buckets = Array.from({ length: 7 }, () => []);
+      rawData?.forEach(r => {
+        const diffDays = Math.floor((new Date(r.timestamp) - startOfWeek) / 86400000);
+        if (diffDays >= 0 && diffDays < 7) buckets[diffDays].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
+        const targetDate = new Date(startOfWeek);
+        targetDate.setDate(startOfWeek.getDate() + i);
+        const label = isEn ? daysEn[targetDate.getDay()] : daysAr[targetDate.getDay()];
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
         return { label, value: Math.round(value) };
       });
     }
     if (range === 'M') {
-      return Array.from({ length: 30 }, (_, i) => {
-        const targetDate = new Date(now);
-        targetDate.setDate(now.getDate() - 29 + i);
-        const label = `${targetDate.getDate()}`;
-        const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          return d.getDate() === targetDate.getDate() &&
-                 d.getMonth() === targetDate.getMonth() &&
-                 d.getFullYear() === targetDate.getFullYear();
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
-        return { label, value: Math.round(value) };
+      const startDate = new Date(now);
+      startDate.setDate(now.getDate() - 29);
+      startDate.setHours(0, 0, 0, 0);
+      const buckets = Array.from({ length: 30 }, () => []);
+      rawData?.forEach(r => {
+        const diffDays = Math.floor((new Date(r.timestamp) - startDate) / 86400000);
+        if (diffDays >= 0 && diffDays < 30) buckets[diffDays].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
+        const targetDate = new Date(startDate);
+        targetDate.setDate(startDate.getDate() + i);
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
+        return { label: `${targetDate.getDate()}`, value: Math.round(value) };
       });
     }
     if (range === 'Y') {
-      return Array.from({ length: 12 }, (_, i) => {
+      const buckets = Array.from({ length: 12 }, () => []);
+      rawData?.forEach(r => {
+        const d = new Date(r.timestamp);
+        const monthsAgo = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+        if (monthsAgo >= 0 && monthsAgo < 12) buckets[11 - monthsAgo].push(r.value || 0);
+      });
+      return buckets.map((items, i) => {
         const targetMonth = (now.getMonth() - 11 + i + 12) % 12;
         const label = isEn ? monthsEn[targetMonth] : monthsAr[targetMonth];
-        const items = rawData?.filter(r => {
-          const d = new Date(r.timestamp);
-          return d.getMonth() === targetMonth && d.getFullYear() === (now.getFullYear() - (now.getMonth() < targetMonth ? 0 : 1));
-        }) || [];
-        const value = items.length > 0
-          ? items.reduce((sum, r) => sum + (r.value || 0), 0) / items.length
-          : 0;
+        const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
         return { label, value: Math.round(value) };
       });
     }

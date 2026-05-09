@@ -126,9 +126,26 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
   const waterUsage  = resourceData?.water_usage_liters ?? 0;
   const powerUsage  = resourceData?.power_usage_kwh ?? 0;
 
-  const historyLimit = range === 'D' ? 10000 : range === 'W' ? 50000 : range === 'M' ? 50000 : 50000;
-  const { data: rawWater } = useSensorHistory('water_usage', historyLimit);
-  const { data: rawPower } = useSensorHistory('power_usage', historyLimit);
+  const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
+  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', historyLimit, 0);
+  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', historyLimit, 0);
+
+  // Refresh at noon (12:00) and midnight (00:00) every day
+  useEffect(() => {
+    const schedule = () => {
+      const now = new Date();
+      const noon = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0);
+      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+      const next = noon > now ? noon : midnight;
+      return setTimeout(() => {
+        refetchWater();
+        refetchPower();
+        schedule();
+      }, next - now);
+    };
+    const id = schedule();
+    return () => clearTimeout(id);
+  }, [refetchWater, refetchPower]);
 
   const { data: apiRecs } = useRecommendations(farmId);
   const recommendations = useMemo(() => {

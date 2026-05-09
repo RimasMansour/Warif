@@ -426,37 +426,56 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   const go = (to) => setPage(to);
 
+  const isGibberish = (text) => {
+    const t = text.trim();
+    if (t.length < 3) return true;
+    // Pure ASCII with no spaces and no arabic chars = likely keyboard mash
+    const hasArabic = /[؀-ۿ]/.test(t);
+    const hasLatinWords = /[a-zA-Z]{2,}(\s+[a-zA-Z]{2,})+/.test(t);
+    const hasMeaningfulAscii = hasLatinWords || /\d/.test(t);
+    if (!hasArabic && !hasMeaningfulAscii) return true;
+    // Ratio of non-letter chars to total is too high (symbols/random)
+    const letters = (t.match(/[؀-ۿa-zA-Z]/g) || []).length;
+    if (letters / t.length < 0.4) return true;
+    return false;
+  };
+
   const sendToAI = async (userMessage) => {
     setChatMessages(prev => [...prev, { role: "user", text: userMessage }]);
+
+    if (isGibberish(userMessage)) {
+      setChatMessages(prev => [...prev, {
+        role: "bot",
+        text: isEn
+          ? "I didn't understand that. Please ask a question about your greenhouse or crops."
+          : "لم أفهم سؤالك. يرجى كتابة سؤال واضح عن مزرعتك أو محصولك."
+      }]);
+      return;
+    }
+
     setChatMessages(prev => [...prev, { role: "bot", text: "جاري التفكير..." }]);
 
-    // Build live sensor snapshot from connected sensors state
-    const soilSensor  = connectedSensors.find(s => s.type === 'رطوبة التربة');
-    const tempSensor  = connectedSensors.find(s => s.type === 'درجة الحرارة');
-    const humSensor   = connectedSensors.find(s => s.type === 'رطوبة الهواء');
-
-    const parseFlt = (str) => parseFloat((str || '').replace(/[^\d.]/g, '')) || null;
-
-    const alerts = connectedSensors
-      .filter(s => s.status === 'warning' || s.status === 'danger')
-      .map(s => `${s.name}: ${s.value}`);
+    // Build live sensor snapshot directly from the real-time API data (liveSensors)
+    const alertMessages = activeAlerts
+      .map(a => a.message || (a.sensor && a.value ? `${a.sensor}: ${a.value}` : null))
+      .filter(Boolean);
 
     const sensorPayload = {
       timestamp: new Date().toISOString(),
       crop: "cucumber",
       growth_stage: "fruiting",
       soil: {
-        moisture_percent: parseFlt(soilSensor?.value),
-        temperature_celsius: null,
+        moisture_percent: liveSensors?.soil_moisture ?? null,
+        temperature_celsius: liveSensors?.soil_temperature ?? null,
         ph: null,
         ec: null,
       },
       air: {
-        temperature_celsius: parseFlt(tempSensor?.value),
-        humidity_percent: parseFlt(humSensor?.value),
+        temperature_celsius: liveSensors?.air_temperature ?? null,
+        humidity_percent: liveSensors?.air_humidity ?? null,
         co2_ppm: null,
       },
-      alerts,
+      alerts: alertMessages,
     };
 
     try {
@@ -515,9 +534,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       }
       if (line.startsWith('✅ ')) {
         return (
-          <div key={i} className="mt-2 pt-2 border-t border-gray-100 flex items-start gap-1.5 text-[#15803d] font-medium">
-            <span className="flex-shrink-0">✅</span>
-            <span>{line.slice(3)}</span>
+          <div key={i} className="mt-2 pt-2 border-t border-gray-100 text-[#15803d] font-medium">
+            <span>{line.slice(line.indexOf(' ') + 1)}</span>
           </div>
         );
       }

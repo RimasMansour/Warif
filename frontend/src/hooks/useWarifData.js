@@ -189,7 +189,7 @@ export function useAutoMode(farmId) {
   return { autoMode, toggleAutoMode, loading };
 }
 
-export function useSensorHistory(sensor_type, limit = 100) {
+export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000) {
   const cacheKey = `${sensor_type}_${limit}`;
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(!globalCache.history[cacheKey])
@@ -223,9 +223,10 @@ export function useSensorHistory(sensor_type, limit = 100) {
 
   useEffect(() => {
     fetch_data()
-    const id = setInterval(fetch_data, 30000)
+    if (intervalMs <= 0) return;
+    const id = setInterval(fetch_data, intervalMs)
     return () => clearInterval(id)
-  }, [fetch_data])
+  }, [fetch_data, intervalMs])
 
   return { data, loading, refetch: fetch_data }
 }

@@ -17,10 +17,6 @@ import {
   AlertCard
 } from './DashboardShared';
 import {
-  Donut,
-  SoilTrendChart
-} from './DashboardCharts';
-import {
   formatLastUpdated,
   generateDataForRange,
   getLabelForRange

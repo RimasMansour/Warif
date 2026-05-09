@@ -1,6 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { CardShell } from './DashboardShared';
-import { useSensorHistory } from '../../hooks/useWarifData';
 import { getLabelForRange } from './dashboardUtils';
 
 const getDateRangeLabel = (range, isRtl) => {
@@ -23,170 +22,6 @@ const getDateRangeLabel = (range, isRtl) => {
   return '';
 };
 
-export function SustainabilityDonut({ value, label, sublabel, color = "#10b981", isRtl = false }) {
-  const size = 160;
-  const stroke = 14;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const off = c - (value / 100) * c;
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={size / 2} cy={size / 2} r={r} stroke="#F3F4F6" strokeWidth={stroke} fill="none" />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            stroke={color}
-            strokeWidth={stroke}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={off}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            className="transition-all duration-1000 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-          <span className="text-3xl font-black text-gray-800 leading-none">{value}%</span>
-          <span className="text-[11px] font-bold text-gray-400 mt-1 uppercase tracking-tighter">{label}</span>
-        </div>
-      </div>
-      {sublabel && (
-        <div className="mt-4 px-4 py-1.5 bg-gray-50 rounded-full border border-gray-100">
-          <span className="text-xs font-black text-gray-500">{sublabel}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function Donut({ value, color = "var(--status-success)", size = 120, stroke = 12, label }) {
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const off = c - (value / 100) * c;
-  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
-  const isRtl = lang === 'ar';
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={size / 2} cy={size / 2} r={r} stroke="#F3F4F6" strokeWidth={stroke} fill="none" />
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={r}
-            stroke={color}
-            strokeWidth={stroke}
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={c}
-            strokeDashoffset={off}
-            transform={`rotate(-90 ${size / 2} ${size / 2})`}
-            className="transition-all duration-1000 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-2xl font-black text-gray-800">{value}{isRtl ? '٪' : '%'}</span>
-        </div>
-      </div>
-      {label && <span className="mt-2 text-xs font-bold text-gray-400 uppercase tracking-widest">{label}</span>}
-    </div>
-  );
-}
-
-export function IrrigationDonut({ value }) {
-  const v = Math.max(0, Math.min(100, value));
-  const size = 95;
-  const stroke = 10;
-  const r = (size - stroke) / 2;
-  const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
-  const isRtl = lang === 'ar';
-  const c = 2 * Math.PI * r;
-  const off = c - (v / 100) * c;
-
-  const getColor = (val) => {
-    if (val >= 75) return "var(--status-success)"; 
-    if (val >= 45) return "var(--status-warning)";
-    return "var(--status-error)";
-  };
-
-  return (
-    <svg width={size} height={size + 20} viewBox={`0 0 ${size} ${size + 20}`} className="overflow-visible">
-      <circle cx={size / 2} cy={size / 2} r={r} stroke="#F3F4F6" strokeWidth={stroke} fill="none" />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        stroke={getColor(v)}
-        strokeWidth={stroke}
-        fill="none"
-        strokeLinecap="round"
-        strokeDasharray={c}
-        strokeDashoffset={off}
-        transform={`rotate(-90 ${size / 2} ${size / 2})`}
-        className="transition-all duration-1000 ease-out"
-      />
-      <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" fontSize="19" fill="#111827" fontWeight="1000">
-        {v}{isRtl ? '٪' : '%'}
-      </text>
-      <text x="50%" y={size + 10} dominantBaseline="middle" textAnchor="middle" fontSize="10" fill="#9CA3AF" fontWeight="bold" className="uppercase tracking-tighter">
-        {isRtl ? 'كفاءة التدفق' : 'Flow Efficiency'}
-      </text>
-    </svg>
-  );
-}
-
-export function IrrigationBarChart2D({ data, yLabel, unit }) {
-  const pad = 36;
-  const h = 260;
-  const n = data.length;
-  const w = Math.max(860, pad * 2 + n * 18);
-  const barW = 10;
-  const gap = 8;
-  const ys = data.map((d) => d.value);
-  const yMin = Math.floor(Math.min(...ys, 0) - 2);
-  const yMax = Math.ceil(Math.max(...ys, 10) + 2);
-
-  const x = (i) => pad + i * (barW + gap);
-  const y = (val) => h - pad - ((val - yMin) / (yMax - yMin || 1)) * (h - pad * 2);
-  const barH = (val) => h - pad - y(val);
-
-  const colorFor = (v) => {
-    const t = (v - yMin) / (yMax - yMin || 1);
-    const hue = 145 - t * 25;
-    return `hsl(${hue} 55% 45%)`;
-  };
-
-  return (
-    <div className="w-full h-full relative">
-      <svg 
-        width="100%" 
-        height={h} 
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="xMidYMid meet"
-        className="block"
-      >
-        {Array.from({ length: 6 }).map((_, i) => {
-          const v = yMin + ((yMax - yMin) * i) / 5;
-          const yy = y(v);
-          return (
-            <g key={i}>
-              <line x1={pad} y1={yy} x2={w - pad} y2={yy} stroke="#F3F4F6" strokeDasharray="4 4" />
-              <text x={pad - 8} y={yy + 4} fontSize="10" fill="#9CA3AF" textAnchor="end">{v.toFixed(0)}</text>
-            </g>
-          );
-        })}
-        {data.map((d, i) => (
-          <rect key={d.day} x={x(i)} y={y(d.value)} width={barW} height={barH(d.value)} rx="3" fill={colorFor(d.value)} />
-        ))}
-      </svg>
-    </div>
-  );
-}
 
 export function HealthStyleBarChart({ 
   range, 
@@ -594,251 +429,155 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   );
 }
 
-export function TrendSparkline({ currentValue, threshold = 30, color = "#3B82F6", isRtl = false }) {
-  const h = 60;
-  const w = 150;
-  const pad = 5;
-  const points = [];
-  for (let i = 0; i < 10; i++) {
-    const val = currentValue + (4 - i) * 1.5;
-    points.push(Math.max(threshold - 5, val));
-  }
-  const yMax = Math.max(...points, threshold + 20);
-  const yMin = Math.min(...points, threshold - 5);
-  const getX = (i) => isRtl ? w - pad - (i * (w - 2 * pad) / 9) : pad + (i * (w - 2 * pad) / 9);
-  const getY = (v) => h - pad - ((v - yMin) / (yMax - yMin || 1)) * (h - 2 * pad);
-  let pastD = `M ${getX(0)} ${getY(points[0])}`;
-  for (let i = 1; i <= 4; i++) pastD += ` L ${getX(i)} ${getY(points[i])}`;
-  let futureD = `M ${getX(4)} ${getY(points[4])}`;
-  for (let i = 5; i < 10; i++) futureD += ` L ${getX(i)} ${getY(points[i])}`;
-  const thresholdY = getY(threshold);
-  return (
-    <div className="relative w-full h-[60px] flex items-center justify-center overflow-visible">
-      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-        <defs>
-          <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.1" />
-            <stop offset="100%" stopColor={color} stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        <line x1={pad} y1={thresholdY} x2={w - pad} y2={thresholdY} stroke="#EF4444" strokeWidth="1" strokeDasharray="3 3" opacity="0.4" />
-        <path d={`${pastD} L ${getX(4)} ${h} L ${getX(0)} ${h} Z`} fill="url(#trendGrad)" />
-        <path d={pastD} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-        <path d={futureD} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeDasharray="4 4" opacity="0.6" />
-        <circle cx={getX(4)} cy={getY(points[4])} r="3.5" fill="white" stroke={color} strokeWidth="2" />
-      </svg>
-    </div>
-  );
-}
 
-export function SoilTrendChart({ isRtl, isEn, activeFarm, compact = false }) {
+export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
-  
-  // Fetch real data
-  const { data: rawTemp } = useSensorHistory('soil_temperature', 12);
-  const { data: rawMoist } = useSensorHistory('soil_moisture', 12);
-
-  const data = useMemo(() => {
-    const points = [];
-    // If not enough data, pad with empty or default values
-    const maxLen = Math.max(rawTemp?.length || 0, rawMoist?.length || 0);
-    const len = Math.max(12, maxLen);
-    
-    for (let i = 0; i < len; i++) {
-      const tempItem = rawTemp?.[i];
-      const moistItem = rawMoist?.[i];
-      
-      let temp = tempItem?.value ?? 0;
-      let moisture = moistItem?.value ?? 0;
-      
-      // Calculate an hour label: Now, -1h, -2h, etc.
-      const now = new Date();
-      now.setHours(now.getHours() - (len - 1 - i));
-      const hours = now.getHours();
-      
-      let timeStr = "";
-      if (isEn) {
-        const ampm = hours >= 12 ? 'PM' : 'AM';
-        const h12 = hours % 12 || 12;
-        timeStr = `${h12} ${ampm}`;
-      } else {
-        const ampm = hours >= 12 ? 'م' : 'ص';
-        const h12 = hours % 12 || 12;
-        timeStr = `${h12} ${ampm}`;
-      }
-      
-      points.push({ time: timeStr, temp, moisture });
-    }
-    return points;
-  }, [rawTemp, rawMoist, isEn]);
-  const h = compact ? 190 : 500;
-  const w = compact ? 900 : 500;
-  const pLeft = 35;
-  const pRight = compact ? 20 : 25;
-  const pTop = compact ? 8 : 100;
-  const pBottom = compact ? 55 : 30;
-  const segmentW = (w - pLeft - pRight) / (data.length - 1);
-  
-  // Fixed 0-100 Y-axis like the reference
-  const yMin = 0;
-  const yMax = 100;
-  
-  const getY = (v) => h - pBottom - ((v - yMin) / (yMax - yMin)) * (h - pTop - pBottom);
-  const getX = (i) => isRtl ? w - pRight - i * segmentW : pLeft + i * segmentW;
-  
-  const getPath = (key) => {
-    if (data.length < 2) return "";
-    let d = `M ${getX(0)} ${getY(data[0][key])}`;
-    for (let i = 0; i < data.length - 1; i++) {
-      const x1 = getX(i);
-      const y1 = getY(data[i][key]);
-      const x2 = getX(i + 1);
-      const y2 = getY(data[i + 1][key]);
-      const midX = (x1 + x2) / 2;
-      d += ` C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`;
-    }
-    return d;
+  const ranges = [
+    { key: 'D', label: T.day || 'اليوم' },
+    { key: 'W', label: T.week || 'الأسبوع' },
+    { key: 'M', label: T.month || 'الشهر' },
+    { key: 'Y', label: T.year || 'السنة' },
+  ];
+  const n = data.length;
+  const maxVal = Math.max(...data.map(d => d.value), 100);
+  const currentVal = range === 'D'
+    ? Math.max(...data.map(d => d.value), 0)
+    : (data.reduce((a, b) => a + b.value, 0) / (n || 1));
+  const W = 860, H = 360, padL = 120, padR = 80, padT = 24, padB = 82;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const points = data.map((d, i) => ({
+    x: padL + (i / Math.max(n - 1, 1)) * chartW,
+    y: padT + chartH - (d.value / maxVal) * chartH,
+    value: d.value,
+    label: d.label,
+  }));
+  const linePath = points.length < 2 ? '' : points.map((p, i) => {
+    if (i === 0) return `M ${p.x} ${p.y}`;
+    const prev = points[i - 1];
+    const cpx = (prev.x + p.x) / 2;
+    return `C ${cpx} ${prev.y} ${cpx} ${p.y} ${p.x} ${p.y}`;
+  }).join(' ');
+  const areaPath = linePath
+    ? `${linePath} L ${points[n - 1]?.x} ${padT + chartH} L ${padL} ${padT + chartH} Z`
+    : '';
+  const getColor = (val) => {
+    if (val === 0) return '#9ca3af';
+    if (val < 1000) return '#fde68a';
+    if (val < 10000) return '#f59e0b';
+    if (val < 50000) return '#f97316';
+    return '#ef4444';
   };
-
-  const getAreaPath = (key) => {
-    const p = getPath(key);
-    if (!p) return "";
-    return `${p} L ${getX(data.length - 1)} ${h - pBottom} L ${getX(0)} ${h - pBottom} Z`;
+  const getLabel = (val) => {
+    if (val === 0) return isRtl ? 'لا يوجد إضاءة' : 'No light';
+    if (val < 200) return isRtl ? 'خافتة جداً' : 'Very dim';
+    if (val < 1000) return isRtl ? 'إضاءة داخلية' : 'Indoor';
+    if (val < 10000) return isRtl ? 'مضيئة' : 'Bright';
+    if (val < 50000) return isRtl ? 'مشرقة جداً' : 'Very bright';
+    return isRtl ? 'ضوء شمس مباشر' : 'Direct sunlight';
   };
-
+  const lineColor = getColor(currentVal);
   return (
-    <CardShell className={`${compact ? 'p-2' : 'p-2 md:p-4'} relative overflow-hidden group/trend bg-white border border-gray-100 shadow-sm transition-all hover:shadow-md h-full flex flex-col`} dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className={`flex flex-col gap-1 mb-2 px-4 pt-3 ${isRtl ? 'text-right' : 'text-left'}`}>
-        <h3 className="text-lg font-black text-gray-800 tracking-tight leading-tight">
-          {isEn ? "Soil Trend (12h)" : "اتجاه التربة (١٢ ساعة)"}
-        </h3>
-        <div className="flex items-center gap-6 mt-1" dir={isRtl ? 'rtl' : 'ltr'}>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-200" />
-            <span className="text-[13px] font-bold text-gray-400 uppercase tracking-tight">{isEn ? "Moist" : "رطوبة"}</span>
+    <CardShell className="p-5" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="flex justify-between items-center mb-4">
+        <div className={isRtl ? 'text-right' : 'text-left'}>
+          <div className="flex items-center gap-2 mb-1">
+            <h2 className="text-lg font-black text-gray-800 leading-none">
+              {T.lightChart || 'مسار شدة الإضاءة'}
+            </h2>
+            <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-lg border border-amber-100 font-black uppercase tracking-tighter">
+              {T.realtimeAnalysis || 'تحليل فوري'}
+            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-200" />
-            <span className="text-[13px] font-bold text-gray-400 uppercase tracking-tight">{isEn ? "Temp" : "حرارة"}</span>
+          <div className="text-[13px] font-bold text-gray-400">{getLabel(currentVal)}</div>
+        </div>
+        <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[110px]">
+          <div className="flex items-baseline gap-1">
+            <span className="text-xl font-black text-gray-800">{Math.round(currentVal).toLocaleString()}</span>
+            <span className="text-[11px] font-bold text-gray-400">Lux</span>
+          </div>
+          <div className="text-[10px] font-black mt-1 uppercase tracking-tighter" style={{ color: lineColor }}>
+            {T.periodAverage || 'متوسط الفترة'}
           </div>
         </div>
       </div>
-      
-      <div className="w-full flex-1 relative min-h-0 pb-8 px-2">
-        <div className="absolute left-1 top-1/2 -translate-y-1/2 -rotate-90 text-[12px] font-black text-[#2E7D32] opacity-60 whitespace-nowrap" style={{transformOrigin:'center', left:'-28px'}}>
-          {isEn ? 'Value (%)' : 'القيمة (%)'}
-        </div>
-        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[13px] font-black text-[#2E7D32] opacity-60">
-          {isEn ? 'Time' : 'الوقت'}
-        </div>
-        <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="block overflow-visible" onMouseLeave={() => setHoveredIdx(null)}>
+      <div className="flex bg-gray-50 p-1 rounded-xl mb-4 gap-1 w-max mx-auto border border-gray-100 shadow-inner">
+        {ranges.map(r => (
+          <button key={r.key} onClick={() => onRangeChange(r.key)}
+            className={`px-5 py-2 text-xs font-black rounded-lg transition-all duration-300 ${range === r.key ? 'bg-white text-gray-800 shadow-md scale-[1.02]' : 'text-gray-400 hover:text-gray-600'}`}>
+            {r.label}
+          </button>
+        ))}
+      </div>
+      <div className="w-full max-w-[800px] mx-auto" style={{ maxHeight: '360px' }} onMouseLeave={() => setHoveredIdx(null)}>
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" className="block w-full h-auto overflow-visible">
           <defs>
-            <linearGradient id="soilTempGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="soilMoistGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <linearGradient id="lightAreaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={lineColor} stopOpacity="0.3"/>
+              <stop offset="100%" stopColor={lineColor} stopOpacity="0.02"/>
             </linearGradient>
           </defs>
-
-          <line x1={pLeft} y1={pTop} x2={pLeft} y2={h - pBottom} stroke="#CBD5E1" strokeWidth="1.5" />
-          <line x1={pLeft} y1={h - pBottom} x2={w - pRight} y2={h - pBottom} stroke="#CBD5E1" strokeWidth="1.5" />
-
-          {[0, 20, 40, 60, 80, 100].map(val => {
-            const yy = getY(val);
-            return (
-              <g key={val}>
-                {val !== 0 && <line x1={pLeft - 5} y1={yy} x2={w - pRight} y2={yy} stroke="#F1F5F9" strokeWidth="1" />}
-                <text x={pLeft - 5} y={yy + 4} textAnchor="end" fontSize="11" fill="#94A3B8" fontWeight="bold">{val}</text>
-              </g>
-            );
-          })}
-
-
-          <path d={getAreaPath('moisture')} fill="url(#soilMoistGrad)" />
-          <path d={getAreaPath('temp')} fill="url(#soilTempGrad)" />
-          <path d={getPath('moisture')} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" />
-          <path d={getPath('temp')} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" />
-
-          {data.map((d, i) => {
-            const xx = getX(i);
-            const isHovered = hoveredIdx === i;
-            
-            // Highlight the label if it's the latest data point (usually at index data.length - 1)
-            const shouldHighlight = i === data.length - 1;
-            
-            const topY = Math.min(getY(d.temp), getY(d.moisture));
-            const tW = 150;
-            const tH = 90;
-            const tX = Math.max(0, Math.min(w - tW, xx - tW / 2));
-            const tY = Math.max(5, topY - tH - 50); 
-
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+            const val = maxVal * ratio;
+            const y = padT + chartH - ratio * chartH;
             return (
               <g key={i}>
-                <rect x={xx - segmentW / 2} y={pTop} width={segmentW} height={h - pTop - pBottom} fill="transparent" onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer" />
-                
-                {(i % (compact ? 3 : 2) === 0) && (
-                  <g>
-                    {shouldHighlight && (
-                      <rect x={xx - 35} y={h - pBottom + 3} width="70" height="24" rx="8" fill="#10b981" fillOpacity="0.15" />
-                    )}
-                    <text 
-                      x={xx} 
-                      y={h - pBottom + 22} 
-                      textAnchor="middle" 
-                      fontSize="14" 
-                      fill={shouldHighlight ? "#10b981" : "#94A3B8"} 
-                      fontWeight="bold"
-                    >
-                      {d.time}
-                    </text>
-                  </g>
+                <line x1={padL} x2={W - padR} y1={y} y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4"/>
+                <text x={padL - 45} y={y} dominantBaseline="central" textAnchor="end" fontSize="16" fill="#94a3b8" fontWeight="bold">
+                  {val >= 100000
+                    ? `${(val / 1000).toFixed(0)}k`
+                    : val >= 1000
+                    ? `${(val / 1000).toFixed(1)}k`
+                    : Math.round(val)}
+                </text>
+              </g>
+            );
+          })}
+          <text x={40} y={padT + chartH / 2} transform={`rotate(-90, 40, ${padT + chartH / 2})`} textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'لوكس' : 'Lux'}
+          </text>
+          {areaPath && <path d={areaPath} fill="url(#lightAreaGrad)"/>}
+          {linePath && <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>}
+          {points.map((p, i) => {
+            const show = i % Math.max(1, Math.floor(n / 8)) === 0;
+            const isHov = hoveredIdx === i;
+            return (
+              <g key={i} onMouseEnter={() => setHoveredIdx(i)}>
+                <rect x={p.x - 10} y={padT} width={20} height={chartH} fill="transparent" className="cursor-pointer"/>
+                {(show || isHov) && (
+                  <circle cx={p.x} cy={p.y} r={isHov ? 6 : 3} fill={isHov ? lineColor : '#fff'} stroke={lineColor} strokeWidth="2" className="transition-all duration-200"/>
                 )}
-
-                {isHovered && (
-                  <g pointerEvents="none" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-                    <foreignObject x={tX} y={tY} width={tW} height={tH + 15}>
-                      <div 
-                        className="bg-slate-900/95 backdrop-blur-md text-white p-3 rounded-[20px] border border-white/10 shadow-2xl flex flex-col gap-2"
-                        style={{ direction: isRtl ? 'rtl' : 'ltr' }}
-                      >
-                        <div className="flex items-center justify-between border-b border-white/5 pb-1.5 mb-0.5">
-                          <span className="text-[14px] font-bold text-slate-400 uppercase tracking-wider">{d.time}</span>
-                          <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
-                        </div>
-                        
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
-                            <span className="text-[16px] font-medium text-slate-300">{isEn ? 'Moist' : 'رطوبة'}</span>
-                          </div>
-                          <span className="text-[18px] font-black text-blue-400">{d.moisture.toFixed(1)}%</span>
-                        </div>
-
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                            <span className="text-[16px] font-medium text-slate-300">{isEn ? 'Temp' : 'حرارة'}</span>
-                          </div>
-                          <span className="text-[18px] font-black text-emerald-400">{d.temp.toFixed(1)}°</span>
-                        </div>
-                      </div>
-                    </foreignObject>
-                    <circle cx={xx} cy={getY(d.temp)} r="5" fill="#10b981" stroke="white" strokeWidth="2" />
-                    <circle cx={xx} cy={getY(d.moisture)} r="5" fill="#3b82f6" stroke="white" strokeWidth="2" />
+                {isHov && (
+                  <g pointerEvents="none">
+                    <line x1={p.x} y1={padT} x2={p.x} y2={padT + chartH} stroke={lineColor} strokeWidth="1" strokeDasharray="4 3" opacity="0.5"/>
+                    <rect x={p.x - 52} y={p.y - 54} width={104} height={38} rx="10" fill="#111827" filter="drop-shadow(0 4px 12px rgba(0,0,0,0.25))"/>
+                    <text x={p.x} y={p.y - 30} textAnchor="middle" fontSize="11" fontWeight="900" fill="white">
+                      {Math.round(p.value).toLocaleString()} Lux
+                    </text>
+                    <path d={`M ${p.x - 6} ${p.y - 16} L ${p.x} ${p.y - 8} L ${p.x + 6} ${p.y - 16} Z`} fill="#111827"/>
                   </g>
                 )}
               </g>
             );
           })}
+          {points.map((p, i) => {
+            const show = i % Math.max(1, Math.floor(n / 6)) === 0;
+            return show ? (
+              <text key={i} x={p.x} y={H - padB + 34} textAnchor="middle" fontSize="14" fill="#94a3b8" fontWeight="bold">
+                {p.label}
+              </text>
+            ) : null;
+          })}
+          <text x={padL + chartW / 2} y={H - 10} textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
+            {isRtl ? 'الوقت' : 'Time'}
+          </text>
+          <line x1={padL} y1={padT} x2={padL} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
+          <line x1={padL} y1={padT + chartH} x2={W - padR} y2={padT + chartH} stroke="#e2e8f0" strokeWidth="2"/>
         </svg>
       </div>
     </CardShell>
   );
 }
-
 
 export function IrrigationActionButton({ children, active, onClick, icon, isRtl }) {
   return (

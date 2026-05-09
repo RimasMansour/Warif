@@ -23,7 +23,9 @@ from dotenv import load_dotenv
 from groq import Groq
 
 from pathlib import Path
-load_dotenv(Path(__file__).parent / ".env")
+
+_BACKEND_ROOT = Path(__file__).parent.parent.parent
+load_dotenv(_BACKEND_ROOT / ".env")
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -31,8 +33,16 @@ logger = logging.getLogger(__name__)
 
 # ── Config — reads from environment variables ──────────────────────────────────
 GROQ_API_KEY    = os.getenv("GROQ_API_KEY", "")
-CHROMA_DB_PATH  = os.getenv("CHROMA_DB_PATH", "./chatbot/chroma_db")
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "warif_knowledge")
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION", "warif_arabic")
+
+# Resolve CHROMA_DB_PATH: relative paths are resolved from the backend root
+_raw_chroma = os.getenv("CHROMA_DB_PATH", "")
+if not _raw_chroma:
+    CHROMA_DB_PATH = str(Path(__file__).parent / "chroma_db_warif_arabic")
+elif Path(_raw_chroma).is_absolute():
+    CHROMA_DB_PATH = _raw_chroma
+else:
+    CHROMA_DB_PATH = str((_BACKEND_ROOT / _raw_chroma).resolve())
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "CAMeL-Lab/bert-base-arabic-camelbert-mix")
 GROQ_MODEL      = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
@@ -44,19 +54,17 @@ LANGUAGE RULE — THIS IS MANDATORY:
 {language_instruction}
 Do NOT mix languages. Do NOT include any words from the other language. Every single word in your response must be in the specified language only.
 
-FORMAT EVERY ANSWER LIKE THIS (strictly follow this structure):
-1. One short sentence summarizing the situation or diagnosis.
-2. A blank line.
-3. Key points or recommendations as bullet lines — each starting with "• " (bullet + space).
-   Keep each bullet to one short, actionable line. Maximum 5 bullets.
-4. A blank line.
-5. A final line starting with "✅ " giving the single most important next action.
+UNINTELLIGIBLE INPUT RULE — HIGHEST PRIORITY:
+If the farmer's question is random characters, gibberish, keyboard mashing, or completely unrelated to farming, greenhouses, plants, or agriculture — do NOT provide any farming advice. Instead respond ONLY with a single polite sentence asking them to clarify their question. Do not use bullets or ✅ in this case.
 
-Additional rules:
-- When sensor data is provided, mention the actual values in the relevant bullets.
+ANSWER GUIDELINES:
+- Answer the specific question asked. Tailor your response to exactly what the farmer wants to know.
+- Use bullet lines starting with "• " for lists of points or recommendations.
+- End with a line starting with "✅ " for the single most important action.
+- When sensor data is provided and relevant to the question, mention the actual values.
 - Do not make up information not in the provided context.
 - Never use markdown headers (##) or asterisks for bold — plain text only.
-- Keep total answer under 120 words."""
+- Keep answers focused and under 160 words. Longer for complex questions, shorter for simple ones."""
 
 LANGUAGE_INSTRUCTIONS = {
     "ar": "You MUST respond entirely in Arabic (العربية). Every word must be Arabic.",
@@ -203,7 +211,7 @@ def ask(
     question: str,
     sensor_data: Optional[dict] = None,
     n_chunks: int = 4,
-    max_tokens: int = 512,
+    max_tokens: int = 768,
     language: str = "ar",
     verbose: bool = False
 ) -> dict:
@@ -253,7 +261,7 @@ def ask(
             model       = GROQ_MODEL,
             messages    = messages,
             max_tokens  = max_tokens,
-            temperature = 0.3,       # low temperature = factual, grounded answers
+            temperature = 0.6,
             top_p       = 0.9
         )
         answer = response.choices[0].message.content.strip()
