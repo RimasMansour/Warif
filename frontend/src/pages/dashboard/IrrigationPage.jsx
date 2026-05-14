@@ -41,7 +41,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     dailyPowerSub: isEn ? "Total energy draw since start of day" : "إجمالي سحب الطاقة منذ بداية اليوم",
     fromYesterday: isEn ? "from yesterday" : "من أمس",
     liters: isEn ? "Liters" : "لتر",
-    kwh: isEn ? "kWh" : "كيلوواط",
+    kwh: isEn ? "Wh" : "واط",
     trendTitle: isEn ? "Unified Resource Consumption Analysis" : "تحليل استهلاك الموارد الموحد",
     xAxisTitle: isEn ? "Time" : "الوقت",
     yAxisTitle: isEn ? "Resource Usage Rate (%)" : "معدل استهلاك الموارد (٪)",
@@ -434,7 +434,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                 <div className="w-10 h-10 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center border border-yellow-100/30 shadow-sm"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
               </div>
               <div className="flex items-center justify-between">
-                 <div className="text-4xl font-black text-yellow-600 tracking-tight">{powerUsage} <span className="text-sm font-bold text-gray-400">{T.kwh}</span></div>
+                 <div className="text-4xl font-black text-yellow-600 tracking-tight">{(powerUsage * 1000).toFixed(0)} <span className="text-sm font-bold text-gray-400">{T.kwh}</span></div>
                  <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.power_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
                    {resourceData?.power_diff_percent !== undefined ? `${resourceData.power_diff_percent > 0 ? '+' : ''}${resourceData.power_diff_percent}%` : '0%'} {T.fromYesterday}
                  </div>

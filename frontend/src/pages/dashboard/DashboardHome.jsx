@@ -187,7 +187,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
             <IrrigationGlanceCard
               onGo={onGo}
               globalAutoMode={globalAutoMode}
-              activeFarm={activeFarm}
+              activeFarm={farmObj}
               water={irrigationResources?.water_usage_liters ?? 0}
               power={irrigationResources?.power_usage_kwh ?? 0}
               dashboardData={dashboardData}
@@ -812,98 +812,136 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
 
 function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData, water, power }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
-  
+  const [flowPos, setFlowPos] = React.useState(0);
+
   const waterPercent = dashboardData?.water_tank_level || 0;
+  const waterUsage = water || 0;
   const energyKwh = power || 0;
-  const irrigationData = dashboardData;
+  const isActive = dashboardData?.irrigation_status === "active";
+  const cropType = activeFarm?.crop_type || 'default';
+  const flowRate = isActive ? 20 : 0;
+
+  React.useEffect(() => {
+    if (!isActive) { setFlowPos(0); return; }
+    const timer = setInterval(() => setFlowPos(p => p >= 100 ? 0 : p + 4), 60);
+    return () => clearInterval(timer);
+  }, [isActive]);
+
+  const cropEmoji = { tomatoes:'🍅', cucumber:'🥒', pepper:'🌶️', herbs:'🌿', default:'🌱' }[cropType] || '🌱';
+  const cropLabel = { tomatoes: isEn?'Tomatoes':'طماطم', cucumber: isEn?'Cucumber':'خيار', pepper: isEn?'Pepper':'فلفل', herbs: isEn?'Herbs':'أعشاب', default: isEn?'General':'عام' }[cropType] || (isEn?'General':'عام');
+  const tankColor = waterPercent > 50 ? '#22c55e' : waterPercent > 20 ? '#f59e0b' : '#ef4444';
+  const tankLabel = waterPercent > 50 ? (isEn?'Good':'جيد') : waterPercent > 20 ? (isEn?'Low':'منخفض') : (isEn?'Critical':'حرج');
 
   return (
-    <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group relative overflow-hidden flex flex-col justify-between" onClick={() => onGo("irrigation")} dir={isEn ? "ltr" : "rtl"}>
-      <div className="animate-fade-in delay-3 flex flex-col gap-4 h-full">
-        <CardTopRow 
-          title={isEn ? "Irrigation Management" : "إدارة الري"} 
-          subtitle={<LastUpdatedTimer seconds={0} ar="آخر تحديث" en="Last Update" isEn={isEn} />} 
-          icon={<IrrigationSmartIcon />} 
-          isEn={isEn}
-          iconBg="bg-emerald-50"
-          iconColor="text-[#059669]"
-        />
+    <CardShell
+      className="p-4 md:p-5 h-full cursor-pointer card-interactive group relative overflow-hidden flex flex-col justify-between"
+      onClick={() => onGo("irrigation")}
+      dir={isEn ? "ltr" : "rtl"}
+    >
+      <div className="animate-fade-in delay-3 flex flex-col gap-3 h-full">
+
+        {/* Header */}
+        <div className={`flex items-center justify-between ${isEn ? '' : 'flex-row-reverse'}`}>
+          <div className={`flex flex-col ${isEn ? '' : 'items-end'}`}>
+            <span className="text-base font-black text-gray-800">{isEn ? 'Irrigation Control' : 'إدارة الري'}</span>
+            <span className="text-[11px] text-gray-400">{isEn ? 'Last update: now' : 'آخر تحديث: الآن'}</span>
+          </div>
+          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+            <IrrigationSmartIcon className="w-5 h-5 text-blue-500" />
+          </div>
+        </div>
 
         {/* Pump Status */}
-        <div className={`flex items-center justify-between px-4 py-3 rounded-2xl ${isEn ? '' : 'flex-row-reverse'}
-          ${dashboardData?.irrigation_status === "active"
-            ? 'bg-emerald-50 border border-emerald-200'
-            : 'bg-gray-50 border border-gray-200'}`}>
-          <div className={`flex items-center gap-2 ${isEn ? '' : 'flex-row-reverse'}`}>
-            <div className={`w-2.5 h-2.5 rounded-full ${dashboardData?.irrigation_status === "active" ? 'bg-emerald-500 animate-pulse' : 'bg-gray-300'}`} />
-            <span className={`text-xs font-bold ${dashboardData?.irrigation_status === "active" ? 'text-emerald-600' : 'text-gray-400'}`}>
-              {dashboardData?.irrigation_status === "active" ? (isEn ? 'Active' : 'نشطة') : (isEn ? 'Standby' : 'استعداد')}
-            </span>
-          </div>
-          <span className={`text-sm font-black ${dashboardData?.irrigation_status === "active" ? 'text-emerald-700' : 'text-gray-500'}`}>
-            {dashboardData?.irrigation_status === "active"
-              ? (isEn ? 'Pump is running' : 'المضخة تعمل')
-              : (isEn ? 'Pump is off' : 'المضخة مغلقة')}
+        <div className={`flex items-center justify-between px-3 py-2 rounded-xl border ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'} ${isEn ? '' : 'flex-row-reverse'}`}>
+          <span className="text-sm font-bold text-gray-700">
+            {isEn ? (isActive ? 'Pump Active' : 'Pump Off') : (isActive ? 'المضخة تعمل' : 'المضخة مغلقة')}
           </span>
-        </div>
-
-        {/* Water Circle */}
-        <div className="flex flex-col items-center justify-center flex-1">
-          <div className="relative w-36 h-36">
-            <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-              <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" strokeWidth="10"/>
-              <circle cx="60" cy="60" r="50" fill="none"
-                stroke="#3b82f6" strokeWidth="10" strokeLinecap="round"
-                strokeDasharray={`${Math.min((water / 1000) * 314, 314)} 314`}/>
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-black text-gray-800 leading-none">{Math.round(water)}</span>
-              <span className="text-[11px] font-bold text-gray-400 mt-0.5">{isEn ? 'L today' : 'لتر اليوم'}</span>
-            </div>
-          </div>
-
-          {/* Water change vs yesterday */}
-          {irrigationData?.water_change_pct !== undefined && (
-            <div className={`mt-2 text-xs font-black flex items-center gap-1
-              ${isEn ? '' : 'flex-row-reverse'}
-              ${irrigationData.water_change_pct < 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-                {irrigationData.water_change_pct < 0
-                  ? <polyline points="18 15 12 9 6 15"/>
-                  : <polyline points="6 9 12 15 18 9"/>}
-              </svg>
-              {Math.abs(Math.round(irrigationData.water_change_pct))}% {isEn ? 'vs yesterday' : 'من أمس'}
-            </div>
-          )}
-        </div>
-
-        {/* Electricity row - RIGHT side label, LEFT side percentage */}
-        <div className={`flex items-center gap-3 px-1 ${isEn ? 'justify-between' : 'justify-end'}`} dir="ltr">
-          {(irrigationData?.energy_change_pct || 0) !== 0 && (
-            <span className={`text-xs font-black
-              ${(irrigationData?.energy_change_pct || 0) < 0 ? 'text-emerald-600' : 'text-amber-500'}`}>
-              {(irrigationData?.energy_change_pct || 0) < 0 ? '↓' : '↑'}
-              {Math.abs(Math.round(irrigationData?.energy_change_pct || 0))}%
-            </span>
-          )}
-          <div className={`flex items-center gap-2 ${isEn ? '' : 'flex-row-reverse'}`}>
-            <div className="w-6 h-6 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-              </svg>
-            </div>
-            <span className="text-xs text-gray-500 font-bold">{isEn ? 'Energy' : 'الكهرباء'}</span>
-            <span className="text-sm font-black text-gray-700">
-              {energyKwh < 1 ? (energyKwh * 1000).toFixed(1) : energyKwh.toFixed(1)}
-            </span>
-            <span className={`text-[10px] font-bold text-gray-400 ${isEn ? '' : 'order-last'}`}>
-              {energyKwh < 1 ? (isEn ? 'Wh' : 'واط ساعي') : (isEn ? 'kWh' : 'كيلو واط')}
+          <div className={`flex items-center gap-1.5 ${isEn ? '' : 'flex-row-reverse'}`}>
+            <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
+            <span className="text-xs font-semibold text-gray-500">
+              {isEn ? (isActive ? 'Running' : 'Standby') : (isActive ? 'يعمل' : 'استعداد')}
             </span>
           </div>
         </div>
-        <div className="hidden">
-          {waterPercent}
+
+        {/* Live Flow Visualizer */}
+        <div className="flex flex-col gap-2 px-1">
+          <div className={`flex items-center justify-between ${isEn ? '' : 'flex-row-reverse'}`}>
+            <span className="text-xs font-bold text-gray-500">{isEn ? 'Live Flow' : 'التدفق اللحظي'}</span>
+            <span className={`text-xs font-black ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
+              {flowRate} {isEn ? 'L/min' : 'لتر/دقيقة'}
+            </span>
           </div>
+          <div className="relative w-full h-6 flex items-center">
+            <div className="absolute inset-x-0 h-3 rounded-full bg-gray-100 overflow-hidden">
+              {isActive && (
+                <div
+                  className="absolute h-full rounded-full"
+                  style={{
+                    width: '30%',
+                    left: `${flowPos}%`,
+                    background: 'linear-gradient(90deg, transparent, #3b82f6, #06b6d4, transparent)',
+                    transition: 'none',
+                  }}
+                />
+              )}
+            </div>
+            <div className={`absolute ${isEn ? 'left-0' : 'right-0'} w-6 h-6 rounded-full flex items-center justify-center z-10 ${isActive ? 'bg-blue-100' : 'bg-gray-100'}`}>
+              <span className="text-sm">💧</span>
+            </div>
+            <div className={`absolute ${isEn ? 'right-0' : 'left-0'} w-6 h-6 rounded-full flex items-center justify-center z-10 ${isActive ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+              <span className="text-xs font-black" style={{ color: isActive ? '#22c55e' : '#9ca3af' }}>
+                {isEn ? '►' : '◄'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Water Tank */}
+        <div className="flex flex-col gap-1.5">
+          <div className={`flex items-center justify-between ${isEn ? '' : 'flex-row-reverse'}`}>
+            <span className="text-xs font-bold text-gray-500">{isEn ? 'Water Tank' : 'خزان المياه'}</span>
+            <div className={`flex items-center gap-1 ${isEn ? '' : 'flex-row-reverse'}`}>
+              <span className="text-xs font-black" style={{ color: tankColor }}>{Math.round(waterPercent)}%</span>
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${tankColor}20`, color: tankColor }}>
+                {tankLabel}
+              </span>
+            </div>
+          </div>
+          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(waterPercent, 100)}%`, backgroundColor: tankColor }}
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className={`flex items-center justify-between pt-2 border-t border-gray-100 mt-auto ${isEn ? '' : 'flex-row-reverse'}`}>
+          <div className={`flex flex-col ${isEn ? '' : 'items-end'}`}>
+            <span className="text-[10px] text-gray-400">{isEn ? 'Water' : 'المياه'}</span>
+            <div className={`flex items-baseline gap-1 ${isEn ? '' : 'flex-row-reverse'}`}>
+              <span className="text-base font-black text-gray-800">{Math.round(waterUsage)}</span>
+              <span className="text-[11px] text-gray-400">{isEn ? 'L' : 'لتر'}</span>
+            </div>
+          </div>
+          <div className={`flex items-center gap-1 ${isEn ? '' : 'flex-row-reverse'}`}>
+            <span className="text-sm">{cropEmoji}</span>
+            <span className="text-xs font-semibold text-gray-500">{cropLabel}</span>
+          </div>
+          <div className={`flex flex-col ${isEn ? 'items-end' : ''}`}>
+            <span className="text-[10px] text-gray-400">{isEn ? 'Energy' : 'الكهرباء'}</span>
+            <div className={`flex items-baseline gap-1 ${isEn ? 'flex-row-reverse' : ''}`}>
+              <span className="text-base font-black text-gray-800">
+                {energyKwh < 1 ? (energyKwh * 1000).toFixed(0) : energyKwh.toFixed(2)}
+              </span>
+              <span className="text-[11px] text-gray-400">
+                {energyKwh < 1 ? (isEn ? 'Wh' : 'واط') : (isEn ? 'kWh' : 'ك.واط')}
+              </span>
+            </div>
+          </div>
+        </div>
+
       </div>
     </CardShell>
   );
