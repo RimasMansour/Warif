@@ -91,10 +91,10 @@ CROP_PROFILES = {
         "dry_rate_factor": 1.0,
     },
     "cucumber": {
-        "optimal_soil_min": 70,
+        "optimal_soil_min": 60,
         "optimal_soil_max": 80,
-        "optimal_temp_min": 20,
-        "optimal_temp_max": 30,
+        "optimal_temp_min": 18,
+        "optimal_temp_max": 28,
         "water_demand": 1.3,
         "dry_rate_factor": 1.2,
     },
@@ -150,7 +150,7 @@ def calculate_lux(is_day, cloudcover):
 # Remove a Farm ID from this list when you connect real hardware to it.
 SIMULATED_FARM_IDS = [20]
 
-async def process_farm(db, farm, ext_temp, ext_hum, lux):
+async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
     fid = farm.id
     
     # Check if this farm is registered for simulation
@@ -331,28 +331,30 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
         if not still_manual:
             # Automatic mode - Only run if farm auto_mode is enabled
             if farm_auto_mode:
-                # Full cooling: temp >= 32 AND humidity < 80
-                if state["internal_temp"] >= 32.0 and state["internal_hum"] < 80.0:
+                # Full cooling: temp >= 28 AND humidity < 85
+                # Ref: Haifa Group Cucumber Guide - ventilation at 26°C, full cooling at 28°C
+                if state["internal_temp"] >= 28.0 and state["internal_hum"] < 85.0:
                     prev_fan = state["fan_on"]
                     state["fan_on"] = True
                     state["cooler_on"] = True
                     state["cooling_on"] = True
                     if not prev_fan:
                         await log_action(db, fid, "fan_auto_on", f"fan_unit_{fid}",
-                            {"reason": "temp >= 32C", "temp": round(state["internal_temp"], 1)})
+                            {"reason": "temp >= 28C", "temp": round(state["internal_temp"], 1)})
                         await log_action(db, fid, "cooler_auto_on", f"cooling_unit_{fid}",
                             {"reason": "full cooling mode", "temp": round(state["internal_temp"], 1)})
-                # Ventilation only: humidity >= 75 AND temp < 32
-                elif state["internal_hum"] >= 75.0 and state["internal_temp"] < 32.0:
+                # Ventilation only: humidity >= 70 OR temp >= 26
+                # Ref: Haifa Group - optimal humidity 70-90%, ventilation at 26°C
+                elif state["internal_hum"] >= 70.0 or state["internal_temp"] >= 26.0:
                     prev_fan = state["fan_on"]
                     state["fan_on"] = True
                     state["cooler_on"] = False
                     state["cooling_on"] = False
                     if not prev_fan:
                         await log_action(db, fid, "fan_auto_on", f"fan_unit_{fid}",
-                            {"reason": "humidity >= 75%", "humidity": round(state["internal_hum"], 1)})
+                            {"reason": "humidity >= 70% or temp >= 26C", "humidity": round(state["internal_hum"], 1)})
                 # All off: good conditions
-                elif state["internal_temp"] <= 28.0 and state["internal_hum"] < 70.0:
+                elif state["internal_temp"] <= 24.0 and state["internal_hum"] < 70.0:
                     state["fan_on"] = False
                     state["cooler_on"] = False
                     state["cooling_on"] = False
@@ -592,7 +594,8 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
         (DEVICE_MAP["climate"],   "air_temperature",   round(state["internal_temp"], 2),  "C"),
         (DEVICE_MAP["climate"],   "air_humidity",      round(state["internal_hum"], 2),   "%"),
         (DEVICE_MAP["climate"],   "light_intensity",   round(lux, 1),                     "lux"),
-        (DEVICE_MAP["irrigation"],"water_usage",       round(water_consumed, 3),          "L"),
+        (DEVICE_MAP["irrigation"],"water_usage",       round(irrigation_water, 3),        "L"),
+        (DEVICE_MAP["cooler"],    "water_usage",       round(cooler_water, 3),            "L"),
         (DEVICE_MAP["cooler"],   "power_usage",       round((0.5 / 3600.0 * INTERVAL if state["cooler_on"] else 0) * 1000, 3), "Wh"),
         (DEVICE_MAP["fan"],      "power_usage",       round((1.1 / 3600.0 * INTERVAL if state["fan_on"] else 0) * 1000, 3), "Wh"),
     ]
@@ -680,7 +683,27 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux):
                     ))
                     print(f"[ALERT] Farm {fid} | {anomaly['sensor']}: {anomaly['severity']}")
         # === AUTO IRRIGATION DECISION ===
-        if farm_auto_mode and not pump_on:
+        # Evapotranspiration filter - Ref: Penman-Monteith (FAO Paper 56)
+        # High ET = high evaporation = irrigation water is wasted
+        ET_rate = (ext_temp / 40.0) * (lux / 100000.0) * (1 - ext_hum / 100)
+        irrigation_blocked = False
+        irrigation_blocked_reason = ""
+
+        if not is_day:
+            # Ref: Greenhouse Management Guide - avoid watering in the evening
+            # Night irrigation promotes fungal diseases
+            irrigation_blocked = True
+            irrigation_blocked_reason = "ليل - خطر أمراض فطرية"
+        elif ET_rate > 0.6:
+            # High evapotranspiration - irrigation water will evaporate quickly
+            # Ref: Penman-Monteith ET method (FAO Paper 56)
+            irrigation_blocked = True
+            irrigation_blocked_reason = f"تبخر شديد (ET={ET_rate:.2f}) - انتظر تحسن الظروف"
+
+        if irrigation_blocked:
+            print(f"[IRRIGATION BLOCKED] Farm {fid} | {irrigation_blocked_reason}")
+
+        if farm_auto_mode and not pump_on and not irrigation_blocked:
             irrigation_action = intelligence_report.get("irrigation_action", {})
             should_irrigate = irrigation_action.get("should_irrigate", False)
             if should_irrigate and farm.current_water_level > 10:
@@ -771,7 +794,7 @@ async def engine_loop():
                         if not farm:
                             continue
                             
-                        await process_farm(db, farm, ext_temp, ext_hum, lux)
+                        await process_farm(db, farm, ext_temp, ext_hum, lux, is_day)
                         await db.commit()
                         
                     except Exception as e:

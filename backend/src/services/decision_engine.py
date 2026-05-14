@@ -523,10 +523,11 @@ class SmartDecisionEngine:
             should_irrigate = irr_score > 0.60
         else:
             # Rule-based fallback (when ML unavailable)
+            # Ref: FAO Paper 56 + Haifa Group Cucumber Guide
             if soil_moisture is not None and soil_moisture < 45:
                 should_irrigate = True   # Critically dry - irrigate now
             elif soil_moisture is not None and soil_moisture < _optimal_min:
-                should_irrigate = False  # Below optimal but wait for ML
+                should_irrigate = True   # Below optimal range - irrigate
             elif soil_moisture is not None and soil_moisture > optimal_max:
                 should_irrigate = False  # Too wet - don't irrigate
             else:
