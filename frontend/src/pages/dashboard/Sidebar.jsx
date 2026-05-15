@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { 
-  WeatherIcon, 
-  PlantSoilIcon, 
-  WaterValveIcon, 
+import {
+  PlantSoilIcon,
   ListIcon,
   WindSharedIcon,
-  IrrigationSmartIcon 
+  IrrigationSmartIcon
 } from './DashboardShared';
 
 export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globalAutoMode, setGlobalAutoMode, farms: propFarms }) {
@@ -96,9 +94,6 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globa
               {item.icon === "list" && <ListIcon />}
             </span>
             <span className="flex-1">{item.label}</span>
-            {item.badge && (
-              <span className="bg-[#fff7ed] text-[#ea580c] text-xs px-1.5 py-0.5 rounded font-bold border border-orange-200">{item.badge}</span>
-            )}
           </div>
         ))}
       </div>

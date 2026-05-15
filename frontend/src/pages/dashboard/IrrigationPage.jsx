@@ -1,20 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, getRecommendationTheme, RecommendationCard } from './DashboardShared';
+import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer } from './DashboardShared';
 import { IrrigationActionButton, SustainabilityLineChart } from './DashboardCharts';
-import { formatLastUpdated } from './dashboardUtils';
 import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
-import { getLabelForRange } from './dashboardUtils';
 import { stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
 
-function LastUpdatedTimer({ seconds, ar, en, isEn }) {
-  const [localSec, setLocalSec] = useState(seconds);
-  useEffect(() => {
-    const interval = setInterval(() => setLocalSec(s => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
-  return <div className="text-[12px] text-gray-400 mt-1 font-medium">{formatLastUpdated(localSec, ar, en)}</div>;
-}
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onOpenManual, sharedSensors }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -25,26 +15,24 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     // ... translations ...
     title: isEn ? "Irrigation Management" : "إدارة الري",
     subtitle: isEn ? "Smart water and energy management via real-time analysis." : "إدارة ذكية لموارد المياه والطاقة عبر التحليل اللحظي لبيئة المحمية.",
-    flowRate: isEn ? "Live Flow Rate" : "معدل التدفق اللحظي",
-    latestRecs: isEn ? "Smart Recommendations" : "أحدث التوصيات الذكية",
-    realTime: isEn ? "Real-time" : "تحليل فوري",
-    dssSub: isEn ? "Justification for current irrigation decisions." : "تبريرات اتخاذ القرار الحالي للري",
+    flowRate: isEn ? "Water Flow Rate" : "معدل تدفق المياه",
+    latestRecs: isEn ? "Irrigation Recommendations" : "توصيات الري",
+    realTime: isEn ? "Smart Analysis" : "تحليل ذكي",
+    dssSub: isEn ? "Suggested actions for irrigation management." : "إجراءات مقترحة لإدارة الري",
     why: isEn ? "Why?" : "السبب:",
-    flowManagement: isEn ? "Water Flow Control" : "إدارة تدفق المياه",
+    flowManagement: isEn ? "Irrigation Control" : "التحكم في الري",
     controlSub: isEn ? "Direct manual control of pumps." : "تحكم يدوي مباشر بالمضخات",
     startManual: isEn ? "Start Manual Irrigation" : "بدء الري اليدوي الآن",
     stopAll: isEn ? "Stop All Valves" : "إيقاف كافة المحابس",
     flushNetwork: isEn ? "Flush Drip Network" : "غسيل شبكة التنقيط",
-    totalDailyWater: isEn ? "Total Daily Water Usage" : " الاستهلاك اليومي للمياه",
+    totalDailyWater: isEn ? "Total Daily Water Usage" : "الاستهلاك اليومي للمياه",
     totalDailyPower: isEn ? "Daily Power Consumption" : "الاستهلاك اليومي للكهرباء",
     dailyWaterSub: isEn ? "Cumulative water draw since start of day" : "إجمالي سحب المياه التراكمي منذ بداية اليوم",
     dailyPowerSub: isEn ? "Total energy draw since start of day" : "إجمالي سحب الطاقة منذ بداية اليوم",
     fromYesterday: isEn ? "from yesterday" : "من أمس",
     liters: isEn ? "Liters" : "لتر",
     kwh: isEn ? "Wh" : "واط",
-    trendTitle: isEn ? "Unified Resource Consumption Analysis" : "تحليل استهلاك الموارد الموحد",
-    xAxisTitle: isEn ? "Time" : "الوقت",
-    yAxisTitle: isEn ? "Resource Usage Rate (%)" : "معدل استهلاك الموارد (٪)",
+    trendTitle: isEn ? "Resource Consumption Analysis" : "تحليل استهلاك الموارد",
     waterLabel: isEn ? "Water Consumption" : "استهلاك المياه",
     powerLabel: isEn ? "Power Consumption" : "استهلاك الكهرباء",
     lastUpdateAr: "آخر تحديث",
@@ -65,39 +53,12 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
-  const [recommendationStatus, setRecommendationStatus] = useState({});
 
   const handleFeedback = async (id, type) => {
-    // تحديث الواجهة المحلية فوراً
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-
-    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
-    try {
-      const helpful = type === 'up';
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-
-      const response = await fetch(
-        `${API_BASE}/api/v1/recommendations/${farmId}/feedback/${id}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ helpful })
-        }
-      );
-      if (!response.ok) console.error('Failed to save feedback');
-    } catch (err) {
-      console.error('Error sending feedback:', err);
-    }
-  };
-
-  const handleRecommendationDecision = (id, decision) => {
-    setRecommendationStatus(prev => ({ ...prev, [id]: decision }));
+    await submitRecommendationFeedback(farmId, id, type === 'up');
   };
 
   const { data: localSensors } = useLatestSensors(10000);
@@ -271,7 +232,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                 <div className="text-xl font-black text-gray-800 tracking-tight flex items-center justify-between">
                   {T.flowRate}
                 </div>
-                <LastUpdatedTimer seconds={0} ar={T.lastUpdateAr} en={T.lastUpdateEn} isEn={isEn} />
+                <div className="text-[12px] text-gray-400 mt-1 font-medium"><LastUpdatedTimer seconds={0} ar={T.lastUpdateAr} en={T.lastUpdateEn} /></div>
               </div>
 
               <div className="mt-8 flex items-center justify-center relative">
@@ -316,13 +277,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                 </div>
                 <div className="text-[12px] text-gray-400 mt-1 font-medium">{T.dssSub}</div>
               </div>
-              <div
-                className={`mt-6 flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto ${isRtl ? 'pl-2' : 'pr-2'}`}
-                style={{
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: '#d1d5db transparent'
-                }}
-              >
+              <div className={`mt-6 flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
                 {recommendations.length > 0 ? (
                   recommendations.map((rec, i) => (
                     <RecommendationCard
@@ -405,7 +360,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
             <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-full card-interactive">
               <div className="flex items-center justify-between mb-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
-                  <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyWater}</div>
+                  <div className="text-xl font-black text-gray-800 tracking-tight">{T.totalDailyWater}</div>
                   <div className="text-[12px] text-gray-400 font-medium mt-0.5">{T.dailyWaterSub}</div>
                 </div>
                 <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center border border-blue-100/30 shadow-sm"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg></div>
@@ -428,7 +383,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
             <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-[320px] card-interactive justify-start flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
-                  <div className="text-lg font-bold text-gray-800 tracking-tight">{T.totalDailyPower}</div>
+                  <div className="text-xl font-black text-gray-800 tracking-tight">{T.totalDailyPower}</div>
                   <div className="text-[12px] text-gray-400 font-medium mt-0.5">{T.dailyPowerSub}</div>
                 </div>
                 <div className="w-10 h-10 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center border border-yellow-100/30 shadow-sm"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
@@ -451,7 +406,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
         <div className="animate-fade-in-up delay-6 mb-4">
            <SustainabilityLineChart 
              range={range} onRangeChange={setRange} data={dualSeries} metricName={T.trendTitle}
-             xAxisTitle={T.xAxisTitle} yAxisTitle={T.yAxisTitle} T={translations[lang]} isRtl={isRtl}
+             T={translations[lang]} isRtl={isRtl}
            />
         </div>
       </div>

@@ -297,6 +297,13 @@ export const markAllRecommendationsRead = async (farm_id) => {
   )
 }
 
+export const markRecommendationRead = async (farm_id, rec_id) => {
+  return fetchWithRetry(
+    `${apiConfig.baseURL}/api/v1/recommendations/${farm_id}/mark-read/${rec_id}`,
+    { method: "POST", headers: getAuthHeaders() }
+  )
+}
+
 // Chatbot
 export const askChatbot = async (question, sensor_data = null, language = "ar") => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/chatbot/ask`, {

@@ -304,7 +304,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [showUserMenu, showChat]);
+  }, [showUserMenu, showChat, showMobileSidebar]);
 
   const DEFAULT_SENSOR_READINGS = {
     'رطوبة التربة':  { value: '42%',  status: 'normal' },
@@ -851,7 +851,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                             const nameLower = device.name?.toLowerCase() || '';
                             const isSoil    = device.name.includes('تربة') || nameLower.includes('soil');
                             const isTemp    = device.name.includes('حرار') || nameLower.includes('temp');
-                            const isHum     = device.name.includes('رطوب') || nameLower.includes('hum');
+                            const isHum     = device.name.includes('رطوبه') || nameLower.includes('hum');
                             const isClimate = device.name.includes('مناخ') || nameLower.includes('climate');
                             const isFan     = device.name.includes('مروح') || nameLower.includes('fan');
                             const isCooler  = device.name.includes('مكيف') || nameLower.includes('cool');

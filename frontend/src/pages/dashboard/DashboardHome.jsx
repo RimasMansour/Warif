@@ -12,40 +12,14 @@ import {
   WindSharedIcon,
   IrrigationSmartIcon,
   EmptyState,
-  getRecommendationTheme,
   RecommendationCard,
-  AlertCard
+  AlertCard,
+  LastUpdatedTimer
 } from './DashboardShared';
-import {
-  formatLastUpdated,
-  generateDataForRange,
-  getLabelForRange
-} from './dashboardUtils';
+import { getLabelForRange } from './dashboardUtils';
 import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources, submitRecommendationFeedback, executeRecommendation, submitAlertFeedback } from '../../hooks/useWarifData';
 
-// Liquid Wave Animation Styles
-const waveStyles = `
-  @keyframes wave-move {
-    0% { transform: translateX(0) translateZ(0) scaleY(1); }
-    50% { transform: translateX(-25%) translateZ(0) scaleY(0.8); }
-    100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
-  }
-  .animate-wave {
-    animation: wave-move 4s linear infinite;
-  }
-  .animate-wave-slow {
-    animation: wave-move 7s linear infinite;
-  }
-`;
 
-function LastUpdatedTimer({ seconds, ar, en, isEn }) {
-  const [localSec, setLocalSec] = useState(seconds);
-  useEffect(() => {
-    const interval = setInterval(() => setLocalSec(s => s + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
-  return <>{formatLastUpdated(localSec, ar, en)}</>;
-}
 
 const getCropIcon = (key) => {
   switch(key) {
@@ -120,21 +94,11 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
   const T = {
     title: isEn ? "Monitoring & Control Center" : "لوحة التحكم والمراقبة",
-    subtitle: isEn ? "A direct overview of greenhouse performance and equipment efficiency." : "نظرة شاملة ومباشرة على أداء المحميات وكفاءة تشغيل المعدات.",
-    commandCenter: isEn ? "Digital Twin Command Center" : "مركز قيادة التوأم الرقمي",
-    climate: isEn ? "Microclimate & Ventilation" : "المناخ والتهوية",
-    soil: isEn ? "Soil & Crop Health" : "بيئة وصحة التربة",
-    irrigation: isEn ? "Irrigation Management" : "إدارة الري",
-    dss: isEn ? "Smart Recommendations" : "التوصيات الذكية",
-    camera: isEn ? "Live Monitoring" : "المراقبة المباشرة",
-    automationActive: isEn ? "Smart Automation Active" : "نظام الأتمتة الذكي نشط",
-    inferenceActive: isEn ? "Inference Engine Active" : "محرك الاستدلال نشط",
-    fullLogic: isEn ? "Full Logic Reasoning" : "تفسير منطقي كامل",
+    subtitle: isEn ? "A direct overview of greenhouse performance and equipment efficiency." : "نظرة شاملة ومباشرة على أداء المحمية وكفاءة تشغيل المعدات.",
   };
 
   return (
     <>
-      <style>{waveStyles}</style>
       <div className="w-full px-4 md:px-8 py-4 page-enter">
       <div className="w-full max-w-[1380px] mx-auto flex flex-col gap-5">
 
@@ -220,178 +184,6 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
     await submitAlertFeedback(id, helpful);
   };
 
-  // Map sensor types to categories
-  const getSensorCategory = (sensorType) => {
-    if (!sensorType) return 'irrigation';
-    const s = sensorType.toLowerCase();
-    if (s.includes('temperature') || s.includes('temp')) return 'temperature';
-    if (s.includes('humidity') || s.includes('humid')) return 'humidity';
-    if (s.includes('soil') || s.includes('moisture')) return 'soil';
-    if (s.includes('water') || s.includes('irrigation') || s.includes('pump')) return 'irrigation';
-    return 'irrigation';
-  };
-
-  // Generate descriptive analysis with consequences
-  const getAlertAnalysis = (alert, category) => {
-    const currentValue = alert.actual_value;
-    const threshold = alert.threshold;
-    const isExceeding = currentValue > threshold;
-
-    const analysisMap = {
-      temperature: () => {
-        if (isExceeding) {
-          return isEn
-            ? `Temperature exceeds optimal threshold (${threshold}°C). Current: ${currentValue}°C. High temperatures may cause heat stress to crops, reduce crop quality, increase water consumption, and accelerate plant maturation.`
-            : `درجة الحرارة تتجاوز الحد الأمثل (${threshold}°م). القيمة الحالية: ${currentValue}°م. قد تؤدي الحرارة المرتفعة إلى إجهاد حراري للمحاصيل وتقليل الجودة وزيادة استهلاك المياه وتسريع النضج.`;
-        } else {
-          return isEn
-            ? `Temperature is below optimal threshold (${threshold}°C). Current: ${currentValue}°C. Low temperatures slow crop growth, reduce metabolic activity, and increase vulnerability to diseases.`
-            : `درجة الحرارة أقل من الحد الأمثل (${threshold}°م). القيمة الحالية: ${currentValue}°م. قد تؤدي الحرارة المنخفضة إلى إبطاء نمو المحاصيل وتقليل النشاط الأيضي وزيادة عرضة الإصابة بالأمراض.`;
-        }
-      },
-      humidity: () => {
-        if (isExceeding) {
-          return isEn
-            ? `Humidity exceeds optimal level (${threshold}%). Current: ${currentValue}%. High humidity increases risk of fungal diseases, reduces nutrient absorption, and creates condensation that promotes pathogen growth.`
-            : `الرطوبة تتجاوز المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد ترفع الرطوبة المرتفعة من خطر الأمراض الفطرية وتقلل امتصاص العناصر الغذائية وتعزز نمو الممرضات.`;
-        } else {
-          return isEn
-            ? `Humidity is below optimal level (${threshold}%). Current: ${currentValue}%. Low humidity causes water stress, increases transpiration, slows growth, and makes plants more susceptible to pests.`
-            : `الرطوبة أقل من المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد تسبب الرطوبة المنخفضة إجهاد مائي وزيادة النتح وإبطاء النمو وزيادة عرضة الآفات.`;
-        }
-      },
-      soil: () => {
-        if (isExceeding) {
-          return isEn
-            ? `Soil moisture exceeds optimal level (${threshold}%). Current: ${currentValue}%. Excess moisture causes root rot, reduces oxygen availability, promotes fungal diseases, and impairs nutrient absorption.`
-            : `رطوبة التربة تتجاوز المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد يسبب الإفراط في الرطوبة تعفن الجذور وتقليل توفر الأكسجين وتعزيز الأمراض الفطرية وضعف امتصاص العناصر الغذائية.`;
-        } else {
-          return isEn
-            ? `Soil moisture is below optimal level (${threshold}%). Current: ${currentValue}%. Low soil moisture causes water stress, reduces nutrient availability, slows crop development, and increases vulnerability to drought.`
-            : `رطوبة التربة أقل من المستوى الأمثل (${threshold}%). القيمة الحالية: ${currentValue}%. قد تسبب الرطوبة المنخفضة إجهاد مائي وتقليل توفر العناصر الغذائية وإبطاء التطور وزيادة عرضة الجفاف.`;
-        }
-      },
-      irrigation: () => {
-        return isEn
-          ? `Water usage requires attention. Current: ${currentValue} units. Proper irrigation ensures optimal crop health and resource efficiency.`
-          : `استهلاك المياه يتطلب انتباهاً. القيمة الحالية: ${currentValue} وحدة. يضمن الري المناسب صحة المحصول المثلى وكفاءة الموارد.`;
-      }
-    };
-
-    return (analysisMap[category] || analysisMap.irrigation)();
-  };
-
-  // Generate mode-aware action
-  const getAlertAction = (alert, category, isAutoMode) => {
-    const actionMap = {
-      temperature: () => {
-        const isExceeding = alert.actual_value > alert.threshold;
-        if (isAutoMode) {
-          return isExceeding
-            ? isEn
-              ? 'The system will increase ventilation rate and activate cooling mechanisms to bring temperature within optimal range.'
-              : 'سيقوم النظام بزيادة معدل التهوية وتفعيل آليات التبريد لإعادة درجة الحرارة إلى النطاق الأمثل.'
-            : isEn
-              ? 'The system will reduce ventilation and adjust heating if needed to maintain optimal temperature.'
-              : 'سيقوم النظام بتقليل التهوية وتعديل التدفئة إذا لزم الأمر للحفاظ على درجة حرارة مثلى.';
-        } else {
-          return isExceeding
-            ? isEn
-              ? 'Increase ventilation rate and activate cooling systems to bring temperature within optimal range (18-27°C).'
-              : 'قم بزيادة معدل التهوية وتفعيل نظم التبريد لإعادة درجة الحرارة إلى النطاق الأمثل (18-27°م).'
-            : isEn
-              ? 'Reduce ventilation and activate heating if needed to maintain optimal temperature range.'
-              : 'قلل التهوية وفعّل التدفئة إذا لزم الأمر للحفاظ على النطاق الأمثل للحرارة.';
-        }
-      },
-      humidity: () => {
-        const isExceeding = alert.actual_value > alert.threshold;
-        if (isAutoMode) {
-          return isExceeding
-            ? isEn
-              ? 'The system will increase air circulation and ventilation to reduce humidity levels.'
-              : 'سيقوم النظام بزيادة الدوران الهوائي والتهوية لتقليل مستويات الرطوبة.'
-            : isEn
-              ? 'The system will reduce ventilation and activate humidification if available.'
-              : 'سيقوم النظام بتقليل التهوية وتفعيل الترطيب إذا كان متاحاً.';
-        } else {
-          return isExceeding
-            ? isEn
-              ? 'Increase air circulation and ventilation to reduce humidity below optimal level (60-75%).'
-              : 'قم بزيادة الدوران الهوائي والتهوية لتقليل الرطوبة تحت المستوى الأمثل (60-75%).'
-            : isEn
-              ? 'Reduce ventilation and activate misting systems if available to maintain humidity.'
-              : 'قلل التهوية وفعّل نظم الرش إذا كانت متاحة للحفاظ على الرطوبة.';
-        }
-      },
-      soil: () => {
-        const isExceeding = alert.actual_value > alert.threshold;
-        if (isAutoMode) {
-          return isExceeding
-            ? isEn
-              ? 'The system will suspend irrigation and increase drainage to reduce soil moisture.'
-              : 'سيقوم النظام بإيقاف الري وزيادة الصرف لتقليل رطوبة التربة.'
-            : isEn
-              ? 'The system will activate irrigation to restore soil moisture to optimal level.'
-              : 'سيقوم النظام بتفعيل الري لاستعادة رطوبة التربة إلى المستوى الأمثل.';
-        } else {
-          return isExceeding
-            ? isEn
-              ? 'Suspend irrigation and increase drainage to reduce soil moisture to optimal level (35-50%).'
-              : 'قم بإيقاف الري وزيادة الصرف لتقليل رطوبة التربة إلى المستوى الأمثل (35-50%).'
-            : isEn
-              ? 'Activate irrigation to restore soil moisture to optimal level.'
-              : 'قم بتفعيل الري لاستعادة رطوبة التربة إلى المستوى الأمثل.';
-        }
-      },
-      irrigation: () => {
-        if (isAutoMode) {
-          return isEn
-            ? 'The system will adjust irrigation schedule to maintain water efficiency.'
-            : 'سيقوم النظام بتعديل جدول الري للحفاظ على كفاءة المياه.';
-        } else {
-          return isEn
-            ? 'Review and adjust irrigation settings to optimize water usage.'
-            : 'قم بمراجعة وتعديل إعدادات الري لتحسين استخدام المياه.';
-        }
-      }
-    };
-
-    return (actionMap[category] || actionMap.irrigation)();
-  };
-
-  // استخدم نفس الأيقونات والألوان من التوصيات
-  const getAlertTheme = (category, severity) => {
-    const isUrgent = severity === 'high' || severity === 'critical';
-
-    // احصل على الـ theme من التوصيات
-    const recommendationTheme = getRecommendationTheme(category);
-
-    return {
-      ...recommendationTheme,
-      bg: isUrgent ?
-        (category === 'irrigation' ? 'bg-blue-50/30' :
-         category === 'temperature' ? 'bg-amber-50/30' :
-         category === 'humidity' ? 'bg-slate-50/30' : 'bg-amber-50/40')
-        : recommendationTheme.bg,
-      text: isUrgent ?
-        (category === 'irrigation' ? 'text-blue-800' :
-         category === 'temperature' ? 'text-amber-800' :
-         category === 'humidity' ? 'text-slate-800' : 'text-amber-900')
-        : recommendationTheme.text,
-      actionText: isUrgent ?
-        (category === 'irrigation' ? 'text-blue-700' :
-         category === 'temperature' ? 'text-amber-700' :
-         category === 'humidity' ? 'text-slate-700' : 'text-amber-800')
-        : recommendationTheme.actionText,
-      actionBg: isUrgent ?
-        (category === 'irrigation' ? 'bg-blue-50/40' :
-         category === 'temperature' ? 'bg-amber-50/40' :
-         category === 'humidity' ? 'bg-slate-50/40' : 'bg-amber-50/50')
-        : recommendationTheme.actionBg
-    };
-  };
-
   // تقسيم الانذارات حسب الشدة
   const urgentAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
   const warningAlerts = alerts.filter(a => a.severity === 'warning' || a.severity === 'info');
@@ -402,7 +194,7 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
         iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
         iconColor={alerts.length > 0 ? "text-red-500" : "text-emerald-600"}
-        title={isEn ? "System Alerts" : "تنبيهات النظام اللحظية"}
+        title={isEn ? "System Alerts" : "تنبيهات النظام"}
         subtitle={
           alerts.length > 0
             ? `${alerts.length} ${isEn ? 'Active' : 'نشطة'}`
@@ -431,172 +223,11 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
   );
 }
 
-function AlertItem({ onGo, alert, isEn, getAlertTheme, getSensorCategory, getAlertAnalysis, getAlertAction, onFeedback, globalAutoMode, alertFeedback, showAlertThanks, onAccept }) {
-  const isRtl = !isEn;
-  const isManualMode = !globalAutoMode;
-
-  const category =
-    alert.sensor_type?.includes('temperature') ||
-    alert.sensor_type?.includes('humidity') ? 'climate' :
-    alert.sensor_type?.includes('soil') ? 'soil' :
-    alert.sensor_type?.includes('water') ||
-    alert.sensor_type?.includes('irrigation') ? 'irrigation' : 'system';
-
-  const actionType =
-    category === 'climate' ? 'cool' :
-    category === 'irrigation' ? 'irrigate' : 'irrigate';
-
-  const categoryLabel = isEn
-    ? (category === 'climate' ? 'Climate & Ventilation' :
-       category === 'soil'    ? 'Soil Health' :
-       category === 'irrigation' ? 'Irrigation' : 'System')
-    : (category === 'climate' ? 'المناخ والتهوية' :
-       category === 'soil'    ? 'صحة التربة' :
-       category === 'irrigation' ? 'الري' : 'النظام');
-
-  const severityColor =
-    alert.severity === 'critical' || alert.severity === 'high'
-      ? 'bg-red-50 text-red-700 border-red-200' :
-    alert.severity === 'warning'  
-      ? 'bg-amber-50 text-amber-700 border-amber-200' :
-      'bg-blue-50 text-blue-700 border-blue-200';
-
-  const severityLabel = isEn
-    ? (alert.severity === 'critical' || alert.severity === 'high' ? 'Critical' :
-       alert.severity === 'warning'  ? 'Warning' : 'Info')
-    : (alert.severity === 'critical' || alert.severity === 'high' ? 'حرج' :
-       alert.severity === 'warning'  ? 'تحذير' : 'معلومة');
-
-  return (
-    <div className={`flex flex-col gap-0 bg-white rounded-2xl border overflow-hidden
-      ${alert.severity === 'critical' ? 'border-red-200' :
-        alert.severity === 'warning' ? 'border-amber-200' : 'border-blue-200'}`}>
-
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border
-          ${alert.severity === 'critical' ? 'bg-red-50 text-red-700 border-red-200' :
-            alert.severity === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-            'bg-blue-50 text-blue-700 border-blue-200'}`}>
-          {alert.severity === 'critical' ? (isEn ? 'Critical' : 'حرج') :
-           alert.severity === 'warning' ? (isEn ? 'Warning' : 'تحذير') :
-           (isEn ? 'Info' : 'معلومة')}
-        </span>
-        <span className="text-sm font-black text-gray-700">{categoryLabel}</span>
-      </div>
-
-      {/* Message */}
-      <div className="px-4 pb-3">
-        <p className={`text-sm font-bold text-gray-800 leading-relaxed
-          ${isRtl ? 'text-right' : 'text-left'}`}>
-          {alert.message || alert.description || 
-            (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div className="border-t border-gray-100 mx-0" />
-
-      {/* Action row */}
-      <div className={`flex items-center justify-between px-4 py-2.5
-        ${isRtl ? 'flex-row-reverse' : ''}`}>
-        
-        {/* Rating - LEFT side */}
-        <div className="flex items-center gap-2">
-          <button onClick={() => alert.onRate?.('up')}
-            className="w-7 h-7 rounded-xl bg-gray-50 border border-gray-200
-              flex items-center justify-center hover:bg-emerald-50
-              hover:border-emerald-200 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
-              <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
-            </svg>
-          </button>
-          <button onClick={() => alert.onRate?.('down')}
-            className="w-7 h-7 rounded-xl bg-gray-50 border border-gray-200
-              flex items-center justify-center hover:bg-red-50
-              hover:border-red-200 transition-colors">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3H10z"/>
-              <path d="M17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
-            </svg>
-          </button>
-          <span className="text-[11px] text-gray-400 font-bold">
-            {isEn ? 'Helpful?' : 'مناسب؟'}
-          </span>
-        </div>
-
-        {/* Auto action - RIGHT side */}
-        {isManualMode ? (
-          <div className="flex gap-2">
-            <button onClick={() => alert.onConfirm?.()}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white
-                font-black text-xs hover:bg-emerald-700 transition-colors">
-              {isEn ? 'Confirm' : 'تأكيد'}
-            </button>
-            <button onClick={() => alert.onIgnore?.()}
-              className="px-3 py-1.5 rounded-xl bg-gray-100 text-gray-500
-                font-black text-xs hover:bg-gray-200 transition-colors">
-              {isEn ? 'Ignore' : 'تجاهل'}
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
-            bg-emerald-50 border border-emerald-200">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-black text-emerald-700">
-              {(() => {
-                if (category === 'climate') {
-                  return isEn ? "Fans & Ventilation Activated Automatically" : "تم تشغيل المروحة والتهوية تلقائياً";
-                }
-                if (category === 'irrigation') {
-                  return isEn ? "Irrigation Pump Activated Automatically" : "تم تشغيل مضخة الري تلقائياً";
-                }
-                if (category === 'soil') {
-                  return isEn ? "Soil Environment Adjusted Automatically" : "تم ضبط بيئة التربة تلقائياً";
-                }
-                return isEn ? "Auto executed" : "تم التنفيذ تلقائياً";
-              })()}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Timestamp */}
-      {(alert.created_at || alert.timestamp) && (
-        <div className={`px-4 pb-2 text-[10px] text-gray-300 font-bold
-          ${isRtl ? 'text-right' : 'text-left'}`}>
-          {(() => {
-            const date = new Date(alert.created_at || alert.timestamp);
-            const diffMs = Date.now() - date.getTime();
-            const diffMin = Math.floor(diffMs / 60000);
-            const diffHr = Math.floor(diffMin / 60);
-            if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
-            if (diffMin < 60) return isEn ? `${diffMin} min ago` : `منذ ${diffMin} دقيقة`;
-            if (diffHr < 24) return isEn ? `${diffHr}h ago` : `منذ ${diffHr} ساعة`;
-            return date.toLocaleTimeString(isEn ? 'en' : 'ar-SA', 
-              { hour: '2-digit', minute: '2-digit' });
-          })()}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-
 /* =========================================================
    Glance Cards representing AI Modules
    Standardized with p-5 padding and Real-time indicators
 ========================================================= */
 
-function LiveStatusFooter({ time = "منذ 5 دقائق" }) {
-  // Logic Fix: Removing the footer as the timestamp is now in the header subtitle
-  return null;
-}
 
 function ClimateSparkline({ color = "#ef4444", gradientId = "climateGradient" }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
@@ -836,27 +467,28 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
     <CardShell
       className="p-4 md:p-5 h-full cursor-pointer card-interactive group relative overflow-hidden flex flex-col justify-between"
       onClick={() => onGo("irrigation")}
-      dir={isEn ? "ltr" : "rtl"}
     >
       <div className="animate-fade-in delay-3 flex flex-col gap-3 h-full">
 
         {/* Header */}
-        <div className={`flex items-center justify-between ${isEn ? '' : 'flex-row-reverse'}`}>
-          <div className={`flex flex-col ${isEn ? '' : 'items-end'}`}>
-            <span className="text-base font-black text-gray-800">{isEn ? 'Irrigation Control' : 'إدارة الري'}</span>
-            <span className="text-[11px] text-gray-400">{isEn ? 'Last update: now' : 'آخر تحديث: الآن'}</span>
-          </div>
-          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
-            <IrrigationSmartIcon className="w-5 h-5 text-blue-500" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100/50 flex items-center justify-center shadow-sm flex-shrink-0">
+              <IrrigationSmartIcon size={22} strokeWidth={1.7} className="text-blue-500" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-base font-black text-gray-800">{isEn ? 'Irrigation Control' : 'إدارة الري'}</span>
+              <span className="text-[11px] text-gray-400">{isEn ? 'Last update: now' : 'آخر تحديث: الآن'}</span>
+            </div>
           </div>
         </div>
 
         {/* Pump Status */}
-        <div className={`flex items-center justify-between px-3 py-2 rounded-xl border ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'} ${isEn ? '' : 'flex-row-reverse'}`}>
+        <div className={`flex items-center justify-between px-3 py-2 rounded-xl border ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
           <span className="text-sm font-bold text-gray-700">
             {isEn ? (isActive ? 'Pump Active' : 'Pump Off') : (isActive ? 'المضخة تعمل' : 'المضخة مغلقة')}
           </span>
-          <div className={`flex items-center gap-1.5 ${isEn ? '' : 'flex-row-reverse'}`}>
+          <div className="flex items-center gap-1.5">
             <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`} />
             <span className="text-xs font-semibold text-gray-500">
               {isEn ? (isActive ? 'Running' : 'Standby') : (isActive ? 'يعمل' : 'استعداد')}
@@ -866,7 +498,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
 
         {/* Live Flow Visualizer */}
         <div className="flex flex-col gap-2 px-1">
-          <div className={`flex items-center justify-between ${isEn ? '' : 'flex-row-reverse'}`}>
+          <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500">{isEn ? 'Live Flow' : 'التدفق اللحظي'}</span>
             <span className={`text-xs font-black ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
               {flowRate} {isEn ? 'L/min' : 'لتر/دقيقة'}
@@ -899,9 +531,9 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
 
         {/* Water Tank */}
         <div className="flex flex-col gap-1.5">
-          <div className={`flex items-center justify-between ${isEn ? '' : 'flex-row-reverse'}`}>
+          <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500">{isEn ? 'Water Tank' : 'خزان المياه'}</span>
-            <div className={`flex items-center gap-1 ${isEn ? '' : 'flex-row-reverse'}`}>
+            <div className="flex items-center gap-1">
               <span className="text-xs font-black" style={{ color: tankColor }}>{Math.round(waterPercent)}%</span>
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${tankColor}20`, color: tankColor }}>
                 {tankLabel}
@@ -917,21 +549,21 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
         </div>
 
         {/* Footer */}
-        <div className={`flex items-center justify-between pt-2 border-t border-gray-100 mt-auto ${isEn ? '' : 'flex-row-reverse'}`}>
-          <div className={`flex flex-col ${isEn ? '' : 'items-end'}`}>
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto">
+          <div className="flex flex-col">
             <span className="text-[10px] text-gray-400">{isEn ? 'Water' : 'المياه'}</span>
-            <div className={`flex items-baseline gap-1 ${isEn ? '' : 'flex-row-reverse'}`}>
+            <div className="flex items-baseline gap-1">
               <span className="text-base font-black text-gray-800">{Math.round(waterUsage)}</span>
               <span className="text-[11px] text-gray-400">{isEn ? 'L' : 'لتر'}</span>
             </div>
           </div>
-          <div className={`flex items-center gap-1 ${isEn ? '' : 'flex-row-reverse'}`}>
+          <div className="flex items-center gap-1">
             <span className="text-sm">{cropEmoji}</span>
             <span className="text-xs font-semibold text-gray-500">{cropLabel}</span>
           </div>
-          <div className={`flex flex-col ${isEn ? 'items-end' : ''}`}>
+          <div className="flex flex-col items-end">
             <span className="text-[10px] text-gray-400">{isEn ? 'Energy' : 'الكهرباء'}</span>
-            <div className={`flex items-baseline gap-1 ${isEn ? 'flex-row-reverse' : ''}`}>
+            <div className="flex items-baseline gap-1">
               <span className="text-base font-black text-gray-800">
                 {energyKwh < 1 ? (energyKwh * 1000).toFixed(0) : energyKwh.toFixed(2)}
               </span>
@@ -950,24 +582,14 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
 function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const isRtl = !isEn;
-  const [interactedIds, setInteractedIds] = useState({});
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
-  const [recommendationStatus, setRecommendationStatus] = useState({});
 
   const handleFeedback = async (id, type) => {
-    // تحديث الواجهة المحلية فوراً
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-
-    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
-    const helpful = type === 'up';
-    await submitRecommendationFeedback(farmId, id, helpful);
-  };
-
-  const handleRecommendationDecision = (id, decision) => {
-    setRecommendationStatus(prev => ({ ...prev, [id]: decision }));
+    await submitRecommendationFeedback(farmId, id, type === 'up');
   };
   const { data: apiRecs } = useRecommendations(farmId);
 
@@ -984,55 +606,13 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
     is_read: r.is_read,
   })) : [];
 
-  const getRecSubject = (type) => {
-    switch (type) {
-      case 'irrigation': return isEn ? 'Water efficiency' : 'تقليل الاستهلاك';
-      case 'heat': return isEn ? 'Temperature risk' : 'تنظيم الحرارة';
-      case 'humidity': return isEn ? 'Humidity control' : 'ضبط الرطوبة';
-      case 'climate': return isEn ? 'Climate balance' : 'توازن المناخ';
-      case 'soil': return isEn ? 'Soil health' : 'صحة التربة';
-      default: return isEn ? 'Operational guidance' : 'توجيه المزرعة';
-    }
-  };
-
-  const getRecActionText = (item) => {
-    if (item.suggestion) return item.suggestion;
-    switch (item.type) {
-      case 'irrigation':
-        return isEn
-          ? 'Adjust irrigation settings to conserve water without affecting crop health.'
-          : 'اضبط نظام الري لتوفير الماء دون التأثير على صحة المحصول.';
-      case 'heat':
-        return isEn
-          ? 'Improve shading and ventilation to lower greenhouse temperature.'
-          : 'حسّن التظليل والتهوية لخفض درجة حرارة الصوبة.';
-      case 'humidity':
-        return isEn
-          ? 'Increase airflow and reduce humidity build-up around plants.'
-          : 'زد تدفق الهواء وقلل تراكم الرطوبة حول النباتات.';
-      case 'soil':
-        return isEn
-          ? 'Keep soil moisture steady by reducing over-irrigation.'
-          : 'حافظ على رطوبة التربة عبر تقليل الإفراط في الري.';
-      default:
-        return isEn
-          ? 'Apply the recommended adjustment and monitor results.'
-          : 'طبق التعديل الموصى به ومتابعة النتائج.';
-    }
-  };
-
   const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات مدروسة لتحسين أداء المزرعة";
-
-  const handleAction = (e, idx, type) => {
-    e.stopPropagation();
-    setInteractedIds(prev => ({ ...prev, [idx]: type }));
-  };
 
   return (
     <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("dss")}>
       <div className="animate-fade-in delay-2">
         <CardTopRow
-          title={isEn ? "Smart Recommendations" : "توصيات ذكية"}
+          title={isEn ? "Recommendations" : "التوصيات"}
           subtitle={T_Subtitle}
           icon={<ListIcon />}
           isEn={isEn}
@@ -1042,28 +622,8 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
       </div>
 
       <div
-        className={`flex-1 mt-4 overflow-y-auto max-h-[400px] flex flex-col gap-3 ${isRtl ? 'pl-2' : 'pr-2'}`}
-        style={{
-          scrollbarWidth: 'thin',
-          scrollbarColor: '#d1d5db transparent'
-        }}
+        className={`flex-1 mt-4 overflow-y-auto max-h-[400px] flex flex-col gap-3 scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}
       >
-        <style>{`
-          .scrollbar-thin::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-          }
-          .scrollbar-thin::-webkit-scrollbar-track {
-            background: transparent;
-          }
-          .scrollbar-thin::-webkit-scrollbar-thumb {
-            background: #d1d5db;
-            border-radius: 3px;
-          }
-          .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-            background: #9ca3af;
-          }
-        `}</style>
 
         {recommendations.length === 0 ? (
           <EmptyState
@@ -1087,11 +647,8 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
               farmId={farmId}
               globalAutoMode={globalAutoMode}
               isEn={isEn}
-              onExecute={async (category, farmId) => {
-                await executeRecommendation(category, farmId);
-                handleRecommendationDecision(rec.id, 'accepted');
-              }}
-              onIgnore={() => handleRecommendationDecision(rec.id, 'rejected')}
+              onExecute={(category, farmId) => executeRecommendation(category, farmId)}
+              onIgnore={() => {}}
               onFeedback={handleFeedback}
               feedbackState={feedback}
               showThanks={showThanksIds}
@@ -1169,103 +726,6 @@ function MinimalStat({ value, label }) {
     <div className="flex flex-col items-center justify-center py-1 px-3 min-w-[75px] rounded-xl bg-gray-50/50 border border-gray-100/50 group-hover/assets:border-emerald-100 transition-all">
       <div className="text-3xl font-black text-gray-900 leading-none mb-0.5">{value}</div>
       <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{label}</div>
-    </div>
-  );
-}
-
-function IoTSystemHealthCard({ isEn }) {
-  return (
-    <CardShell className="flex flex-col bg-white p-5 md:p-6 min-h-[220px]">
-      <CardTopRow 
-        icon={<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/></svg>}
-        iconBg="bg-blue-50"
-        iconColor="text-blue-500"
-        title={isEn ? "IoT Sensors Network" : "شبكة حساسات إنترنت الأشياء"}
-        subtitle={isEn ? "Live System Health" : "حالة اتصال الأجهزة الميدانية"}
-      />
-      <div className="flex-1 mt-5 flex flex-col gap-3">
-        
-        {/* Main Gateway Status */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50/50 border border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100/50 text-emerald-600 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[12px] font-black text-gray-800">{isEn ? 'Main IoT Gateway' : 'البوابة الرئيسية (Gateway)'}</span>
-              <span className="text-xs font-bold text-emerald-600">{isEn ? 'Connected & Stable' : 'متصل ومستقر'}</span>
-            </div>
-          </div>
-          <div className="text-xs font-bold text-gray-400 bg-white px-2 py-1 rounded shadow-sm">
-            Ping: 12ms
-          </div>
-        </div>
-
-        {/* Nodes Health Grid */}
-        <div className="grid grid-cols-2 gap-3 mt-1">
-          <div className="flex flex-col p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-gray-500">{isEn ? 'Climate Nodes' : 'عقد المناخ'}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
-            </div>
-            <div className="text-xl font-black text-gray-800">100%</div>
-            <div className="text-xs text-gray-400 font-medium mt-0.5">{isEn ? 'Signal Strength' : 'قوة إشارة النقل'}</div>
-          </div>
-
-          <div className="flex flex-col p-3 rounded-xl bg-white border border-gray-100 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-gray-500">{isEn ? 'Soil Probes' : 'مجسات التربة'}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
-            </div>
-            <div className="text-xl font-black text-gray-800">96%</div>
-            <div className="text-xs text-gray-400 font-medium mt-0.5">{isEn ? 'Battery Level' : 'مستوى البطارية'}</div>
-          </div>
-        </div>
-
-      </div>
-      <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-50">
-        <div className="text-xs font-bold text-gray-400 tracking-tighter">{isEn ? 'Last Sync Time' : 'آخر مزامنة للبيانات'}</div>
-        <div className="flex items-center gap-1.5">
-           <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-           <span className="text-xs font-black text-blue-600 tracking-wide"><LastUpdatedTimer seconds={0} ar="" en="" isEn={isEn} /></span>
-        </div>
-      </div>
-    </CardShell>
-  );
-}
-
-export function TopKPIStrip({ temp = 0, hum = 0, soil = 0, alertsCount = 0, globalAutoMode = true, isEn = true, T = {} }) {
-  return (
-    <div className="flex flex-wrap items-center gap-3 w-full bg-white/60 backdrop-blur-sm p-2 rounded-2xl border border-gray-200/50 shadow-sm mb-5" dir={isEn ? 'ltr' : 'rtl'}>
-      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-        <span className="text-lg">🌡</span>
-        <span className="text-sm font-black text-gray-800">{(temp || 0).toFixed(1)}°C</span>
-      </div>
-      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-        <span className="text-lg">💧</span>
-        <span className="text-sm font-black text-gray-800">{(hum || 0).toFixed(0)}%</span>
-      </div>
-      <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-        <span className="text-lg">🌱</span>
-        <span className="text-sm font-black text-gray-800">{(soil || 0).toFixed(0)}%</span>
-      </div>
-      <div className="flex-1"></div>
-      <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-colors ${globalAutoMode ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-orange-50 border-orange-100 text-orange-700'}`}>
-        <span className={`w-2 h-2 rounded-full animate-pulse ${globalAutoMode ? 'bg-emerald-500' : 'bg-orange-500'}`}></span>
-        <span className="text-xs font-black uppercase tracking-tight">{globalAutoMode ? (isEn ? 'Auto Mode' : 'تشغيل ذكي') : (isEn ? 'Manual Mode' : 'تحكم يدوي')}</span>
-      </div>
-      <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all ${alertsCount > 0 ? 'bg-red-50 border-red-200 text-red-700 scale-[1.02]' : 'bg-gray-50 border-gray-100 text-gray-500'}`}>
-        <div className="relative flex items-center justify-center">
-          <span className="text-lg">🔔</span>
-          {alertsCount > 0 && (
-            <>
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping opacity-75"></span>
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></span>
-            </>
-          )}
-        </div>
-        <span className="text-xs font-black">{alertsCount} {isEn ? 'Alerts' : 'تنبيهات'}</span>
-      </div>
     </div>
   );
 }

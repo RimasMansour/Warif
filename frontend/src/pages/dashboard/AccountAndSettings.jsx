@@ -70,7 +70,7 @@ export function AccountAndSettingsPages({
     settings: isEn ? "System Settings" : "إعدادات النظام",
     account: isEn ? "Account" : "الحساب",
     sensors: isEn ? "Hardware" : "العتاد",
-    profileSub: isEn ? "Personl data and authentication" : "بياناتك الشخصية ووسائل المصادقة المباشرة",
+    profileSub: isEn ? "Personal data and authentication" : "بياناتك الشخصية ووسائل المصادقة المباشرة",
     settingsSub: isEn ? "Customize sensors and Warif AI" : "تخصيص الحساسات وأتمتة وارِف الذكية",
     admin: isEn ? "System Admin" : "مشرف النظام",
     fullName: isEn ? "Full Name" : "الاسم المعتمد",

@@ -879,3 +879,36 @@ select option {
   animation: scan-glow 2s ease-in-out infinite;
 }
 
+/* Wave animation for liquid fill effects */
+@keyframes wave-move {
+  0%   { transform: translateX(0) translateZ(0) scaleY(1); }
+  50%  { transform: translateX(-25%) translateZ(0) scaleY(0.8); }
+  100% { transform: translateX(-50%) translateZ(0) scaleY(1); }
+}
+.animate-wave {
+  animation: wave-move 4s linear infinite;
+}
+.animate-wave-slow {
+  animation: wave-move 7s linear infinite;
+}
+
+/* Neutral scrollbar for card-level scrollable areas */
+.scrollbar-neutral {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+.scrollbar-neutral::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-neutral::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-neutral::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+.scrollbar-neutral::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+

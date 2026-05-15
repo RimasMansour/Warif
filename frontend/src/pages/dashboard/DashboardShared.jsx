@@ -1,5 +1,15 @@
 import * as React from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { formatLastUpdated } from './dashboardUtils';
+
+export function LastUpdatedTimer({ seconds, ar, en }) {
+  const [localSec, setLocalSec] = useState(seconds);
+  useEffect(() => {
+    const interval = setInterval(() => setLocalSec(s => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return <>{formatLastUpdated(localSec, ar, en)}</>;
+}
 
 // ─── PARSING UTILITY ─────────────────────────────────────────────────
 // Splits reasoning text into Issue + Solution based on keywords
@@ -658,7 +668,6 @@ export function RecommendationCard({
   const actionType = rec.category || rec.type || 'general';
   const [isLoading, setIsLoading] = React.useState(false);
   const [executionSuccess, setExecutionSuccess] = React.useState(false);
-  const [showFullReasoning, setShowFullReasoning] = React.useState(false);
 
   const handleExecute = async () => {
     setIsLoading(true);
@@ -697,10 +706,6 @@ export function RecommendationCard({
     }
   };
 
-  const reasoningLines = rec.reasoning?.split('\n') || [];
-  const hasLongReasoning = reasoningLines.length > 2 || (rec.reasoning?.length || 0) > 150;
-
-  // Parse reasoning into Issue + Solution
   const { issue, solution } = parseReasoningText(rec.reasoning);
 
   return (
@@ -747,33 +752,12 @@ export function RecommendationCard({
 
       {/* Reasoning Section - SCROLLABLE ONLY FOR CONTENT */}
       {rec.reasoning && (
-        <div
-          className={`mt-1.5 max-h-[250px] overflow-y-auto space-y-2 ${isRtl ? 'pl-2' : 'pr-2'}`}
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#d1d5db transparent'
-          }}
-        >
-          <style>{`
-            [data-reasoning-scroll]::-webkit-scrollbar {
-              width: 6px;
-            }
-            [data-reasoning-scroll]::-webkit-scrollbar-track {
-              background: transparent;
-            }
-            [data-reasoning-scroll]::-webkit-scrollbar-thumb {
-              background: #d1d5db;
-              border-radius: 3px;
-            }
-            [data-reasoning-scroll]::-webkit-scrollbar-thumb:hover {
-              background: #9ca3af;
-            }
-          `}</style>
-          <div data-reasoning-scroll>
+        <div className={`mt-2 max-h-[280px] overflow-y-auto space-y-2.5 scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
+          <div>
             {/* ISSUE Section */}
-            <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 mt-1 ${theme.iconBg}`}>
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <div className={`flex gap-2.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
+              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${theme.iconBg}`}>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <circle cx="12" cy="12" r="10"/>
                   <line x1="12" y1="8" x2="12" y2="12"/>
                   <line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -783,7 +767,7 @@ export function RecommendationCard({
                 <div className="text-xs font-bold text-black mb-0.5 leading-tight">
                   {isEn ? 'Issue' : 'المشكلة'}
                 </div>
-                <p className={`text-xs text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
+                <p className={`text-sm text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
                   {issue || rec.reasoning}
                 </p>
               </div>
@@ -791,9 +775,9 @@ export function RecommendationCard({
 
             {/* SOLUTION Section */}
             {solution && (
-              <div className={`p-2 rounded-xl bg-gray-50 border border-gray-100 flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-4 h-4 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100`}>
-                  <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+              <div className={`mt-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex gap-2.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100`}>
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
                   </svg>
                 </div>
@@ -801,7 +785,7 @@ export function RecommendationCard({
                   <div className="text-xs font-bold text-black mb-0.5 leading-tight">
                     {isEn ? 'Solution' : 'الحل'}
                   </div>
-                  <p className={`text-xs text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
+                  <p className={`text-sm text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
                     {solution}
                   </p>
                 </div>
@@ -977,42 +961,55 @@ export function AlertCard({
 
   return (
     <div
-      className={`rounded-3xl border border-gray-100 shadow-sm transition-all animate-fade-in flex flex-col bg-white`}
+      className="rounded-3xl border border-gray-100 shadow-sm transition-all animate-fade-in flex flex-col bg-white"
       style={{
         padding: '12px',
         fontFamily: isRtl ? '"Cairo", "Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' : 'inherit'
       }}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      {/* Header: Severity Badge + Category Label */}
-      <div className={`flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+      {/* Header: Two small badges */}
+      <div className={`flex items-start gap-1.5 mb-1 ${isRtl ? 'flex-row-reverse' : ''}`}>
+        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0 ${
           severity === 'critical' || severity === 'high'
-            ? 'bg-red-50 text-red-700 border-red-200'
+            ? 'bg-red-50 text-red-700'
             : severity === 'warning'
-              ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : 'bg-blue-50 text-blue-700 border-blue-200'
+              ? 'bg-amber-50 text-amber-700'
+              : 'bg-blue-50 text-blue-700'
         }`}>
           {config.label}
         </span>
-        <span className="text-[15px] font-black text-gray-800">
+        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 whitespace-nowrap shrink-0">
           {pageLabel}
         </span>
       </div>
 
       {/* Message */}
-      <p className={`mt-1.5 text-base font-bold leading-snug flex-1 text-black ${isRtl ? 'text-right' : 'text-left'}`}
-        dir={isRtl ? 'rtl' : 'ltr'}
-        style={{
-          wordBreak: 'break-word',
-          overflow: 'hidden',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-        }}
+      <h4
+        className={`mt-0.5 text-base font-bold leading-snug text-black ${isRtl ? 'text-right' : 'text-left'}`}
+        style={{ wordBreak: 'break-word' }}
       >
         {alert.message || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
-      </p>
+      </h4>
+
+      {/* Action Section */}
+      {alert.action && (
+        <div className={`mt-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex gap-2.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
+          <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs font-bold text-black mb-0.5 leading-tight">
+              {isEn ? 'Action' : 'الإجراء'}
+            </div>
+            <p className={`text-sm text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
+              {alert.action}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3">
         {!globalAutoMode ? (

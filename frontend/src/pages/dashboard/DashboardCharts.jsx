@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CardShell } from './DashboardShared';
-import { getLabelForRange } from './dashboardUtils';
+
 
 const getDateRangeLabel = (range, isRtl) => {
   const now = new Date();
@@ -23,14 +23,13 @@ const getDateRangeLabel = (range, isRtl) => {
 };
 
 
-export function HealthStyleBarChart({ 
-  range, 
-  onRangeChange, 
-  data, 
-  unit, 
-  metricName, 
-  color = "var(--status-success)", 
-  xAxisTitle,
+export function HealthStyleBarChart({
+  range,
+  onRangeChange,
+  data,
+  unit,
+  metricName,
+  color = "var(--status-success)",
   yAxisTitle,
   T,
   isRtl
@@ -49,7 +48,6 @@ export function HealthStyleBarChart({
   const isDay = range === 'D';
   const isWeek = range === 'W';
   const isMonth = range === 'M';
-  const isYear = range === 'Y';
 
   const pLeft = 85; 
   const pRight = 45;
@@ -90,7 +88,7 @@ export function HealthStyleBarChart({
             <span className="text-xl font-black text-gray-800 tracking-tight">
               {range === 'D' ? data[n-1]?.value : (data.reduce((a, b) => a + b.value, 0) / n).toFixed(1)}
             </span>
-            <span className="text-[12px] font-bold text-gray-400 font-black">{unit}</span>
+            <span className="text-[12px] font-black text-gray-400">{unit}</span>
           </div>
           <div className="text-xs font-black text-emerald-600 mt-1 uppercase tracking-tighter">{T.periodAverage}</div>
         </div>
@@ -218,7 +216,7 @@ export function HealthStyleBarChart({
   );
 }
 
-export function SustainabilityLineChart({ range, onRangeChange, data, metricName, xAxisTitle, yAxisTitle, T, isRtl }) {
+export function SustainabilityLineChart({ range, onRangeChange, data, metricName, T, isRtl }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   
   const ranges = [
@@ -283,7 +281,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
             <span className="text-xl font-black text-gray-800 tracking-tight">
               {(data.reduce((a, b) => a + (b.water + b.power)/2, 0) / n).toFixed(1)}
             </span>
-            <span className="text-[12px] font-bold text-gray-400 font-black">avg</span>
+            <span className="text-[12px] font-black text-gray-400">avg</span>
           </div>
           <div className="text-xs font-black text-emerald-600 mt-1 uppercase tracking-tighter">{T.periodAverage}</div>
         </div>
@@ -433,10 +431,10 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
 export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const ranges = [
-    { key: 'D', label: T.day || 'اليوم' },
-    { key: 'W', label: T.week || 'الأسبوع' },
-    { key: 'M', label: T.month || 'الشهر' },
-    { key: 'Y', label: T.year || 'السنة' },
+    { key: 'D', label: T.dayLabel },
+    { key: 'W', label: T.weekLabel },
+    { key: 'M', label: T.monthLabel },
+    { key: 'Y', label: T.yearLabel },
   ];
   const n = data.length;
   const maxVal = Math.max(...data.map(d => d.value), 100);
@@ -483,7 +481,7 @@ export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
         <div className={isRtl ? 'text-right' : 'text-left'}>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-black text-gray-800 leading-none">
-              {T.lightChart || 'مسار شدة الإضاءة'}
+              {T.lightChart || 'شدة الإضاءة'}
             </h2>
             <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-lg border border-amber-100 font-black uppercase tracking-tighter">
               {T.realtimeAnalysis || 'تحليل فوري'}

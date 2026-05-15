@@ -3,21 +3,14 @@ import { translations } from '../../i18n';
 import {
   SensorTopBar,
   CardShell,
-  TempSunIcon,
-  AirHumidityIcon,
-  PlantSoilIcon,
-  IrrigationSmartIcon,
   ListIcon,
-  WindSharedIcon,
   EmptyState,
-  getRecommendationTheme,
   RecommendationCard
 } from './DashboardShared';
-import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
+import { useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
+import { markRecommendationRead } from '../../services/api';
 
 export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode, sharedSensors }) {
-  const [seconds, setSeconds] = useState(0);
   const [showThanksIds, setShowThanksIds] = useState([]);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -25,33 +18,12 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
   const isRtl = !isEn;
 
   const T = {
-    title: isEn ? "Decision Support & Recs" : "التوصيات والقرارات الذكية",
-    subtitle: isEn ? "Track and optimize AI decisions based on your data." : "تتبع وتحسين قرارات الذكاء الاصطناعي بناءً على مدخلاتك لضمان أعلى جودة في إدارة المحمية.",
-    engineTitle: isEn ? "Digital Twin Decision Engine" : "محرك قرارات التوأم الرقمي",
-    engineDesc: isEn ? "The system adjusts algorithms based on your feedback to improve sustainability." : "يقوم النظام بتعديل خوارزمياته بناءً على تقييماتك لزيادة الدقة والاستدامة.",
-    autoAction: isEn ? "Auto Action" : "إجراء تلقائي",
-    manualRec: isEn ? "Manual Rec" : "توصية يدوية",
-    reasoning: isEn ? "Why?" : "لماذا؟",
-    satisfaction: isEn ? "Rate this action:" : "ما مدى رضاك عن هذا الإجراء؟",
-    accept: isEn ? "Accept" : "قبول التوصية",
-    reject: isEn ? "Reject" : "رفض",
-    executed: isEn ? "Executed" : "تم التنفيذ",
-    rejected: isEn ? "Rejected" : "تم الرفض",
-    thanks: isEn ? "Thanks for your contribution!" : "شكراً لمساهمتك",
-    noActions: isEn ? "No smart actions recorded yet." : "لا توجد إجراءات ذكية مسجلة حالياً.",
-    noActionsSub: isEn ? "AI logic will appear here as the system monitors your farm." : "ستظهر هنا قرارات الذكاء الاصطناعي بمجرد تحليل بيانات المزرعة.",
+    title: isEn ? "Decision Support" : "التوصيات والقرارات الذكية",
+    subtitle: isEn ? "Track and optimize AI decisions based on your data." : "تتبع وتحسين قرارات الذكاء الاصطناعي بناءً على بيانات المحمية.",
   };
 
-  useEffect(() => {
-    const timer = setInterval(() => setSeconds(s => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
   const { data: apiRecs, error: recsError } = useRecommendations(farmId);
 
-  // Debug: Log recommendations state
-  React.useEffect(() => {
-    console.log(`[DecisionSupport] Farm ID: ${farmId}, Recs: ${apiRecs?.length || 0}, Error: ${recsError}`);
-  }, [farmId, apiRecs, recsError]);
 
   const allRecommendations = useMemo(() => {
     if (apiRecs && apiRecs.length > 0) {
@@ -80,57 +52,25 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
   }, [allRecommendations, globalAutoMode]);
 
   const handleFeedback = async (id, val) => {
-    // تحديث الواجهة المحلية فوراً
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, feedback: val } : rec));
     if (!showThanksIds.includes(id)) {
       setShowThanksIds(prev => [...prev, id]);
     }
-
-    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
-    try {
-      const helpful = val === 'up';
-      const recId = id.replace('api-', '');
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-
-      const response = await fetch(
-        `${API_BASE}/api/v1/recommendations/${farmId}/feedback/${recId}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ helpful })
-        }
-      );
-      if (!response.ok) console.error('Failed to save feedback');
-    } catch (err) {
-      console.error('Error sending feedback:', err);
-    }
+    await submitRecommendationFeedback(farmId, id.replace('api-', ''), val === 'up');
   };
 
   const handleDecision = async (id, val) => {
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, status: val } : rec));
     if (val === 'accepted') {
-      try {
-        const token = localStorage.getItem('warif_token');
-        const API_BASE = import.meta.env.VITE_API_URL || '';
-        await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/mark-read/${id.replace('api-', '')}`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-        });
-      } catch (err) {
-        console.error('[DecisionSupport] Failed to mark recommendation as read:', err);
-      }
+      await markRecommendationRead(farmId, id.replace('api-', ''));
     }
   };
 
   const sections = isEn ? ["This Week", "Last Week"] : ["هذا الأسبوع", "الأسبوع الماضي"];
 
   return (
-    <div className="w-full px-4 md:px-8 py-4 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
-      <div className="w-full max-w-[1100px] mx-auto flex flex-col gap-5 pb-8">
+    <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
+      <div className="w-full max-w-[1150px] mx-auto flex flex-col gap-5 pb-8">
         
         <SensorTopBar
           title={T.title}

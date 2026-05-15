@@ -6,17 +6,12 @@ import {
   PlantSoilIcon,
   WindSharedIcon,
   EmptyState,
-  getRecommendationTheme,
   RecommendationCard
 } from './DashboardShared';
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
-import {
-  generateDataForRange,
-  formatLastUpdated
-} from './dashboardUtils';
+import { formatLastUpdated } from './dashboardUtils';
 import { useLatestSensors, triggerManualCooling, triggerManualIrrigation, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
-import { getLabelForRange } from './dashboardUtils';
 
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
@@ -30,38 +25,12 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
-  const [recommendationStatus, setRecommendationStatus] = useState({});
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-
-    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
-    try {
-      const helpful = type === 'up';
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-
-      const response = await fetch(
-        `${API_BASE}/api/v1/recommendations/${farmId}/feedback/${id}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ helpful })
-        }
-      );
-      if (!response.ok) console.error('Failed to save feedback');
-    } catch (err) {
-      console.error('Error sending feedback:', err);
-    }
-  };
-
-  const handleRecommendationDecision = (id, decision) => {
-    setRecommendationStatus(prev => ({ ...prev, [id]: decision }));
+    await submitRecommendationFeedback(farmId, id, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -72,28 +41,22 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     title: isEn ? "Climate & Ventilation" : "المناخ والتهوية",
     subtitle: isEn ? "Smart analysis of temperature and air humidity." : "تحليل ذكي لدرجات الحرارة ورطوبة الهواء المحيط بالمحاصيل.",
     readings: isEn ? "Sensor Readings" : "قراءات الحساسات",
-    temp: isEn ? "Air Temp" : "حرارة الهواء",
-    hum: isEn ? "Air Hum" : "رطوبة الهواء",
-    recs: isEn ? "Climate Recs" : "توصيات المناخ",
+    temp: isEn ? "Air Temperature" : "حرارة الهواء",
+    hum: isEn ? "Air Humidity" : "رطوبة الهواء",
+    recs: isEn ? "Climate Recommendations" : "توصيات المناخ",
     smartAnalysis: isEn ? "Smart Analysis" : "تحليل ذكي",
-    recsSub: isEn ? "Suggested actions to maintain stability." : "إجراءات مقترحة للحفاظ على استقرار المحيط",
+    recsSub: isEn ? "Suggested actions to maintain greenhouse stability." : "إجراءات مقترحة للحفاظ على استقرار المحمية",
     reason: isEn ? "Reason:" : "السبب:",
     control: isEn ? "Climate Control" : "التحكم في مناخ المزرعة",
-    autoSub: isEn ? "Based on central automation status" : "يعتمد على حالة الأتمتة المركزية",
+    autoSub: isEn ? "Direct manual control of cooling and ventilation." : "تحكم يدوي مباشر بالتبريد والتهوية",
     autoActiveTitle: isEn ? "System Managed Automatically" : "النظام يدار تلقائياً الآن.",
     autoActiveSub: isEn ? "All manual control buttons are locked to maintain greenhouse stability." : "جميع أزرار التحكم اليدوي مقفلة لحفظ استقرار المحمية.",
     startCooling: isEn ? "Start Manual Cooling" : "بدء التبريد اليدوي",
     stopFans: isEn ? "Stop Fans" : "إيقاف المراوح",
-    trendTitle: isEn ? "Climate Trend Analysis" : "تحليل الميول المناخية",
-    trendSub: isEn ? "Tracking thermal changes for the digital twin." : "تتبع التغيرات الزمنية في الحرارة والرطوبة للتوأم الرقمي",
-    climateLog: isEn ? "Climate & Lighting Sensor Trends" : "مسارات قراءات المناخ والإضاءة",
-    climateLogSub: isEn ? "Historical sensor pattern discovery." : "اكتشاف الأنماط التاريخية للحساسات.",
-    tempChart: isEn ? "Temperature Trend" : "مسار درجة الحرارة",
-    humChart: isEn ? "Air Humidity Trend" : "مسار رطوبة الهواء",
-    lightChart: isEn ? "Light Intensity Trend" : "مسار شدة الإضاءة",
-    airTempChart: isEn ? 'Air Temperature Trend' : 'مسار درجة حرارة الهواء',
-    soilTempChart: isEn ? 'Soil Temperature Patterns' : 'أنماط حرارة التربة',
-    soilMoistChart: isEn ? 'Soil Moisture Patterns' : 'أنماط رطوبة التربة المكتشفة',
+    climateLog: isEn ? "Climate & Lighting Readings" : "قراءات المناخ والإضاءة",
+    climateLogSub: isEn ? "Sensor data log." : "سجل البيانات للحساسات",
+    humChart: isEn ? "Air Humidity" : "رطوبة الهواء",
+    airTempChart: isEn ? "Air Temperature" : "درجة حرارة الهواء",
     tempY: isEn ? "Temp (°C)" : "درجة الحرارة (°C)",
     humY: isEn ? "Humidity (%)" : "رطوبة الهواء (٪)",
     lightY: isEn ? "Lux" : "لوكس",
@@ -121,7 +84,6 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const temp = livesensors?.air_temperature ?? 0;
   const hum  = livesensors?.air_humidity    ?? 0;
   const light = livesensors?.light_intensity ?? 0;
-  // const coolingActive = livesensors?.coolingActive ?? false; (Replaced by local state)
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
   const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
@@ -268,13 +230,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                 </div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.recsSub}</div>
               </div>
-              <div
-                className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto ${isRtl ? 'pl-2' : 'pr-2'}`}
-                style={{
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: '#d1d5db transparent'
-                }}
-              >
+              <div className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
                 {recommendations.length > 0 ? (
                   recommendations.map((rec, i) => (
                     <RecommendationCard
@@ -450,38 +406,12 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
-  const [recommendationStatus, setRecommendationStatus] = useState({});
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-
-    // إرسال الفيدباك إلى الـ Backend للتعلم المستمر
-    try {
-      const helpful = type === 'up';
-      const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
-
-      const response = await fetch(
-        `${API_BASE}/api/v1/recommendations/${farmId}/feedback/${id}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ helpful })
-        }
-      );
-      if (!response.ok) console.error('Failed to save feedback');
-    } catch (err) {
-      console.error('Error sending feedback:', err);
-    }
-  };
-
-  const handleRecommendationDecision = (id, decision) => {
-    setRecommendationStatus(prev => ({ ...prev, [id]: decision }));
+    await submitRecommendationFeedback(farmId, id, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -491,20 +421,16 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const T = {
     title: isEn ? "Soil & Crop Health" : "بيئة وصحة التربة",
     subtitle: isEn ? "Monitoring soil vitality, moisture, and temperature." : "مراقبة حيوية التربة وتقييم رطوبتها وحرارتها.",
-    soilData: isEn ? "Soil Readings" : "قياسات التربة",
+    soilData: isEn ? "Soil Readings" : "قراءات التربة",
     liveSub: isEn ? "Last Update" : "آخر تحديث",
-    soilTemp: isEn ? "Soil Temp" : "حرارة التربة",
+    soilTemp: isEn ? "Soil Temperature" : "حرارة التربة",
     soilMoist: isEn ? "Soil Moisture" : "رطوبة التربة",
-    soilRecs: isEn ? "Soil Recs" : "توصيات التربة",
+    soilRecs: isEn ? "Soil Recommendations" : "توصيات التربة",
     smartAnalysis: isEn ? "Smart Analysis" : "تحليل ذكي",
-    reason: isEn ? "Reason:" : "السبب:",
-    bioTitle: isEn ? "Soil Biological Log" : "السجل الحيوي للتربة",
-    bioSub: isEn ? "Tracking changes in productivity parameters." : "رصد تغيرات المعايير المؤثرة بالإنتاجية",
-    tempChart: isEn ? "Soil Temp Patterns" : "أنماط حرارة التربة",
-    moistChart: isEn ? "Soil Moisture Patterns" : "أنماط رطوبة التربة المكتشفة",
-    airTempChart: isEn ? 'Air Temperature Trend' : 'مسار درجة حرارة الهواء',
-    soilTempChart: isEn ? 'Soil Temperature Patterns' : 'أنماط حرارة التربة',
-    soilMoistChart: isEn ? 'Soil Moisture Patterns' : 'أنماط رطوبة التربة المكتشفة',
+    bioTitle: isEn ? "Soil Condition Readings" : "قراءات حالة التربة",
+    bioSub: isEn ? "Sensor data log." : "سجل البيانات للحساسات",
+    tempChart: isEn ? "Soil Temperature" : "حرارة التربة",
+    moistChart: isEn ? "Soil Moisture" : "رطوبة التربة",
     tempY: isEn ? "Soil Temp (°C)" : "حرارة التربة (°C)",
     moistY: isEn ? "Soil Moisture (%)" : "رطوبة التربة (٪)",
     lastUpdateAr: "آخر تحديث",
@@ -666,15 +592,9 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                   {T.soilRecs} 
                   <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-lg border border-emerald-200/50 font-black tracking-tighter uppercase">{T.smartAnalysis}</span>
                 </div>
-                <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{isEn ? 'Suggested actions for root health.' : 'إجراءات مقترحة للحفاظ على صحة وسلامة الجذور.'}</div>
+                <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{isEn ? 'Suggested actions for root health.' : 'إجراءات مقترحة للحفاظ على صحة وسلامة التربة.'}</div>
               </div>
-              <div
-                className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto ${isRtl ? 'pl-2' : 'pr-2'}`}
-                style={{
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: '#d1d5db transparent'
-                }}
-              >
+              <div className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
                 {soilRecs.length > 0 ? (
                   soilRecs.map((rec, i) => (
                     <RecommendationCard
