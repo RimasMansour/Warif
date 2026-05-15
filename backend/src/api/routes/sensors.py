@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from src.db.session import get_db
 from src.db.models.models import SensorReading, SensorThreshold, Device
 from src.api.schemas.schemas import SensorReadingOut, SensorLatestOut
+from src.core.security import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,8 @@ limit:       int           = Query(100, le=50000),
 @router.get("/latest")
 async def get_latest_readings(
     farm_id: int = Query(..., description="Farm ID"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Return the single most-recent value for each sensor type for a specific farm.

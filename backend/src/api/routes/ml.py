@@ -87,6 +87,7 @@ async def get_irrigation_prediction(
     humidity: float = 60.0,
     soil_temp: float = 25.0,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Returns a UNIFIED irrigation decision from Decision Engine.

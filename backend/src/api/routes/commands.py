@@ -58,6 +58,16 @@ async def control_cooling(
     farm_id_from_payload = payload.get("farm_id")
     
     if farm_id_from_payload:
+        # Verify the requesting user owns this farm
+        from src.db.models.models import Farm
+        farm_check = await db.execute(
+            select(Farm).where(
+                Farm.id == int(farm_id_from_payload),
+                Farm.user_id == int(current_user["sub"])
+            )
+        )
+        if not farm_check.scalar_one_or_none():
+            raise HTTPException(status_code=403, detail="Access denied: Farm not owned by current user")
         farm_id = farm_id_from_payload
     else:
         # Get user's first farm
