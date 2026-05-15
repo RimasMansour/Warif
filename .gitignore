@@ -63,3 +63,7 @@ backend/src/ml/models/*.h5
 # === Misc ===
 *.bak
 *.tmp
+
+# Scratch / temporary development scripts - not for production
+backend/scratch/
+backend/scripts/update_warif_s_pass.py
