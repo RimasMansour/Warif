@@ -1,4 +1,14 @@
 # backend/src/api/routes/chatbot.py
+"""
+Chatbot Routes — Warif API (Stub)
+===================================
+Placeholder endpoints for the future Arabic conversational assistant:
+  - POST /chatbot/ask    : ask a question (currently returns stub response)
+  - GET  /chatbot/health : service health check
+
+Note: Full RAG-based chatbot implementation is planned for a future release.
+The chatbot will use LLM + farm sensor context to answer farmer questions in Arabic.
+"""
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional, List

@@ -1,14 +1,26 @@
+# backend/src/api/routes/logs.py
+"""
+Activity Logs Routes — Warif API
+==================================
+Handles activity log endpoints:
+  - GET  /logs      : retrieve activity logs for a farm (requires auth)
+  - POST /logs/add  : add a new activity log entry (internal/system use)
+
+Activity logs record all farm operations:
+  irrigation starts/stops, auto mode changes, device commands, and system events.
+All endpoints require JWT authentication.
+"""
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from src.db.session import get_db
-from src.db.models.models import ActivityLog, Farm
+from src.db.models.models import ActivityLog
 from src.core.security import get_current_user
-from datetime import datetime, timezone, timedelta
 
 router = APIRouter()
 
 
+# Returns paginated activity logs for a farm, most recent first
 @router.get("")
 async def get_activity_logs(
     farm_id: int = Query(...),
@@ -37,10 +49,12 @@ async def get_activity_logs(
     ]
 
 
+# Internal endpoint — logs system and user actions for audit trail
 @router.post("/add")
 async def add_activity_log(
     payload: dict,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     log = ActivityLog(
         farm_id=payload.get("farm_id"),

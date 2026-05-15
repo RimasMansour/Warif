@@ -1,4 +1,20 @@
 # backend/src/api/routes/auth.py
+"""
+Authentication Routes — Warif API
+===================================
+Handles all user authentication and account management endpoints:
+  - POST /login           : authenticate and receive JWT token
+  - POST /register        : create a new user account
+  - POST /check-exists    : check if username or email is already taken
+  - POST /reset-password  : reset password using email
+  - POST /forgot-password : verify email exists before reset
+  - GET  /me              : get current user profile
+  - PUT  /me              : update current user profile
+  - DELETE /me            : permanently delete account and all associated data
+
+All endpoints except login, register, check-exists, reset-password, and forgot-password
+require a valid JWT token.
+"""
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,8 +22,9 @@ from sqlalchemy import select, delete, func
 
 from src.db.session import get_db
 from src.db.models.models import (
-    User, Farm, Device, Actuator, IrrigationEvent, IrrigationCommand, 
-    Recommendation, SensorReading, Alert, Prediction, DeviceCommand, IrrigationStatus
+    User, Farm, Device, Actuator, IrrigationEvent, IrrigationCommand,
+    Recommendation, SensorReading, Alert, Prediction, DeviceCommand
+    # IrrigationStatus removed — not used in auth routes
 )
 from src.core.security import (
     create_access_token,
@@ -23,6 +40,7 @@ from src.api.schemas.schemas import (
 router = APIRouter()
 
 
+# Authenticates user credentials and returns a JWT access token + farm_id
 @router.post("/login", response_model=TokenOut)
 async def login(
     form: OAuth2PasswordRequestForm = Depends(),
@@ -51,8 +69,7 @@ async def login(
         "role": user.role.value if hasattr(user.role, "value") else str(user.role or "farmer")
     })
 
-    # Get the user's first farm if exists
-    from src.db.models.models import Farm
+    # Get the user's first farm ID to include in the token response
     farm_result = await db.execute(
         select(Farm.id).where(Farm.user_id == user.id).limit(1)
     )
@@ -65,6 +82,7 @@ async def login(
     )
 
 
+# Used during registration to validate username/email availability in real-time
 @router.post("/check-exists")
 async def check_user_exists(body: dict, db: AsyncSession = Depends(get_db)):
     username = body.get("username", "")
@@ -84,6 +102,7 @@ async def check_user_exists(body: dict, db: AsyncSession = Depends(get_db)):
 
 
 
+# Resets the user's password after email verification
 @router.post("/reset-password")
 async def reset_password(body: dict, db: AsyncSession = Depends(get_db)):
     email = body.get("email", "")
@@ -105,6 +124,7 @@ async def reset_password(body: dict, db: AsyncSession = Depends(get_db)):
     return {"message": "Password updated successfully"}
 
 
+# Creates a new user account — validates unique username and email before saving
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(
     body: UserRegisterIn,
@@ -144,6 +164,7 @@ async def register(
     return user
 
 
+# Returns the profile of the currently authenticated user
 @router.get("/me", response_model=UserOut)
 async def get_me(
     db: AsyncSession = Depends(get_db),
@@ -158,6 +179,8 @@ async def get_me(
     return user
 
 
+# Updates profile fields for the currently authenticated user
+# Validates uniqueness for username and email if changed
 @router.put("/me", response_model=UserOut)
 async def update_me(
     body: UserUpdateIn,
@@ -219,6 +242,8 @@ async def update_me(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Permanently deletes the user account and ALL associated data
+# Deletion order: sensor readings → commands → actuators → devices → farm-level data → user
 @router.delete("/me")
 async def delete_me(
     db: AsyncSession = Depends(get_db),
@@ -226,7 +251,8 @@ async def delete_me(
 ):
     user_id = int(token_data["sub"])
     
-    # 1. Get farm IDs
+    # Cascade delete: remove all farm data before deleting the user
+    # Order matters to avoid foreign key constraint violations
     farm_res = await db.execute(select(Farm).where(Farm.user_id == user_id))
     farms = farm_res.scalars().all()
     farm_ids = [f.id for f in farms]
@@ -268,6 +294,7 @@ async def delete_me(
     return {"status": "ok", "message": "User and all associated data deleted"}
 
 
+# Verifies that the provided email exists in the DB before allowing password reset
 @router.post("/forgot-password")
 async def forgot_password(
     body: dict,
@@ -285,8 +312,7 @@ async def forgot_password(
     if not user:
         raise HTTPException(status_code=404, detail="EMAIL_NOT_FOUND")
         
-    # Here we would normally generate OTP and send via email.
-    # For now, we will return success so the frontend can proceed with its EmailJS logic if needed,
-    # but at least we've verified the user exists in DB.
+    # OTP generation and email sending are handled by the frontend via EmailJS.
+    # This endpoint only verifies that the user email exists in the DB.
     return {"status": "ok", "message": "User found"}
 

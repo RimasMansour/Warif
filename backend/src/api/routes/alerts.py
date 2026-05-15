@@ -1,4 +1,20 @@
 # backend/src/api/routes/alerts.py
+"""
+Alerts Routes — Warif API
+==========================
+Handles all alert management endpoints:
+  - GET  /alerts                    : list alerts with optional filters (status, severity, farm_id)
+  - POST /alerts/{id}/ack           : acknowledge an alert
+  - POST /alerts/{id}/resolve       : mark an alert as resolved
+  - POST /alerts/{id}/feedback      : submit helpful/not helpful feedback on an alert
+
+Alerts are generated automatically by:
+  - The Simulator (water tank level, anomalies)
+  - The Decision Engine (sensor threshold violations)
+  - The Anomaly Alert System (kNN + SVM detection)
+
+All endpoints require JWT authentication.
+"""
 from typing import Optional, List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -7,16 +23,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from src.db.session import get_db
+from src.core.security import get_current_user
 from src.db.models.models import Alert, AlertStatus
 from src.api.schemas.schemas import AlertOut
 
 router = APIRouter()
 
 
+# Request body schema for alert feedback — farmer rates if alert was useful or not
 class AlertFeedbackRequest(BaseModel):
     helpful: bool
 
 
+# Returns filtered list of alerts — supports filtering by status, severity, and farm_id
+# Serializes enum values to strings for frontend compatibility
 @router.get("", response_model=List[dict])
 async def list_alerts(
     status:   Optional[str] = Query(None, description="open | acknowledged | resolved"),
@@ -24,6 +44,7 @@ async def list_alerts(
     farm_id:  Optional[int] = Query(None),
     limit:    int           = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     q = select(Alert).order_by(desc(Alert.created_at)).limit(limit)
     if status:
@@ -61,16 +82,18 @@ async def list_alerts(
     return alert_list
 
 
+# Marks an alert as acknowledged — farmer has seen and noted the alert
 @router.post("/{alert_id}/ack", response_model=AlertOut)
-async def acknowledge_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
+async def acknowledge_alert(alert_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     alert = await _get_or_404(alert_id, db)
     alert.status = AlertStatus.acknowledged
     await db.flush()
     return alert
 
 
+# Marks an alert as resolved — issue has been addressed by the farmer
 @router.post("/{alert_id}/resolve", response_model=AlertOut)
-async def resolve_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
+async def resolve_alert(alert_id: int, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     alert = await _get_or_404(alert_id, db)
     alert.status = AlertStatus.resolved
     alert.resolved_at = datetime.now(timezone.utc)
@@ -83,11 +106,11 @@ async def submit_alert_feedback(
     alert_id: int,
     feedback: AlertFeedbackRequest,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
-    حفظ تقييم المستخدم على التنبيه (مفيد أم إزعاج).
-    هذا الفيدباك يُستخدم لتحسين نظام اكتشاف الشذوذ والتنبيهات.
-
+    Save farmer feedback on an alert (helpful or not).
+    This feedback is used to improve anomaly detection and alert quality over time.
     Request body: {"helpful": true/false}
     """
     alert = await _get_or_404(alert_id, db)
@@ -95,7 +118,7 @@ async def submit_alert_feedback(
     await db.commit()
     await db.refresh(alert)
 
-    print(f"[Alert Feedback] التنبيه {alert_id}: {'✅ مفيد' if feedback.helpful else '❌ إزعاج'}")
+    print(f"[Alert Feedback] Alert {alert_id}: {'helpful' if feedback.helpful else 'not helpful'}")
 
     return {
         "id": alert.id,
@@ -105,6 +128,7 @@ async def submit_alert_feedback(
 
 
 async def _get_or_404(alert_id: int, db: AsyncSession) -> Alert:
+    """Fetch alert by ID. Raises 404 if not found."""
     result = await db.execute(select(Alert).where(Alert.id == alert_id))
     alert = result.scalar_one_or_none()
     if not alert:
