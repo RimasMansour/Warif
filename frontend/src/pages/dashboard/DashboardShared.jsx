@@ -35,40 +35,6 @@ export function parseReasoningText(reasoningText) {
   return { issue, solution };
 }
 
-// ─── GLOBAL SCROLLBAR STYLES ─────────────────────────────────────────
-const SCROLLBAR_STYLES = `
-  /* WebKit browsers (Chrome, Safari, Edge) */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: #d1d5db;
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
-  }
-
-  /* Firefox */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: #d1d5db transparent;
-  }
-`;
-
-// Inject global styles once
-if (typeof document !== 'undefined') {
-  const styleTag = document.createElement('style');
-  styleTag.innerHTML = SCROLLBAR_STYLES;
-  document.head.appendChild(styleTag);
-}
 
 function CardShell({ children, className = "", onClick }) {
   return (

@@ -18,7 +18,6 @@ export const translations = {
     systemSubtitle: 'نظام إدارة المحميات الزراعية',
     loginTitle: 'تسجيل الدخول',
     username: 'اسم المستخدم',
-    usernamePlaceholder: 'مثال: mansour123',
     password: 'كلمة المرور',
     passwordPlaceholder: '••••••••',
     rememberMe: 'تذكر بيانات الدخول',
@@ -43,6 +42,7 @@ export const translations = {
     errFarmNameExists: 'هذا الاسم موجود بالفعل، اختر اسماً آخر',
     errFullNameEnRequired: 'يرجى إدخال اسمك الكامل باللغة الإنجليزية',
     errFieldEmpty: 'لا يمكن ترك الحقل فارغاً',
+    errUpdatePassword: 'فشل تحديث كلمة المرور',
 
     // Register user
     createAccount: 'إنشاء حساب جديد',
@@ -85,6 +85,7 @@ export const translations = {
     // Plant selection
     selectPlant: 'ماذا ستزرع؟',
     step2of3_new: 'الخطوة ٢ من ٤ — اختر المحصول الذي ستزرعه لدراسة ظروفه',
+    step2of3: 'الخطوة ٣ من ٤ — اختر الأجهزة والحساسات المثبتة في محميتك',
     plantTomatoes: 'طماطم',
     plantCucumber: 'خيار',
     plantPepper: 'فلفل',
@@ -233,7 +234,6 @@ export const translations = {
     systemSubtitle: 'Agricultural Reserve Management System',
     loginTitle: 'Sign In',
     username: 'Username',
-    usernamePlaceholder: 'e.g. mansour123',
     password: 'Password',
     passwordPlaceholder: '••••••••',
     rememberMe: 'Remember me',
@@ -258,6 +258,7 @@ export const translations = {
     errFarmNameExists: 'This name already exists, choose another',
     errFullNameEnRequired: 'Full name in English is required',
     errFieldEmpty: 'Field cannot be empty',
+    errUpdatePassword: 'Failed to update password',
     errUsernameTaken: 'Username is already taken, try another',
     errEmailTaken: 'Email address is already registered',
 
@@ -302,6 +303,7 @@ export const translations = {
     // Plant selection
     selectPlant: 'What will you grow?',
     step2of3_new: 'Step 2 of 4 — Select the crop you will grow to study its conditions',
+    step2of3: 'Step 3 of 4 — Select the sensors and devices installed in your greenhouse',
     plantTomatoes: 'Tomatoes',
     plantCucumber: 'Cucumber',
     plantPepper: 'Pepper',

@@ -29,8 +29,6 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
       if (target === 'registerFarm' || target === 'forgotPassword') {
         setPage(target);
         setStep(1);
-      } else if (target === 'resetPassword') {
-        setPage('resetPassword');
       } else {
         setPage(target);
       }
@@ -152,10 +150,6 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
             />
           )}
           
-          {page === 'resetPassword' && (
-            <ResetPassword onBack={() => goTo('login', 'back')} isRtl={isRtl} T={T} />
-          )}
-
           {page === 'forgotPassword' && (
             <ForgotPasswordPage
               step={step}
@@ -473,8 +467,8 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
       }
       setLoading(false);
       const isNetworkError = err.message === 'Failed to fetch';
-      const errorMsg = isNetworkError 
-        ? (lang === 'ar' ? 'فشل الاتصال بالخادم' : 'Cannot connect to server')
+      const errorMsg = isNetworkError
+        ? (isRtl ? 'فشل الاتصال بالخادم' : 'Cannot connect to server')
         : T.errPasswordWrong;
       setErrors({ password: errorMsg });
     }

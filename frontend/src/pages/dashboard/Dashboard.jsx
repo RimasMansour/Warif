@@ -195,7 +195,6 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     setChatMessages([{ role: "bot", text: `مرحباً ${firstName}! أنا مساعدك الذكي. كيف أساعدك اليوم؟` }]);
   }, [firstName]);
 
-  const [mode, setMode] = useState("auto");
   const [weatherData, setWeatherData] = useState({ temp: 31, humidity: 45, condition: "مشمس", code: 0, isDay: true, locationName: "جاري تحديد الموقع..." });
 
   useEffect(() => {

@@ -101,10 +101,10 @@ select option {
   padding: 8px;
 }
 
-/* Premium Smooth Scrollbar */
+/* Smooth Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -112,19 +112,18 @@ select option {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(46, 125, 50, 0.1);
-  border-radius: 100px;
-  transition: all 0.3s ease;
+  background: #d1d5db;
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(46, 125, 50, 0.3);
+  background: #9ca3af;
 }
 
 /* Firefox Support */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(46, 125, 50, 0.15) transparent;
+  scrollbar-color: #d1d5db transparent;
 }
 
 /* Selection */

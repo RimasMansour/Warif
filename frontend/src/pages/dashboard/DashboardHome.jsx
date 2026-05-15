@@ -120,7 +120,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
 
         {/* Top Section: Digital Twin Command Center */}
         <div className="animate-fade-in-up delay-1">
-          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={alerts.length} counts={counts} />
+          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={alerts.length} counts={counts} crops={crops} />
         </div>
 
 
@@ -132,7 +132,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
             <MicroclimateGlanceCard onGo={onGo} activeFarm={activeFarm} apiTemp={apiTemp} apiHum={apiHum} apiLight={apiLight} coolingActive={coolingActive} />
           </div>
           <div className="animate-fade-in-up delay-3">
-            <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} crops={crops} />
+            <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
           </div>
           <div className="animate-fade-in-up delay-4 flex flex-col row-span-2">
             <DashboardAlertsCard
@@ -330,7 +330,7 @@ function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, c
         iconColor="text-[#059669]"
       />
 
-      <div className={`mt-4 flex items-end justify-between gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
+      <div className={`mt-4 flex items-start justify-between gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
         <div className={`flex flex-col gap-3 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Temperature' : 'درجة الحرارة'}</div>
@@ -367,7 +367,7 @@ function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, c
   );
 }
 
-function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp, crops = [] }) {
+function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp }) {
   const soilMoist = apiSoilMoist ?? 0;
   const soilTemp  = apiSoilTemp  ?? 0;
   const isHealthy = soilMoist >= 35 && soilMoist <= 80 && soilTemp >= 18 && soilTemp <= 35;
@@ -385,8 +385,8 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
         iconColor="text-[#059669]"
       />
 
-      <div className={`mt-4 flex items-end justify-between gap-4 ${isEn ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex flex-col gap-5 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
+      <div className={`mt-4 flex items-start justify-between gap-4 ${isEn ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex flex-col gap-3 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Soil Temp' : 'حرارة التربة'}</div>
             <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
@@ -414,28 +414,6 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp,
         </div>
       </div>
 
-      {/* Modern Multi-Crop Display Section */}
-      {crops.length > 0 && (
-        <div className="mt-3 pt-2.5 border-t border-gray-100/60 flex flex-col gap-2">
-           <div className={`text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5 ${isEn ? 'flex-row-reverse' : ''}`}>
-             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-             {isEn ? 'Monitored Crops' : 'المحاصيل المراقبة'}
-           </div>
-           <div className={`flex flex-wrap gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
-              {crops.slice(0, 4).map((crop, idx) => (
-                <div key={crop + idx} className="group/crop flex items-center gap-2 px-2.5 py-1.5 bg-gray-50/80 hover:bg-emerald-50 rounded-xl border border-gray-100/50 hover:border-emerald-100/50 transition-all duration-300">
-                   <span className="text-lg filter group-hover/crop:drop-shadow-sm transition-all">{getCropIcon(crop)}</span>
-                   <span className="text-[12px] font-black text-gray-700 group-hover/crop:text-emerald-800 transition-colors">{getCropName(crop, isEn)}</span>
-                </div>
-              ))}
-              {crops.length > 4 && (
-                <div className="flex items-center justify-center px-3 py-1.5 bg-emerald-50 rounded-xl border border-emerald-100 text-[11px] font-black text-emerald-700">
-                  +{crops.length - 4}
-                </div>
-              )}
-           </div>
-        </div>
-      )}
       </div>
     </CardShell>
   );
@@ -449,7 +427,6 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
   const waterUsage = water || 0;
   const energyKwh = power || 0;
   const isActive = dashboardData?.irrigation_status === "active";
-  const cropType = activeFarm?.crop_type || 'default';
   const flowRate = isActive ? 20 : 0;
 
   React.useEffect(() => {
@@ -458,8 +435,6 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
     return () => clearInterval(timer);
   }, [isActive]);
 
-  const cropEmoji = { tomatoes:'🍅', cucumber:'🥒', pepper:'🌶️', herbs:'🌿', default:'🌱' }[cropType] || '🌱';
-  const cropLabel = { tomatoes: isEn?'Tomatoes':'طماطم', cucumber: isEn?'Cucumber':'خيار', pepper: isEn?'Pepper':'فلفل', herbs: isEn?'Herbs':'أعشاب', default: isEn?'General':'عام' }[cropType] || (isEn?'General':'عام');
   const tankColor = waterPercent > 50 ? '#22c55e' : waterPercent > 20 ? '#f59e0b' : '#ef4444';
   const tankLabel = waterPercent > 50 ? (isEn?'Good':'جيد') : waterPercent > 20 ? (isEn?'Low':'منخفض') : (isEn?'Critical':'حرج');
 
@@ -484,7 +459,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
         </div>
 
         {/* Pump Status */}
-        <div className={`flex items-center justify-between px-3 py-2 rounded-xl border ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
+        <div className={`flex items-center justify-between px-3 py-1.5 rounded-xl border ${isActive ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'}`}>
           <span className="text-sm font-bold text-gray-700">
             {isEn ? (isActive ? 'Pump Active' : 'Pump Off') : (isActive ? 'المضخة تعمل' : 'المضخة مغلقة')}
           </span>
@@ -497,15 +472,15 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
         </div>
 
         {/* Live Flow Visualizer */}
-        <div className="flex flex-col gap-2 px-1">
+        <div className="flex flex-col gap-1.5 px-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500">{isEn ? 'Live Flow' : 'التدفق اللحظي'}</span>
             <span className={`text-xs font-black ${isActive ? 'text-blue-600' : 'text-gray-400'}`}>
               {flowRate} {isEn ? 'L/min' : 'لتر/دقيقة'}
             </span>
           </div>
-          <div className="relative w-full h-6 flex items-center">
-            <div className="absolute inset-x-0 h-3 rounded-full bg-gray-100 overflow-hidden">
+          <div className="relative w-full h-5 flex items-center">
+            <div className="absolute inset-x-0 h-2.5 rounded-full bg-gray-100 overflow-hidden">
               {isActive && (
                 <div
                   className="absolute h-full rounded-full"
@@ -518,10 +493,10 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
                 />
               )}
             </div>
-            <div className={`absolute ${isEn ? 'left-0' : 'right-0'} w-6 h-6 rounded-full flex items-center justify-center z-10 ${isActive ? 'bg-blue-100' : 'bg-gray-100'}`}>
-              <span className="text-sm">💧</span>
+            <div className={`absolute ${isEn ? 'left-0' : 'right-0'} w-5 h-5 rounded-full flex items-center justify-center z-10 ${isActive ? 'bg-blue-100' : 'bg-gray-100'}`}>
+              <span className="text-xs">💧</span>
             </div>
-            <div className={`absolute ${isEn ? 'right-0' : 'left-0'} w-6 h-6 rounded-full flex items-center justify-center z-10 ${isActive ? 'bg-emerald-100' : 'bg-gray-100'}`}>
+            <div className={`absolute ${isEn ? 'right-0' : 'left-0'} w-5 h-5 rounded-full flex items-center justify-center z-10 ${isActive ? 'bg-emerald-100' : 'bg-gray-100'}`}>
               <span className="text-xs font-black" style={{ color: isActive ? '#22c55e' : '#9ca3af' }}>
                 {isEn ? '►' : '◄'}
               </span>
@@ -530,7 +505,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
         </div>
 
         {/* Water Tank */}
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-gray-500">{isEn ? 'Water Tank' : 'خزان المياه'}</span>
             <div className="flex items-center gap-1">
@@ -549,17 +524,13 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100 mt-auto">
+        <div className="flex items-center justify-between gap-4 pt-1.5 border-t border-gray-100 mt-auto">
           <div className="flex flex-col">
             <span className="text-[10px] text-gray-400">{isEn ? 'Water' : 'المياه'}</span>
             <div className="flex items-baseline gap-1">
               <span className="text-base font-black text-gray-800">{Math.round(waterUsage)}</span>
               <span className="text-[11px] text-gray-400">{isEn ? 'L' : 'لتر'}</span>
             </div>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-sm">{cropEmoji}</span>
-            <span className="text-xs font-semibold text-gray-500">{cropLabel}</span>
           </div>
           <div className="flex flex-col items-end">
             <span className="text-[10px] text-gray-400">{isEn ? 'Energy' : 'الكهرباء'}</span>
@@ -622,7 +593,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
       </div>
 
       <div
-        className={`flex-1 mt-4 overflow-y-auto max-h-[400px] flex flex-col gap-3 scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}
+        className={`flex-1 mt-3 overflow-y-auto max-h-[190px] flex flex-col gap-3 scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}
       >
 
         {recommendations.length === 0 ? (
@@ -669,14 +640,14 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
   );
 }
 
-function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0, counts = {} }) {
+function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0, counts = {}, crops = [] }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
 
   return (
     <CardShell className="p-6 lg:p-7 relative overflow-hidden bg-white border border-gray-100/80 shadow-[0_2px_8px_rgba(0,0,0,0.01)] group/main card-interactive">
       <div className="flex flex-col lg:flex-row gap-5 lg:gap-10 relative z-10 w-full items-center">
-        
+
         <div className="w-full lg:w-[45%] flex flex-col justify-center">
           <div className="flex items-center gap-2 mb-3">
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 text-[11px] font-black text-emerald-700 w-max">
@@ -700,21 +671,53 @@ function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0, counts = 
         </div>
 
         {/* Divider */}
-        <div className="hidden lg:block w-[2px] h-32 bg-gradient-to-b from-transparent via-gray-100 to-transparent mx-2" />
+        <div className="hidden lg:block w-[2px] self-stretch bg-gradient-to-b from-transparent via-gray-100 to-transparent mx-2" />
 
-        <div className="w-full lg:w-[50%] cursor-pointer group/assets" onClick={onOpenAssets}>
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
+        <div className="w-full lg:w-[55%] flex flex-row gap-0 items-center">
+
+          {/* Hardware & Sensors — left of right section, clickable */}
+          <div className={`cursor-pointer group/assets ${crops.length > 0 ? 'flex-1 min-w-0' : 'w-full'}`} onClick={onOpenAssets}>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
                 <div className="text-base font-black text-gray-800">{isEn ? 'Hardware & Sensors Log' : 'سجل المعدات والأجهزة'}</div>
                 <div className="text-[12px] text-[var(--status-success)] font-black uppercase tracking-widest px-2.5 py-1 bg-emerald-50 rounded-xl">{isEn ? 'Active' : 'نشط'}</div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 justify-center mt-2">
-              <MinimalStat value={counts.sensors || 0} label={isEn ? 'Sensors' : 'حساسات'} />
-              <MinimalStat value={counts.pumps || 0} label={isEn ? 'Pumps' : 'مضخات'} />
-              <MinimalStat value={counts.cooling || 0} label={isEn ? 'Cooling' : 'تبريد'} />
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center">
+                <MinimalStat value={counts.sensors || 0} label={isEn ? 'Sensors' : 'حساسات'} />
+                <MinimalStat value={counts.pumps || 0} label={isEn ? 'Pumps' : 'مضخات'} />
+                <MinimalStat value={counts.cooling || 0} label={isEn ? 'Cooling' : 'تبريد'} />
+              </div>
             </div>
           </div>
+
+          {/* Greenhouse Crops — right column */}
+          {crops.length > 0 && (
+            <>
+              <div className="hidden lg:block w-[2px] self-stretch bg-gradient-to-b from-transparent via-gray-100 to-transparent mx-5" />
+              <div className="flex flex-col gap-2 flex-1 min-w-0">
+                <div className={`flex items-center gap-1.5 ${isEn ? 'flex-row-reverse' : ''}`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
+                  <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                    {isEn ? "Greenhouse Crops" : 'محصول هذه المحمية'}
+                  </div>
+                </div>
+                <div className={`flex flex-wrap gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
+                  {crops.slice(0, 4).map((crop, idx) => (
+                    <div key={crop + idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-50/80 rounded-xl border border-gray-100/50">
+                      <span className="text-base">{getCropIcon(crop)}</span>
+                      <span className="text-[12px] font-black text-gray-700">{getCropName(crop, isEn)}</span>
+                    </div>
+                  ))}
+                  {crops.length > 4 && (
+                    <div className="flex items-center justify-center px-2.5 py-1 bg-emerald-50 rounded-xl border border-emerald-100 text-[11px] font-black text-emerald-700">
+                      +{crops.length - 4}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
         </div>
       </div>
     </CardShell>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { fetchWithRetry, getAuthHeaders, apiConfig } from '../config/api'
-import { triggerFanControl, getFarms } from '../services/api'
+import { getFarms } from '../services/api'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -20,18 +20,13 @@ const globalCache = {
 
 // Global Simulation State (frontend-only mock logic)
 let simState = {
-  noisePhase: 0,
   coolingActive: false,
   irrigationActive: false,
-  activeAnomaly: null, // "cooling_failure" | "irrigation_failure" | null
-  anomalyRemainingCycles: 0,
-  history: []
 };
 
 // Expose manual triggers for UI
 export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15) {
   const token = localStorage.getItem('warif_token');
-  const API_BASE = import.meta.env.VITE_API_URL || '';
   try {
     if (action === 'stop') {
       const res = await fetch(`${API_BASE}/api/v1/irrigation/stop-farm/${farmId}`, {
@@ -69,7 +64,6 @@ export async function triggerManualCooling(mode = "stop", farmId = null) {
 
   const token = localStorage.getItem('warif_token');
   try {
-    const API_BASE = import.meta.env.VITE_API_URL || '';
     const res = await fetch(`${API_BASE}/api/v1/commands/cooling`, {
       method: 'POST',
       headers: {
@@ -245,7 +239,6 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         ? sessionFarms[0].id 
         : (userData.farmId || null);
       const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
       const url = `${API_BASE}/api/v1/alerts?status=open${farmId ? `&farm_id=${farmId}` : ''}`;
       const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
@@ -327,7 +320,6 @@ export function useAutoAlerts(sensors, globalAutoMode) {
   const dismissAlert = useCallback(async (id) => {
     try {
       const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
       await fetch(`${API_BASE}/api/v1/alerts/${id}/ack`, {
         method: 'POST',
         headers: { "Authorization": `Bearer ${token}` }
@@ -489,7 +481,6 @@ export function useIrrigationResources(farmId, intervalMs = 15000) {
   const fetch_data = useCallback(async () => {
     try {
       const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
       const res = await fetch(`${API_BASE}/api/v1/irrigation/resources/${farmId}`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -585,7 +576,6 @@ export function useDevices(providedFarmId = null) {
 
 export async function submitRecommendationFeedback(farmId, recId, helpful) {
   const token = localStorage.getItem('warif_token');
-  const API_BASE = import.meta.env.VITE_API_URL || '';
   try {
     const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/feedback/${recId}`, {
       method: 'POST',
@@ -607,7 +597,6 @@ export async function submitRecommendationFeedback(farmId, recId, helpful) {
 
 export async function executeRecommendation(category, farmId, durationMin = 15) {
   const token = localStorage.getItem('warif_token');
-  const API_BASE = import.meta.env.VITE_API_URL || '';
   try {
     if (category === 'irrigation') {
       return await triggerManualIrrigation('start', farmId, durationMin);
@@ -625,7 +614,6 @@ export async function executeRecommendation(category, farmId, durationMin = 15) 
 
 export async function submitAlertFeedback(alertId, helpful) {
   const token = localStorage.getItem('warif_token');
-  const API_BASE = import.meta.env.VITE_API_URL || '';
   try {
     const res = await fetch(`${API_BASE}/api/v1/alerts/${alertId}/feedback`, {
       method: 'POST',
@@ -653,7 +641,6 @@ export function useActivityLogs(farmId, limit = 20) {
     try {
       if (!farmId) { setLoading(false); return; }
       const token = localStorage.getItem('warif_token');
-      const API_BASE = import.meta.env.VITE_API_URL || '';
       const res = await fetch(
         `${API_BASE}/api/v1/logs?farm_id=${farmId}&limit=${limit}`,
         { headers: { Authorization: `Bearer ${token}` } }

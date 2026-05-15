@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { resetPassword } from "../../services/api";
 
 export default function ResetPassword({ onBack, isRtl, T }) {
   const [email, setEmail] = useState("");
