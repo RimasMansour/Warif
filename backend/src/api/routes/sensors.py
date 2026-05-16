@@ -257,7 +257,7 @@ async def ingest_sensor_reading(
             "status": "ok",
             "sensor_type": sensor_type,
             "value": value,
-            "alert_generated": threshold is not None and _compute_status(value, threshold) in ("warning", "critical")
+            "alert_generated": False
         }
 
     except HTTPException:
