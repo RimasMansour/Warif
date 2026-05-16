@@ -15,6 +15,7 @@ Handles all irrigation control and monitoring endpoints:
 Note: The simulator writes directly to the DB and does NOT call these endpoints.
 All POST endpoints require JWT authentication.
 """
+import asyncio
 from typing import List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -24,8 +25,9 @@ from sqlalchemy import select, desc
 from src.db.session import get_db
 from src.db.models.models import (
     Farm, Device, Actuator, IrrigationCommand,
-    IrrigationEvent, IrrigationMode, IrrigationStatus, ActivityLog
+    IrrigationEvent, IrrigationMode, IrrigationStatus, ActivityLog, SensorReading
 )
+from src.services import tuya_client
 from src.api.schemas.schemas import (
     IrrigationManualIn, IrrigationScheduleIn,
     IrrigationCommandOut, IrrigationEventOut,
@@ -110,6 +112,14 @@ async def start_manual_irrigation(
     db.add(log)
     await db.commit()
     await db.refresh(command)
+
+    # ── Tuya Physical Control (farm 22 only) ──────────────────────────────────
+    if dev and tuya_client.is_tuya_farm(dev.farm_id):
+        try:
+            await asyncio.to_thread(tuya_client.control_irrigation, True)
+        except Exception:
+            pass  # DB already saved — physical failure is non-blocking
+
     return command
 
 
@@ -234,9 +244,36 @@ async def stop_irrigation(
     if not event:
         raise HTTPException(status_code=404, detail="No active irrigation found")
 
+    started_at = event.timestamp
     event.status = IrrigationStatus.completed
     await db.commit()
     await db.refresh(event)
+
+    # ── Water usage + Tuya close (farm 22 only) ───────────────────────────────
+    dev_result = await db.execute(
+        select(Device).where(Device.device_id == device_id).limit(1)
+    )
+    dev = dev_result.scalar_one_or_none()
+    if dev and tuya_client.is_tuya_farm(dev.farm_id):
+        try:
+            await asyncio.to_thread(tuya_client.control_irrigation, False)
+        except Exception:
+            pass
+
+        # Calculate liters used: flow_rate = 3 L/min
+        if started_at:
+            start = started_at.replace(tzinfo=timezone.utc) if started_at.tzinfo is None else started_at
+            minutes = (datetime.now(timezone.utc) - start).total_seconds() / 60
+            liters = round(minutes * 3.0, 2)
+            db.add(SensorReading(
+                device_id="tuya_irrigation_001",
+                farm_id=dev.farm_id,
+                sensor_type="water_usage",
+                value=liters,
+                unit="L",
+            ))
+            await db.commit()
+
     return event
 
 

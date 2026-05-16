@@ -1,0 +1,61 @@
+{
+  "farm_id": 22,
+  "flow_rate_lpm": 3.0,
+
+  "sensor_devices": [
+    {
+      "label":          "soil_sensor",
+      "tuya_device_id": "bfd0da8fd01f2d116es2wa",
+      "warif_device_id":"tuya_soil_001",
+      "warif_name":     "Tuya Soil Sensor",
+      "poll_api":       "v1.0",
+      "properties": {
+        "humidity":     { "sensor_type": "soil_moisture",    "unit": "%", "scale": 1.0 },
+        "temp_current": { "sensor_type": "soil_temperature", "unit": "C", "scale": 0.1 }
+      }
+    },
+    {
+      "label":          "climate_sensor",
+      "tuya_device_id": "bfccd86ffbd8ec78aboefq",
+      "warif_device_id":"tuya_climate_001",
+      "warif_name":     "Tuya Climate Controller",
+      "poll_api":       "v2.0",
+      "properties": {
+        "CURRENTTEMP":  { "sensor_type": "air_temperature", "unit": "C", "scale": 0.1 },
+        "envhumid":     { "sensor_type": "air_humidity",    "unit": "%", "scale": 0.1 }
+      }
+    },
+    {
+      "label":          "electricity_sensor",
+      "tuya_device_id": "bf8cdc51717280dbc2m5mg",
+      "warif_device_id":"tuya_energy_001",
+      "warif_name":     "Tuya Energy Meter",
+      "poll_api":       "v2.0",
+      "skip_if_offline": true,
+      "properties": {
+        "forward_energy_total": { "sensor_type": "energy_kwh", "unit": "kWh", "scale": 0.001 }
+      }
+    }
+  ],
+
+  "actuators": {
+    "irrigation": {
+      "tuya_device_id":  "bf2d54577d8ffd6885rukf",
+      "warif_device_id": "tuya_irrigation_001",
+      "warif_name":      "Tuya Irrigation Valve",
+      "switch_code":     "switch"
+    },
+    "fan": {
+      "tuya_device_id":  "bfccd86ffbd8ec78aboefq",
+      "warif_device_id": "tuya_fan_001",
+      "warif_name":      "Tuya Fan (Humidity)",
+      "codes":           ["Power"]
+    },
+    "cooling": {
+      "tuya_device_id":  "bfccd86ffbd8ec78aboefq",
+      "warif_device_id": "tuya_cooling_001",
+      "warif_name":      "Tuya Cooling Unit",
+      "codes":           ["Power", "TEMPONOFF"]
+    }
+  }
+}

@@ -24,6 +24,7 @@ from src.db.session import get_db
 from src.db.models.models import DeviceCommand, ActivityLog, Recommendation, Farm
 from src.api.schemas.schemas import CommandIn, CommandOut
 from src.services.mqtt_client import get_mqtt_client
+from src.services import tuya_client
 from src.core.security import get_current_user
 from src.ai.engine import verify_action_outcome
 
@@ -200,6 +201,18 @@ async def control_cooling(
     db.add(log)
     await db.commit()
 
+    # ── Tuya Physical Control (farm 22 only — does not affect other farms) ────
+    if tuya_client.is_tuya_farm(farm_id):
+        try:
+            if cooler_state:
+                await asyncio.to_thread(tuya_client.control_cooling, True)
+            elif fan_state:
+                await asyncio.to_thread(tuya_client.control_fan, True)
+            else:
+                await asyncio.to_thread(tuya_client.control_cooling, False)
+        except Exception as e:
+            logger.warning(f"Tuya cooling command failed (DB already saved): {e}")
+
     # ── Autonomous Validation Loop (Auto Mode Only) ───────────────────────────
     if is_auto_mode and recommendation_id and (fan_state or cooler_state):
         background_tasks.add_task(
@@ -292,6 +305,13 @@ async def control_irrigation(
     )
     db.add(log)
     await db.commit()
+
+    # ── Tuya Physical Control (farm 22 only — does not affect other farms) ────
+    if tuya_client.is_tuya_farm(farm_id):
+        try:
+            await asyncio.to_thread(tuya_client.control_irrigation, valve_state)
+        except Exception as e:
+            logger.warning(f"Tuya irrigation command failed (DB already saved): {e}")
 
     # ── Autonomous Validation Loop (Auto Mode Only) ───────────────────────────
     if is_auto_mode and recommendation_id and valve_state:
