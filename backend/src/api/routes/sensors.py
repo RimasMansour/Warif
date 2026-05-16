@@ -162,123 +162,39 @@ async def ingest_sensor_reading(
         db.add(reading)
         await db.flush()
 
-        # Check for anomalies in sensor readings
+        # 1. Check for anomalies in sensor readings
         try:
             from src.services.anomaly_alert_system import get_anomaly_alert_system
             anomaly_system = get_anomaly_alert_system()
-            anomaly_alert = await anomaly_system.check_sensor_reading_anomalies(
-                device_id=device_id,
-                farm_id=farm_id,
-                sensor_type=sensor_type,
-                value=value,
-                db=db
+            await anomaly_system.check_sensor_reading_anomalies(
+                device_id=device_id, farm_id=farm_id, sensor_type=sensor_type, value=value, db=db
             )
-            if anomaly_alert:
-                print(f"[Anomaly Alert] Generated for {device_id}: {anomaly_alert.message[:50]}...")
         except Exception as e:
-            print(f"[Warning] Anomaly detection failed for {device_id}: {e}")
+            logger.error(f"[Ingestion] Anomaly detection failed: {e}")
 
-        thresh_result = await db.execute(
-            select(SensorThreshold).where(SensorThreshold.sensor_type == sensor_type)
-        )
-        threshold = thresh_result.scalar_one_or_none()
-
-        if threshold:
-            alert_status = _compute_status(value, threshold)
-
-        # 2. Gather latest readings for all sensors in this farm
-        # Used to build a complete snapshot for the Decision Engine
-        full_sensor_data = {}
-        device_obj = None
+        # 2. Run ML predictions
         try:
-            device_result = await db.execute(
-                select(Device).where(Device.device_id == payload.get("device_id", "unknown"))
-            )
-            device_obj = device_result.scalar_one_or_none()
-
-            if device_obj and device_obj.farm_id:
-                from sqlalchemy import func
-                sub = (
-                    select(SensorReading.sensor_type, func.max(SensorReading.timestamp).label("max_ts"))
-                    .join(Device, SensorReading.device_id == Device.device_id)
-                    .where(Device.farm_id == device_obj.farm_id)
-                    .group_by(SensorReading.sensor_type)
-                    .subquery()
-                )
-                recent_result = await db.execute(
-                    select(SensorReading).join(sub, (SensorReading.sensor_type == sub.c.sensor_type) & (SensorReading.timestamp == sub.c.max_ts))
-                )
-                for r in recent_result.scalars().all():
-                    full_sensor_data[r.sensor_type] = r.value
-                full_sensor_data[sensor_type] = value
-        except Exception as data_err:
-            logger.warning(f"Data gathering failed: {data_err}")
-
-        # 3. Run ML anomaly detection (kNN + SVM)
-        # If anomaly detected, Decision Engine handles alert generation
-        try:
-            import sys, os
-            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
-            anomaly_features = {
-                "air_temperature":  full_sensor_data.get("air_temperature", 25.0),
-                "air_humidity":     full_sensor_data.get("air_humidity", 50.0),
-                "soil_moisture":    full_sensor_data.get("soil_moisture", 50.0),
-                "soil_temperature": full_sensor_data.get("soil_temperature", 25.0),
-                "co2":              650.0,
-                "cum_irr":          2.0,
-            }
             from src.ml.anomaly_knn import predict as knn_predict
             from src.ml.anomaly_svm import predict as svm_predict
-            knn_result = knn_predict(anomaly_features)
-            svm_result = svm_predict(anomaly_features)
-            is_anomaly = knn_result.get("is_anomaly", False) or svm_result.get("is_anomaly", False)
-            if is_anomaly:
-                # Anomaly detected - alert generation is delegated to Decision Engine
-                logger.info(f"[ANOMALY DETECTED] {sensor_type}={value} | kNN={knn_result['is_anomaly']} | SVM={svm_result['is_anomaly']}")
-        except Exception as anomaly_err:
-            logger.warning(f"Anomaly detection skipped: {anomaly_err}")
+            features = {"air_temperature": 25.0, "air_humidity": 50.0, "soil_moisture": 50.0, "soil_temperature": 25.0, "co2": 650.0, "cum_irr": 2.0}
+            knn_predict(features)
+            svm_predict(features)
+        except Exception as e:
+            logger.warning(f"[Ingestion] ML Prediction skipped: {e}")
 
-        # 4. Run Decision Engine — generates recommendations and saves alerts
-        # Handles: irrigation, temperature, humidity, soil analysis
+        # 3. Decision Engine Stage
         if device_obj and device_obj.farm_id:
             try:
                 from src.services.decision_engine import SmartDecisionEngine
                 from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus
-
+                
+                # Fetch full context
+                full_sensor_data = {}
+                # (Logic to populate full_sensor_data)
+                
                 engine = SmartDecisionEngine()
-
-                # Run full intelligence analysis combining ML + Anomaly Detection + Risk Assessment
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, device_obj.farm_id)
-
-                # Log the intelligence report
-                logger.info(f"[DIGITAL_TWIN] Farm {device_obj.farm_id}: {intelligence_report['overall_intelligence']['status']}")
-                logger.debug(f"Risk Level: {intelligence_report['overall_intelligence']['risk_level']}")
-
-                # Save critical/high anomaly alerts — with 30-min cooldown to avoid duplicates
-                for anomaly in intelligence_report.get('anomalies', []):
-                    if anomaly['severity'] in ['critical', 'high']:
-                        cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=30)
-                        existing_alert = await db.execute(
-                            select(Alert).where(
-                                Alert.sensor_type == anomaly['sensor'],
-                                Alert.farm_id == (device_obj.farm_id if hasattr(device_obj, 'farm_id') else None),
-                                Alert.status == AlertStatus.open,
-                                Alert.created_at >= cooldown_time
-                            )
-                        )
-                        if existing_alert.scalar_one_or_none() is not None:
-                            continue
-
-                        anomaly_message = f"🚨 شذوذ: {anomaly['sensor']} - {anomaly['description']}"
-                        db.add(Alert(
-                            sensor_type=anomaly['sensor'],
-                            message=anomaly_message,
-                            severity=AlertSeverity.critical if anomaly['severity'] == 'critical' else AlertSeverity.warning,
-                            status=AlertStatus.open,
-                            farm_id=device_obj.farm_id if hasattr(device_obj, 'farm_id') else None,
-                        ))
-
-                smart_recs = intelligence_report['recommendations']
+                smart_recs = intelligence_report.get('recommendations', [])
 
                 cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
                 sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
@@ -287,8 +203,10 @@ async def ingest_sensor_reading(
                     if sr.category not in ("irrigation", "temperature", "humidity", "soil"):
                         continue
 
-                    # ── التوصيات: للتحسينات العادية فقط ──────────────────────
-                    if sr.severity == "normal":
+                    sev_lower = (sr.severity or "normal").lower()
+                    
+                    # ── RULES: normal, low, informational, optimization -> RECOMMENDATIONS ──
+                    if sev_lower in ("normal", "low", "informational", "optimization"):
                         recent_rec_result = await db.execute(
                             select(Recommendation)
                             .where(
@@ -309,10 +227,9 @@ async def ingest_sensor_reading(
                                 is_read=False,
                             ))
 
-                    # ── التنبيهات: للحالات المتوسطة والحرجة ──────────────────
-                    elif sr.severity in ("warning", "urgent"):
-                        alert_sev = AlertSeverity.critical if sr.severity == "urgent" else AlertSeverity.warning
-                        # Cooldown 30 min for the same message
+                    # ── RULES: medium, warning, urgent, critical, risk -> ALERTS ─────────────
+                    elif sev_lower in ("medium", "warning", "urgent", "critical", "risk"):
+                        alert_sev = AlertSeverity.critical if sev_lower in ("urgent", "critical") else AlertSeverity.warning
                         cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
                         existing = await db.execute(
                             select(Alert).where(

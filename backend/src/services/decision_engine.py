@@ -267,7 +267,7 @@ class SmartDecisionEngine:
                     message=message,
                     reasoning=rec_text,
                     category="irrigation",
-                    severity=severity,
+                    severity="normal" if severity == "warning" else severity,
                     confidence=max(0.50, min(0.95, recommendation_conf)),
                 ))
             elif score < -0.2:
@@ -310,7 +310,7 @@ class SmartDecisionEngine:
                     message="تحسين التهوية والتبريد",
                     reasoning=rec_text,
                     category="temperature",
-                    severity="warning",
+                    severity="normal",
                     confidence=conf,
                 ))
             elif combined_temp < 12:
@@ -352,7 +352,7 @@ class SmartDecisionEngine:
                     message="تفعيل نظام الترطيب",
                     reasoning=f"رطوبة الهواء الحالية ({air_humidity:.0f}%) منخفضة جداً عن الحد الأدنى (40%). التوصية: تفعيل نظام الرش لزيادة الرطوبة وتجنب الإجهاد المائي للنبات.",
                     category="humidity",
-                    severity="warning",
+                    severity="normal",
                     confidence=0.80,
                 ))
             # لا نضيف توصية إذا كانت الرطوبة مثالية
