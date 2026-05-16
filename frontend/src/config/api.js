@@ -83,6 +83,14 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
       return fetchWithRetry(url, options, retries + 1)
     }
 
+    if (error instanceof ApiError && error.status === 401) {
+      localStorage.removeItem('warif_token')
+      localStorage.removeItem('warif_user')
+      if (!window.location.pathname.includes('/signin')) {
+        window.location.href = '/signin'
+      }
+    }
+
     debugLog(`Error: ${url}`, error.message)
     throw error
   }

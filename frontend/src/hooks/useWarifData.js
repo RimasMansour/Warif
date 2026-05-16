@@ -244,7 +244,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (!res.ok) throw new Error("Failed to fetch alerts");
-      const json = await res.json();
+      let json = await res.json();
       
       const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
       
@@ -389,9 +389,7 @@ export function useRecommendations(farm_id) {
       json = json.filter(rec => {
         const text = (rec.title || '') + ' ' + (rec.message || '') + ' ' + (rec.reasoning || '');
         const isPerfect = text.includes('النظام يعمل بشكل مثالي') || text.includes('ضمن النطاق المثالي');
-        // Recommendations section = normal severity only (warning/urgent go to alerts)
-        const isNonNormal = rec.severity === 'warning' || rec.severity === 'urgent';
-        return !isPerfect && !isNonNormal;
+        return !isPerfect && rec.is_alert === false;
       });
 
       globalCache.recommendations[farm_id] = json;

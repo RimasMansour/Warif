@@ -92,6 +92,7 @@ async def list_recommendations(
                 "category": category_value,
                 "severity": severity_value,
                 "is_read": rec.is_read,
+                "is_alert": rec.is_alert,
                 "created_at": rec.created_at.isoformat() if rec.created_at else None,
             })
         except Exception as e:
