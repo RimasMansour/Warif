@@ -85,13 +85,37 @@ async def get_dashboard(
 async def get_weather(lat: float, lon: float):
     """
     Proxy request to Open-Meteo to avoid CORS issues in some environments.
+    Returns fallback data if provider is unreachable.
     """
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,weather_code,is_day&timezone=auto"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        if response.status_code != 200:
-            raise HTTPException(status_code=response.status_code, detail="Failed to fetch weather from provider")
-        return response.json()
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url)
+            if response.status_code != 200:
+                # Return a safe fallback instead of crashing the dashboard
+                return {
+                    "current": {
+                        "temperature_2m": None,
+                        "relative_humidity_2m": None,
+                        "weather_code": None,
+                        "is_day": 1
+                    },
+                    "fallback": True,
+                    "error": "Weather provider unavailable"
+                }
+            return response.json()
+    except Exception as e:
+        # Network error, timeout, etc. — return fallback, don't crash
+        return {
+            "current": {
+                "temperature_2m": None,
+                "relative_humidity_2m": None,
+                "weather_code": None,
+                "is_day": 1
+            },
+            "fallback": True,
+            "error": str(e)
+        }
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────

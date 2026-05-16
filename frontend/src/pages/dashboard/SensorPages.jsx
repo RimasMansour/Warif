@@ -174,8 +174,11 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs.map(r => ({
+      id: r.id,
       text: r.message,
-      reasoning: r.data_insight || r.reasoning || r.message
+      reasoning: r.data_insight || r.reasoning || r.message,
+      severity: r.severity,
+      created_at: r.created_at
     }));
   }, [apiRecs]);
 
@@ -241,7 +244,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                         message: rec.text,
                         reasoning: rec.reasoning,
                         category: 'temperature',
-                        severity: rec.severity || 'normal'
+                        severity: rec.severity || 'normal',
+                        created_at: rec.created_at
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
@@ -546,8 +550,11 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs.map(r => ({
+      id: r.id,
       text: r.message,
-      reasoning: r.data_insight || r.reasoning || r.message
+      reasoning: r.data_insight || r.reasoning || r.message,
+      severity: r.severity,
+      created_at: r.created_at
     }));
   }, [apiRecs]);
 
@@ -605,7 +612,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                         message: rec.text,
                         reasoning: rec.reasoning,
                         category: 'soil',
-                        severity: rec.severity || 'normal'
+                        severity: rec.severity || 'normal',
+                        created_at: rec.created_at
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}

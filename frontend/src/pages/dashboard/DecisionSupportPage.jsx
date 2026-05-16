@@ -29,11 +29,13 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     if (apiRecs && apiRecs.length > 0) {
       return apiRecs.map(r => ({
         id: `api-${r.id}`,
+        rawId: r.id,
         mode: 'auto',
         type: r.category || 'irrigation',
         title: r.message || 'توصية',
         reasoning: r.data_insight || r.reasoning || '',
-        time: isEn ? 'Just now' : 'الآن',
+        severity: r.severity || 'normal',
+        created_at: r.created_at,
         status: r.is_read ? 'accepted' : 'pending',
         week: isEn ? 'This Week' : 'هذا الأسبوع',
         farmIndices: [0, 1, 2],
@@ -56,7 +58,9 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     if (!showThanksIds.includes(id)) {
       setShowThanksIds(prev => [...prev, id]);
     }
-    await submitRecommendationFeedback(farmId, id.replace('api-', ''), val === 'up');
+    // Extract numeric id from 'api-123' format or use as-is
+    const rawId = String(id).replace('api-', '');
+    await submitRecommendationFeedback(farmId, rawId, val === 'up');
   };
 
   const handleDecision = async (id, val) => {
@@ -120,7 +124,8 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                         message: item.suggestion || item.title,
                         reasoning: item.reasoning,
                         category: item.type || 'irrigation',
-                        severity: item.severity || 'normal'
+                        severity: item.severity || 'normal',
+                        created_at: item.created_at
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}

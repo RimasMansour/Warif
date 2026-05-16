@@ -383,7 +383,17 @@ export function useRecommendations(farm_id) {
         headers: authHeaders()
       })
       if (!res.ok) throw new Error('Failed to fetch recommendations')
-      const json = await res.json()
+      let json = await res.json()
+      
+      // Filter out non-actionable "system perfect" recommendations
+      json = json.filter(rec => {
+        const text = (rec.title || '') + ' ' + (rec.message || '') + ' ' + (rec.reasoning || '');
+        const isPerfect = text.includes('النظام يعمل بشكل مثالي') || text.includes('ضمن النطاق المثالي');
+        // Recommendations section = normal severity only (warning/urgent go to alerts)
+        const isNonNormal = rec.severity === 'warning' || rec.severity === 'urgent';
+        return !isPerfect && !isNonNormal;
+      });
+
       globalCache.recommendations[farm_id] = json;
       setData(json)
       setError(null)

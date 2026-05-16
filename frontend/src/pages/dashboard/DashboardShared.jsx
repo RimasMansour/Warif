@@ -544,79 +544,186 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
   );
 }
 
+
+// ─── SAFETEXT UTILITY ───────────────────────────────────────────────────────
+const extractSafeText = (data, fallback = '') => {
+  if (!data) return fallback;
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return parsed.message || parsed.reasoning || parsed.action || data;
+    } catch (e) {
+      return data;
+    }
+  }
+  if (typeof data === 'object') {
+    return data.message || data.reasoning || data.action || JSON.stringify(data);
+  }
+  return String(data);
+};
+
+// ─── DESCRIPTIVE AUTONOMOUS TEXT UTILITY ────────────────────────────────────
+function getActionExplanation(category, isEn, isAuto) {
+  const c = (category || '').toLowerCase();
+
+  // Climate / Temperature / Ventilation
+  if (c === 'climate' || c === 'temperature') {
+    if (isAuto) return isEn
+      ? "Greenhouse fans activated autonomously to lower temperature and stabilize the crop environment."
+      : "تم تشغيل المراوح تلقائياً لتخفيف درجة الحرارة وتلطيف أجواء الصوبة لضمان استقرار المحصول.";
+    return isEn
+      ? "Do you want to turn on the fans to lower the temperature and stabilize the crop environment?"
+      : "هل تود تشغيل المراوح لتخفيف درجة الحرارة وتلطيف أجواء الصوبة؟";
+  }
+
+  // Irrigation / Water
+  if (c === 'irrigation' || c === 'water') {
+    if (isAuto) return isEn
+      ? "Irrigation pumps activated autonomously to restore optimal soil moisture levels."
+      : "تم تفعيل مضخات الري تلقائياً لاستعادة مستويات رطوبة التربة المثالية.";
+    return isEn
+      ? "Do you want to activate the irrigation pumps to restore optimal soil moisture levels?"
+      : "هل تود تفعيل مضخات الري لاستعادة مستويات رطوبة التربة المثالية؟";
+  }
+
+  // Humidity
+  if (c === 'humidity') {
+    if (isAuto) return isEn
+      ? "Humidification system activated autonomously to balance air humidity and protect crop health."
+      : "تم تشغيل نظام الترطيب تلقائياً لموازنة رطوبة الهواء وحماية صحة المحصول.";
+    return isEn
+      ? "Do you want to activate the humidification system to balance air humidity?"
+      : "هل تود تشغيل نظام الترطيب لموازنة رطوبة الهواء وحماية المحصول؟";
+  }
+
+  // Soil
+  if (c === 'soil') {
+    if (isAuto) return isEn
+      ? "Soil treatment protocol initiated autonomously to restore soil vitality and root health."
+      : "تم بدء بروتوكول معالجة التربة تلقائياً لاستعادة حيوية التربة وصحة الجذور.";
+    return isEn
+      ? "Do you want to initiate soil treatment to restore vitality and root health?"
+      : "هل تود بدء معالجة التربة لاستعادة حيويتها وصحة الجذور؟";
+  }
+
+  // Lighting
+  if (c === 'lighting' || c === 'light') {
+    if (isAuto) return isEn
+      ? "Supplemental lighting adjusted autonomously to maintain optimal photosynthesis conditions."
+      : "تم ضبط إضاءة التعويض تلقائياً للحفاظ على ظروف التمثيل الضوئي المثالية.";
+    return isEn
+      ? "Do you want to adjust the lighting system to optimize photosynthesis conditions?"
+      : "هل تود ضبط نظام الإضاءة لتحسين ظروف التمثيل الضوئي؟";
+  }
+
+  // Fertilization / Nutrients
+  if (c === 'fertilization' || c === 'nutrients' || c === 'nutrition') {
+    if (isAuto) return isEn
+      ? "Nutrient dosing system activated autonomously to replenish essential crop minerals."
+      : "تم تفعيل نظام التسميد تلقائياً لتعزيز المعادن الأساسية للمحصول.";
+    return isEn
+      ? "Do you want to activate the nutrient dosing system to replenish crop minerals?"
+      : "هل تود تفعيل نظام التسميد لتعزيز المعادن الأساسية للمحصول؟";
+  }
+
+  // General / Default — still descriptive
+  if (isAuto) return isEn
+    ? "The digital twin system executed the recommended optimization action autonomously."
+    : "قام نظام التوأم الرقمي بتنفيذ إجراء التحسين الموصى به تلقائياً.";
+  return isEn
+    ? "Do you want to execute the recommended action to optimize system performance?"
+    : "هل تود تنفيذ الإجراء الموصى به لتحسين أداء النظام؟";
+}
+
+// ─── THEME & ICONS ──────────────────────────────────────────────────────────
 function getRecommendationTheme(type, text = "") {
   let resolvedType = type;
   if (!resolvedType) {
     const t = text.toLowerCase();
     if (t.includes('ري') || t.includes('ماء') || t.includes('water') || t.includes('irrigat') || t.includes('تدفق')) resolvedType = 'irrigation';
-    else if (t.includes('حرار') || t.includes('شمس') || t.includes('temp') || t.includes('sun') || t.includes('مناخ')) resolvedType = 'temperature';
-    else if (t.includes('رطوبة') || t.includes('humidity') || t.includes('رش') || t.includes('تهوية')) resolvedType = 'humidity';
-    else if (t.includes('ترب') || t.includes('جذور') || t.includes('soil') || t.includes('root') || t.includes('سماد') || t.includes('fertil')) resolvedType = 'soil';
+    else if (t.includes('حرار') || t.includes('temp') || t.includes('مناخ')) resolvedType = 'temperature';
+    else if (t.includes('رطوبة') || t.includes('humidity') || t.includes('رش') || t.includes('تهوية') || t.includes('ventilation')) resolvedType = 'humidity';
+    else if (t.includes('شمس') || t.includes('ضوء') || t.includes('light') || t.includes('sun')) resolvedType = 'lighting';
+    else if (t.includes('ترب') || t.includes('جذور') || t.includes('soil') || t.includes('root') || t.includes('سماد') || t.includes('fertil') || t.includes('nutri')) resolvedType = 'soil';
     else resolvedType = 'default';
   }
 
   switch(resolvedType) {
     case 'irrigation':
+    case 'water':
       return {
         bg: 'bg-blue-50/20',
         border: 'border-blue-100/60',
         text: 'text-blue-700',
-        iconBg: 'bg-blue-100 text-blue-600 border-blue-200/50',
+        iconBg: 'bg-blue-50 text-blue-600 border-blue-100/80',
         actionBg: 'bg-blue-50/50',
         actionBorder: 'border-blue-100/50',
         actionText: 'text-blue-800',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>
       };
     case 'temperature':
+    case 'climate':
       return {
         bg: 'bg-amber-50/20',
         border: 'border-amber-100/60',
         text: 'text-amber-700',
-        iconBg: 'bg-amber-100 text-amber-600 border-amber-200/50',
+        iconBg: 'bg-amber-50 text-amber-600 border-amber-100/80',
         actionBg: 'bg-amber-50/50',
         actionBorder: 'border-amber-100/50',
         actionText: 'text-amber-800',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/><path d="M12 7v5"/></svg>
       };
     case 'humidity':
+    case 'ventilation':
       return {
-        bg: 'bg-slate-50/50',
-        border: 'border-slate-200/50',
-        text: 'text-slate-600',
-        iconBg: 'bg-slate-50 text-slate-500 border-slate-100/50',
-        actionBg: 'bg-slate-50/40',
-        actionBorder: 'border-slate-100/50',
-        actionText: 'text-slate-700',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+        bg: 'bg-sky-50/20',
+        border: 'border-sky-100/60',
+        text: 'text-sky-700',
+        iconBg: 'bg-sky-50 text-sky-500 border-sky-100/80',
+        actionBg: 'bg-sky-50/40',
+        actionBorder: 'border-sky-100/50',
+        actionText: 'text-sky-700',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2"/></svg>
+      };
+    case 'lighting':
+      return {
+        bg: 'bg-yellow-50/20',
+        border: 'border-yellow-100/60',
+        text: 'text-yellow-700',
+        iconBg: 'bg-yellow-50 text-yellow-500 border-yellow-100/80',
+        actionBg: 'bg-yellow-50/40',
+        actionBorder: 'border-yellow-100/50',
+        actionText: 'text-yellow-700',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       };
     case 'soil':
     case 'fertilization':
+    case 'nutrients':
       return {
-        bg: 'bg-amber-50/50',
-        border: 'border-amber-200/50',
-        text: 'text-amber-600',
-        iconBg: 'bg-amber-50 text-amber-500 border-amber-100/50',
-        actionBg: 'bg-amber-50/40',
-        actionBorder: 'border-amber-100/50',
-        actionText: 'text-amber-700',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20c0-3 3-4 8-4s8 1 8 4"/><path d="M12 16V8"/><path d="M12 8c-2-2-5-2-5 0 0 3 3 4 5 4"/><path d="M12 8c2-2 5-2 5 0 0 3-3 4-5 4"/></svg>
+        bg: 'bg-emerald-50/20',
+        border: 'border-emerald-100/60',
+        text: 'text-emerald-700',
+        iconBg: 'bg-emerald-50 text-emerald-600 border-emerald-100/80',
+        actionBg: 'bg-emerald-50/40',
+        actionBorder: 'border-emerald-100/50',
+        actionText: 'text-emerald-800',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
       };
     default:
       return {
-        bg: 'bg-emerald-50/10',
-        border: 'border-emerald-100/50',
-        text: 'text-emerald-700',
-        iconBg: 'bg-emerald-100 text-emerald-600 border-emerald-200/50',
-        actionBg: 'bg-emerald-50/30',
-        actionBorder: 'border-emerald-100/50',
-        actionText: 'text-emerald-800',
-        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/></svg>
+        bg: 'bg-indigo-50/10',
+        border: 'border-indigo-100/50',
+        text: 'text-indigo-700',
+        iconBg: 'bg-indigo-50 text-indigo-500 border-indigo-100/80',
+        actionBg: 'bg-indigo-50/30',
+        actionBorder: 'border-indigo-100/50',
+        actionText: 'text-indigo-800',
+        icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
       };
   }
 }
 
-// ── RecommendationCard: Soft Minimalism بطاقة التوصيات الموحدة ──
-
+// ─── RECOMMENDATION CARD ────────────────────────────────────────────────────
 export function RecommendationCard({
   rec,
   farmId,
@@ -627,10 +734,10 @@ export function RecommendationCard({
   onFeedback,
   feedbackState = {},
   showThanks = [],
-  compact = true
+  compact = false
 }) {
   const isRtl = !isEn;
-  const theme = getRecommendationTheme(rec.category || rec.type, rec.title || rec.message);
+  const theme = getRecommendationTheme(rec.category || rec.type, extractSafeText(rec.title || rec.message));
   const actionType = rec.category || rec.type || 'general';
   const [isLoading, setIsLoading] = React.useState(false);
   const [executionSuccess, setExecutionSuccess] = React.useState(false);
@@ -648,203 +755,153 @@ export function RecommendationCard({
     }
   };
 
-  // Get severity icon
-  const getSeverityIcon = () => {
-    switch(rec.severity) {
-      case 'urgent':
-        return (
-          <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="10"/>
-          </svg>
-        );
-      case 'warning':
-        return (
-          <svg className="w-4 h-4 text-amber-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L2 20h20L12 2zm0 3.88L19.12 20H4.88L12 5.88z"/>
-          </svg>
-        );
-      default:
-        return (
-          <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-          </svg>
-        );
-    }
-  };
+  const severityColor =
+    rec.severity === 'urgent' ? '#dc2626' :
+    rec.severity === 'warning' ? '#d97706' : '#10b981';
 
-  const { issue, solution } = parseReasoningText(rec.reasoning);
+  const rawReasoning = extractSafeText(rec.reasoning);
+  const safeTitle = extractSafeText(rec.title || rec.message);
+
+  const domainCategory = isEn
+    ? (rec.category === 'irrigation' || rec.category === 'water' ? 'Irrigation & Water'
+      : rec.category === 'temperature' || rec.category === 'climate' ? 'Climate & Ventilation'
+      : rec.category === 'humidity' ? 'Climate & Ventilation'
+      : rec.category === 'soil' ? 'Soil & Crop Health'
+      : 'System Optimization')
+    : (rec.category === 'irrigation' || rec.category === 'water' ? 'الري والمياه'
+      : rec.category === 'temperature' || rec.category === 'climate' ? 'المناخ والتهوية'
+      : rec.category === 'humidity' ? 'المناخ والتهوية'
+      : rec.category === 'soil' ? 'بيئة وصحة التربة'
+      : 'تحسين النظام');
+
+  const formatRecMeta = () => {
+    const raw = rec.created_at || rec.timestamp;
+    if (!raw) return null;
+    const diffMs = Date.now() - new Date(raw).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
+    if (diffHr < 1) return isEn ? `${diffMin}m ago` : `منذ ${diffMin} دقيقة`;
+    if (diffHr < 24) return isEn ? `${diffHr}h ago` : `منذ ${diffHr} ساعة`;
+    return new Date(raw).toLocaleDateString(isEn ? 'en-GB' : 'ar-SA', { month: 'short', day: 'numeric' });
+  };
 
   return (
     <div
-      className="rounded-3xl border border-gray-100 shadow-sm transition-all animate-fade-in flex flex-col h-auto bg-white"
+      className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col ${compact ? 'p-4' : 'p-5 md:p-6'}`}
       dir={isRtl ? 'rtl' : 'ltr'}
-      style={{
-        padding: '12px',
-        fontFamily: isRtl ? '"Cairo", "Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' : 'inherit'
-      }}
     >
-      {/* Header: Category Badge + Severity Icon + Title */}
-      <div className={`flex items-start gap-2 mb-1 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        {/* Category Badge */}
-        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0 ${theme.text}`}
-          style={{ backgroundColor: theme.iconBg.includes('blue') ? '#dbeafe' : theme.iconBg.includes('amber') ? '#fef3c7' : '#d0f0fe' }}
-        >
-          {isEn
-            ? (rec.category === 'irrigation' ? 'Water' : rec.category === 'temperature' ? 'Heat' : rec.category === 'humidity' ? 'Humidity' : rec.category === 'soil' ? 'Soil' : 'Health')
-            : (rec.category === 'irrigation' ? 'الري' : rec.category === 'temperature' ? 'الحرارة' : rec.category === 'humidity' ? 'الرطوبة' : rec.category === 'soil' ? 'التربة' : 'الصحة')
-          }
-        </span>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2.5">
+          <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: severityColor }} />
+          <h3 className={`font-bold text-gray-500 uppercase tracking-widest leading-tight ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
+            {domainCategory}
+          </h3>
+        </div>
 
-        {/* Title + Severity Icon */}
-        <div className="flex-1">
-          <div className={`flex items-start gap-1.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
-            <h4
-              className={`text-base font-bold leading-snug flex-1 text-black`}
-              style={{
-                wordBreak: 'break-word',
-                overflow: 'hidden',
-                display: compact ? '-webkit-box' : 'block',
-                WebkitLineClamp: compact ? 1 : 'unset',
-                WebkitBoxOrient: 'vertical',
-              }}
-              title={compact ? (rec.title || rec.message) : undefined}
-            >
-              {rec.title || rec.message}
-            </h4>
-            {getSeverityIcon()}
-          </div>
+      </div>
+
+      <div className="flex items-start gap-3.5 mb-4">
+        <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 mt-0.5 ${theme.iconBg}`}>
+          {theme.icon}
+        </div>
+        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+          <h4 className={`font-bold text-gray-800 tracking-tight leading-snug ${compact ? 'text-[14px]' : 'text-[15px] md:text-[16px]'} text-start`}>
+            {safeTitle}
+          </h4>
+          {rawReasoning && (
+            <p className={`font-medium text-gray-600 leading-relaxed text-start ${compact ? 'text-[12px]' : 'text-[13.5px] md:text-[14px]'}`}>
+              {rawReasoning}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Reasoning Section - SCROLLABLE ONLY FOR CONTENT */}
-      {rec.reasoning && (
-        <div className={`mt-2 max-h-[280px] overflow-y-auto space-y-2.5 scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
-          <div>
-            {/* ISSUE Section */}
-            <div className={`flex gap-2.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
-              <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${theme.iconBg}`}>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-bold text-black mb-0.5 leading-tight">
-                  {isEn ? 'Issue' : 'المشكلة'}
-                </div>
-                <p className={`text-sm text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
-                  {issue || rec.reasoning}
-                </p>
-              </div>
-            </div>
-
-            {/* SOLUTION Section */}
-            {solution && (
-              <div className={`mt-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex gap-2.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
-                <div className={`w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100`}>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-bold text-black mb-0.5 leading-tight">
-                    {isEn ? 'Solution' : 'الحل'}
-                  </div>
-                  <p className={`text-sm text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
-                    {solution}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Footer: Feedback + Execute/Ignore */}
-      <div className={`mt-2 pt-2 border-t border-gray-200 flex items-center justify-between gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        {/* Feedback Buttons */}
-        <div className={`flex items-center gap-1 relative ${isRtl ? 'flex-row-reverse' : ''}`}>
-          <span className="text-[9px] font-semibold text-gray-500 whitespace-nowrap">
-            {isEn ? 'Helpful?' : 'مفيدة؟'}
-          </span>
-          <button
-            onClick={() => onFeedback?.(rec.id, 'down')}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
-              ${feedbackState[rec.id] === 'down'
-                ? 'bg-red-50 border-red-300 text-red-600 scale-110'
-                : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:scale-105'
-              }`}
-            title={isEn ? 'Not helpful' : 'غير مفيدة'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
-            </svg>
-          </button>
-          <button
-            onClick={() => onFeedback?.(rec.id, 'up')}
-            className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
-              ${feedbackState[rec.id] === 'up'
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
-                : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 hover:scale-105'
-              }`}
-            title={isEn ? 'Helpful' : 'مفيدة'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
-            </svg>
-          </button>
-          {showThanks?.includes(rec.id) && (
-            <div className="absolute top-[-24px] right-0 bg-emerald-600 text-white px-2 py-0.5 rounded-md text-[8px] font-bold whitespace-nowrap z-10 animate-bounce"
-              style={{ direction: 'ltr' }}
+      <div className="pt-3 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-3 mt-auto">
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 relative">
+            <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
+              {isEn ? 'Helpful?' : 'مفيدة؟'}
+            </span>
+            <button
+              onClick={() => onFeedback?.(rec.id, 'down')}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
+                ${feedbackState[rec.id] === 'down'
+                  ? 'bg-red-50 border-red-300 text-red-600 scale-110'
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500'}`}
             >
-              {isEn ? 'Thanks!' : 'شكراً!'}
-            </div>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => onFeedback?.(rec.id, 'up')}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
+                ${feedbackState[rec.id] === 'up'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
+              </svg>
+            </button>
+          </div>
+          {formatRecMeta() && (
+            <span className="font-bold text-[10px] text-gray-400 uppercase tracking-widest whitespace-nowrap text-start">
+              {formatRecMeta()}
+            </span>
           )}
         </div>
 
-        {/* Execute/Ignore Buttons (Manual Mode) OR Auto Badge (Auto Mode) */}
         {!globalAutoMode ? (
-          <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-            <button
-              onClick={handleExecute}
-              disabled={isLoading || executionSuccess}
-              className={`px-3 py-1.5 text-white text-xs font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap ${
-                executionSuccess
-                  ? 'bg-emerald-600 border border-emerald-600'
-                  : 'bg-emerald-600 hover:bg-emerald-700 border border-emerald-600'
-              } ${isLoading ? 'opacity-80' : ''}`}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" opacity="0.25"/>
-                    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
-                  </svg>
-                  {isEn ? 'Executing' : 'جاري التنفيذ'}
-                </>
-              ) : executionSuccess ? (
-                <>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  {isEn ? 'Done' : 'تم'}
-                </>
-              ) : (
-                isEn ? 'Execute' : 'نفذ'
-              )}
-            </button>
-            <button
-              onClick={() => onIgnore?.(rec.id)}
-              className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95 whitespace-nowrap"
-            >
-              {isEn ? 'Ignore' : 'تجاهل'}
-            </button>
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 flex-1 w-full mt-2 lg:mt-0">
+            <div className="flex items-start xl:items-center gap-2">
+              <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 xl:mt-0 flex items-center justify-center">
+                <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+              </div>
+              <p className="font-medium text-[12px] text-sky-800 leading-snug flex-1 text-start">
+                {getActionExplanation(rec.category || rec.type, isEn, false)}
+              </p>
+            </div>
+            <div className="flex gap-2 ms-auto shrink-0">
+              <button
+                onClick={handleExecute}
+                disabled={isLoading || executionSuccess}
+                className={`px-4 py-1.5 text-white text-[13px] font-bold rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
+                  ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
+                    </svg>
+                    {isEn ? 'Executing…' : 'جاري التنفيذ…'}
+                  </>
+                ) : executionSuccess ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {isEn ? 'Done' : 'تم'}
+                  </>
+                ) : (isEn ? 'Execute' : 'نفذ')}
+              </button>
+              <button
+                onClick={() => onIgnore?.(rec.id)}
+                className="px-4 py-1.5 bg-white border border-sky-200 text-sky-700 text-[13px] font-bold rounded-xl hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
+              >
+                {isEn ? 'Ignore' : 'تجاهل'}
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 flex items-center gap-1.5 whitespace-nowrap shadow-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            {isEn ? 'Automated' : 'تم التنفيذ تلقائياً'}
+          <div className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/80 flex-1 w-full mt-2 lg:mt-0">
+            <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
+              <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+            </div>
+            <p className="font-medium text-[12px] text-emerald-800 leading-snug flex-1 text-start">
+              {getActionExplanation(rec.category || rec.type, isEn, true)}
+            </p>
           </div>
         )}
       </div>
@@ -852,8 +909,7 @@ export function RecommendationCard({
   );
 }
 
-// ── AlertCard: بطاقة التنبيهات الموحدة ──
-
+// ─── ALERT CARD ─────────────────────────────────────────────────────────────
 export function AlertCard({
   alert,
   globalAutoMode,
@@ -861,55 +917,62 @@ export function AlertCard({
   onAccept,
   onFeedback,
   feedbackState = {},
-  showThanks = []
+  showThanks = [],
+  compact = false
 }) {
   const isRtl = !isEn;
   const [isLoading, setIsLoading] = React.useState(false);
   const [executionSuccess, setExecutionSuccess] = React.useState(false);
 
-  // تحديد اللون بناءً على severity
-  const severityConfig = {
-    'critical': { bg: 'bg-red-50/80', border: 'border-gray-200', text: 'text-red-700', label: isEn ? 'Critical' : 'حرج' },
-    'high': { bg: 'bg-red-50/80', border: 'border-gray-200', text: 'text-red-700', label: isEn ? 'Critical' : 'حرج' },
-    'warning': { bg: 'bg-amber-50/80', border: 'border-gray-200', text: 'text-amber-700', label: isEn ? 'Warning' : 'تحذير' },
-    'info': { bg: 'bg-blue-50/80', border: 'border-gray-200', text: 'text-blue-700', label: isEn ? 'Info' : 'معلومة' }
-  };
-
   const severity = alert.severity || 'info';
-  const config = severityConfig[severity] || severityConfig.info;
+  const severityConfig = {
+    critical: { bg: '#FEF2F2', border: '#FECACA', dot: '#dc2626', label: isEn ? 'Critical' : 'حرج' },
+    high:     { bg: '#FEF2F2', border: '#FECACA', dot: '#dc2626', label: isEn ? 'Critical' : 'حرج' },
+    warning:  { bg: '#FFFBEB', border: '#FDE68A', dot: '#d97706', label: isEn ? 'Warning'  : 'تحذير' },
+    info:     { bg: '#EFF6FF', border: '#BFDBFE', dot: '#3b82f6', label: isEn ? 'Info'     : 'معلومة' },
+  };
+  const cfg = severityConfig[severity] || severityConfig.info;
 
-  // تحديد category من sensor_type
+  const safeMessage = extractSafeText(alert.message, isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام');
+  const safeAction = extractSafeText(alert.action, '');
+
+  const sensorType = alert.sensor_type || '';
+  const msgText = safeMessage.toLowerCase();
   const category =
-    alert.sensor_type?.includes('temperature') || alert.sensor_type?.includes('humidity') ? 'climate' :
-    alert.sensor_type?.includes('soil') ? 'soil' :
-    alert.sensor_type?.includes('water') || alert.sensor_type?.includes('irrigation') ? 'irrigation' : 'system';
+    (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
+     sensorType.includes('ventilation') || msgText.includes('حرار') ||
+     msgText.includes('temperature') || msgText.includes('تهوية') || msgText.includes('مراوح'))
+      ? 'climate'
+    : (sensorType.includes('soil') || msgText.includes('ترب') || msgText.includes('soil'))
+      ? 'soil'
+    : (sensorType.includes('water') || sensorType.includes('irrigation') ||
+       sensorType.includes('humidity') || msgText.includes('ري') ||
+       msgText.includes('irrigat') || msgText.includes('رطوبة'))
+      ? 'irrigation'
+    : 'system';
 
-  const actionType = category === 'climate' ? 'cool' : 'irrigate';
-  const pageLabel = isEn
-    ? (category === 'climate' ? 'Microclimate & Ventilation' :
-       category === 'soil' ? 'Soil & Crop Health' :
-       category === 'irrigation' ? 'Irrigation Management' : 'System')
-    : (category === 'climate' ? 'المناخ والتهوية' :
-       category === 'soil' ? 'بيئة وصحة التربة' :
-       category === 'irrigation' ? 'إدارة الري' : 'النظام');
+  const actionType = category === 'climate' ? 'cool' : category === 'irrigation' ? 'irrigate' : 'general';
+
+  const domainTitle = isEn
+    ? (category === 'climate'    ? 'Climate & Ventilation'
+      : category === 'soil'      ? 'Soil & Crop Health'
+      : category === 'irrigation'? 'Irrigation & Water'
+      :                            'System')
+    : (category === 'climate'    ? 'المناخ والتهوية'
+      : category === 'soil'      ? 'بيئة وصحة التربة'
+      : category === 'irrigation'? 'الري والمياه'
+      :                            'النظام');
 
   const formatAlertMeta = () => {
     const raw = alert.created_at || alert.timestamp;
     if (!raw) return null;
-    const date = new Date(raw);
-    const diffMs = Date.now() - date.getTime();
+    const diffMs = Date.now() - new Date(raw).getTime();
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
-
     if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
-    if (diffHr < 1) return isEn ? `${diffMin} min ago` : `منذ ${diffMin} دقيقة`;
+    if (diffHr < 1) return isEn ? `${diffMin}m ago` : `منذ ${diffMin} دقيقة`;
     if (diffHr < 24) return isEn ? `${diffHr}h ago` : `منذ ${diffHr} ساعة`;
-
-    return date.toLocaleDateString(isEn ? 'en-GB' : 'ar-SA', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    return new Date(raw).toLocaleDateString(isEn ? 'en-GB' : 'ar-SA', { month: 'short', day: 'numeric' });
   };
 
   const handleConfirm = async () => {
@@ -927,151 +990,130 @@ export function AlertCard({
 
   return (
     <div
-      className="rounded-3xl border border-gray-100 shadow-sm transition-all animate-fade-in flex flex-col bg-white"
-      style={{
-        padding: '12px',
-        fontFamily: isRtl ? '"Cairo", "Tajawal", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' : 'inherit'
-      }}
+      className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col overflow-hidden ${compact ? 'p-4' : 'p-5 md:p-6'}`}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      {/* Header: Two small badges */}
-      <div className={`flex items-start gap-1.5 mb-1 ${isRtl ? 'flex-row-reverse' : ''}`}>
-        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md whitespace-nowrap shrink-0 ${
-          severity === 'critical' || severity === 'high'
-            ? 'bg-red-50 text-red-700'
-            : severity === 'warning'
-              ? 'bg-amber-50 text-amber-700'
-              : 'bg-blue-50 text-blue-700'
-        }`}>
-          {config.label}
+      <div className="flex items-center gap-2.5 mb-3">
+        <span
+          className="font-bold text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0"
+          style={{ backgroundColor: cfg.bg, color: cfg.dot, border: `1px solid ${cfg.border}` }}
+        >
+          {cfg.label}
         </span>
-        <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-600 whitespace-nowrap shrink-0">
-          {pageLabel}
+        <span className={`font-bold text-gray-800 tracking-tight leading-tight ${compact ? 'text-[15px]' : 'text-[17px] md:text-lg'}`}>
+          {domainTitle}
         </span>
       </div>
 
-      {/* Message */}
-      <h4
-        className={`mt-0.5 text-base font-bold leading-snug text-black ${isRtl ? 'text-right' : 'text-left'}`}
-        style={{ wordBreak: 'break-word' }}
-      >
-        {alert.message || (isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام')}
-      </h4>
+      <p className={`font-medium text-gray-600 leading-relaxed mb-3 text-start ${compact ? 'text-[13px]' : 'text-[14px] md:text-[15px]'}`} style={{ wordBreak: 'break-word' }}>
+        {safeMessage}
+      </p>
 
-      {/* Action Section */}
-      {alert.action && (
-        <div className={`mt-2 p-2.5 rounded-xl bg-gray-50 border border-gray-100 flex gap-2.5 ${isRtl ? 'flex-row-reverse' : ''}`}>
+
+
+      {safeAction && (
+        <div className="mb-4 p-3 rounded-2xl bg-gray-50/80 border border-gray-100/80 flex gap-2.5 items-start">
           <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
             </svg>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-bold text-black mb-0.5 leading-tight">
-              {isEn ? 'Action' : 'الإجراء'}
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <div className="font-bold text-[11px] text-gray-400 uppercase tracking-widest text-start">
+              {isEn ? 'Recommended Action' : 'الإجراء الموصى به'}
             </div>
-            <p className={`text-sm text-black leading-snug ${isRtl ? 'text-right' : 'text-left'} font-normal`}>
-              {alert.action}
+            <p className={`font-medium text-gray-700 leading-snug text-start ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
+              {safeAction}
             </p>
           </div>
         </div>
       )}
 
-      <div className="mt-3">
-        {!globalAutoMode ? (
-          <div className={`flex gap-2 ${isRtl ? 'flex-row-reverse' : ''}`}>
-            <button
-              onClick={handleConfirm}
-              disabled={isLoading || executionSuccess}
-              className={`px-3 py-1.5 text-white text-xs font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap ${
-                executionSuccess
-                  ? 'bg-emerald-600 border border-emerald-600'
-                  : 'bg-emerald-600 hover:bg-emerald-700 border border-emerald-600'
-              } ${isLoading ? 'opacity-80' : ''}`}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="10" opacity="0.25"/>
-                    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
-                  </svg>
-                  {isEn ? 'Executing' : 'جاري التنفيذ'}
-                </>
-              ) : executionSuccess ? (
-                <>
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                  {isEn ? 'Done' : 'تم'}
-                </>
-              ) : (
-                isEn ? 'Execute' : 'نفذ'
-              )}
-            </button>
-            <button
-              className="px-3 py-1.5 bg-gray-100 border border-gray-200 text-gray-600 text-xs font-bold rounded-lg hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all active:scale-95 whitespace-nowrap"
-            >
-              {isEn ? 'Ignore' : 'تجاهل'}
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 shadow-sm">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-bold text-emerald-700">
-              {isEn ? 'Automated' : 'تم التنفيذ تلقائياً'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Footer: feedback + timestamp */}
-      <div className="mt-2.5 pt-2.5 flex items-start justify-between gap-2.5" dir="ltr">
-        <div className="flex items-center gap-2 relative shrink-0">
+      {/* Unified Footer Area */}
+      <div className="pt-3 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-3 mt-auto">
+        <div className="flex flex-col gap-1.5 shrink-0">
           <div className="flex items-center gap-2 relative">
+            <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
+              {isEn ? 'Appropriate?' : 'مفيدة؟'}
+            </span>
             <button
               onClick={() => onFeedback?.(alert.id, 'down')}
-              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
                 ${feedbackState[alert.id] === 'down'
                   ? 'bg-red-50 border-red-300 text-red-600 scale-110'
-                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-600 hover:scale-105'
-                }`}
-              title={isEn ? 'False alert' : 'إنذار خاطئ'}
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500'}`}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
               </svg>
             </button>
             <button
               onClick={() => onFeedback?.(alert.id, 'up')}
-              className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all transform
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
                 ${feedbackState[alert.id] === 'up'
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
-                  : 'bg-gray-50 border-gray-200 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600 hover:scale-105'
-                }`}
-              title={isEn ? 'Appropriate alert' : 'إنذار مناسب'}
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
               </svg>
             </button>
-            {showThanks?.includes(alert.id) && (
-              <div className="absolute top-[-24px] left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[9px] font-bold whitespace-nowrap z-10 animate-bounce">
-                {isEn ? 'Thanks for feedback!' : 'شكراً على رأيك!'}
-              </div>
-            )}
           </div>
-        </div>
-
-        <div className={`${isRtl ? 'text-right items-end' : 'text-left items-start'} flex flex-col gap-1 shrink-0`}>
-          <span className="text-[11px] font-bold text-gray-400 whitespace-nowrap">
-            {isEn ? 'Was this appropriate?' : 'هل كان هذا مناسباً؟'}
-          </span>
           {formatAlertMeta() && (
-            <span className="text-[11px] font-bold text-gray-300 whitespace-nowrap">
+            <span className="font-bold text-[10px] text-gray-400 uppercase tracking-widest whitespace-nowrap text-start">
               {formatAlertMeta()}
             </span>
           )}
         </div>
+
+        {!globalAutoMode ? (
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 flex-1 w-full mt-2 lg:mt-0">
+            <div className="flex items-start xl:items-center gap-2">
+              <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 xl:mt-0 flex items-center justify-center">
+                <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+              </div>
+              <p className="font-medium text-[12px] text-sky-800 leading-snug flex-1 text-start">
+                {getActionExplanation(category, isEn, false)}
+              </p>
+            </div>
+            <div className="flex gap-2 ms-auto shrink-0">
+              <button
+                onClick={handleConfirm}
+                disabled={isLoading || executionSuccess}
+                className={`px-4 py-1.5 text-white text-[13px] font-bold rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
+                  ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
+              >
+                {isLoading ? (
+                  <>
+                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
+                    </svg>
+                    {isEn ? 'Executing…' : 'جاري التنفيذ…'}
+                  </>
+                ) : executionSuccess ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {isEn ? 'Done' : 'تم'}
+                  </>
+                ) : (isEn ? 'Execute' : 'نفذ')}
+              </button>
+              <button className="px-4 py-1.5 bg-white border border-sky-200 text-sky-700 text-[13px] font-bold rounded-xl hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap">
+                {isEn ? 'Ignore' : 'تجاهل'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/80 flex-1 w-full mt-2 lg:mt-0">
+            <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
+              <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+            </div>
+            <p className="font-medium text-[12px] text-emerald-800 leading-snug flex-1 text-start">
+              {getActionExplanation(category, isEn, true)}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

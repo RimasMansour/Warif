@@ -283,36 +283,53 @@ async def ingest_sensor_reading(
                 sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
 
                 for sr in smart_recs:
-                    if sr.severity != "normal" or sr.category == "irrigation":
+                    if sr.category not in ("irrigation", "temperature", "humidity", "soil"):
+                        continue
+
+                    # ── التوصيات: للتحسينات العادية فقط ──────────────────────
+                    if sr.severity == "normal":
                         recent_rec_result = await db.execute(
                             select(Recommendation)
                             .where(
                                 Recommendation.farm_id == device_obj.farm_id,
                                 Recommendation.category == cat_map.get(sr.category),
-                                Recommendation.severity == sev_map.get(sr.severity),
                                 Recommendation.message == sr.message
                             )
                             .order_by(desc(Recommendation.created_at))
                             .limit(1)
                         )
-                        recent_rec = recent_rec_result.scalar_one_or_none()
-
-                        should_save = True
-                        if recent_rec:
-                            time_diff = datetime.now(timezone.utc) - recent_rec.created_at.replace(tzinfo=timezone.utc)
-                            if time_diff < timedelta(minutes=5):
-                                should_save = False
-
-                        if should_save:
-                            rec = Recommendation(
+                        if recent_rec_result.scalar_one_or_none() is None:
+                            db.add(Recommendation(
                                 farm_id=device_obj.farm_id,
                                 message=sr.message,
                                 reasoning=sr.reasoning,
                                 category=cat_map.get(sr.category, RecommendationCategory.irrigation),
-                                severity=sev_map.get(sr.severity, RecommendationSeverity.normal),
+                                severity=RecommendationSeverity.normal,
                                 is_read=False,
+                            ))
+
+                    # ── التنبيهات: للحالات المتوسطة والحرجة ──────────────────
+                    elif sr.severity in ("warning", "urgent"):
+                        alert_sev = AlertSeverity.critical if sr.severity == "urgent" else AlertSeverity.warning
+                        # Cooldown 30 min for the same message
+                        cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
+                        existing = await db.execute(
+                            select(Alert).where(
+                                Alert.farm_id == device_obj.farm_id,
+                                Alert.message == sr.message,
+                                Alert.status == AlertStatus.open,
+                                Alert.created_at >= cooldown
                             )
-                            db.add(rec)
+                        )
+                        if existing.scalar_one_or_none() is None:
+                            db.add(Alert(
+                                sensor_type=sr.category,
+                                message=sr.message,
+                                explanation=sr.reasoning,
+                                severity=alert_sev,
+                                status=AlertStatus.open,
+                                farm_id=device_obj.farm_id,
+                            ))
 
             except Exception as rec_err:
                 logger.warning(f"Smart recommendation generation failed: {rec_err}")

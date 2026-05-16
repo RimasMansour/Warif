@@ -288,7 +288,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                         message: rec.suggestion || rec.text,
                         reasoning: rec.reasoning,
                         category: rec.type || 'irrigation',
-                        severity: rec.severity || 'normal'
+                        severity: rec.severity || 'normal',
+                        created_at: rec.created_at
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}

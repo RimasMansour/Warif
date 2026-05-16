@@ -575,6 +575,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
     type: r.category || 'general',
     category: r.category || 'general',
     is_read: r.is_read,
+    created_at: r.created_at,
   })) : [];
 
   const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات مدروسة لتحسين أداء المزرعة";
@@ -613,7 +614,8 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
                 message: rec.suggestion || rec.title,
                 reasoning: rec.data_insight,
                 category: rec.category,
-                severity: rec.severity || 'normal'
+                severity: rec.severity || 'normal',
+                created_at: rec.created_at
               }}
               farmId={farmId}
               globalAutoMode={globalAutoMode}

@@ -255,6 +255,7 @@ class Alert(Base):
     severity     = Column(SAEnum(AlertSeverity), nullable=False, default=AlertSeverity.info)
     status       = Column(SAEnum(AlertStatus),   nullable=False, default=AlertStatus.open)
     message      = Column(Text, nullable=False)
+    explanation  = Column(Text, nullable=True)  # التوضيح الذكي من محرك القرار
     threshold    = Column(Float)
     actual_value = Column(Float)
     helpful      = Column(Boolean, nullable=True)  # تقييم التنبيه: True = مفيد, False = إزعاج, NULL = لم يعطِ فيدباك
