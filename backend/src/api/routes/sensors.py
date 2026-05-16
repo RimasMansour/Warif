@@ -299,22 +299,8 @@ async def ingest_sensor_reading(
                             .order_by(desc(Recommendation.created_at))
                             .limit(1)
                         )
-<<<<<<< HEAD
                         if recent_rec_result.scalar_one_or_none() is None:
                             db.add(Recommendation(
-=======
-                        recent_rec = recent_rec_result.scalar_one_or_none()
-
-                        # Deduplication: skip if same recommendation was saved < 5 minutes ago
-                        should_save = True
-                        if recent_rec:
-                            time_diff = datetime.now(timezone.utc) - recent_rec.created_at.replace(tzinfo=timezone.utc)
-                            if time_diff < timedelta(minutes=5):
-                                should_save = False
-
-                        if should_save:
-                            rec = Recommendation(
->>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
                                 farm_id=device_obj.farm_id,
                                 message=sr.message,
                                 reasoning=sr.reasoning,
