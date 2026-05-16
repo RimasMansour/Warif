@@ -1,8 +1,23 @@
 # backend/src/api/routes/ml.py
+"""
+ML Routes — Warif API
+======================
+Handles machine learning prediction and model management endpoints:
+  - GET  /predictions/irrigation/{farm_id} : unified irrigation decision from Decision Engine
+  - GET  /model-metrics                    : returns pre-evaluated model performance metrics
+  - POST /models/retrain                   : queues a model retraining job
+
+The irrigation prediction combines:
+  - ML Ensemble (RF + LSTM + XGBoost): 50%
+  - Soil moisture analysis: 25%
+  - External weather data: 15%
+  - Time-of-day optimization: 10%
+
+All endpoints require JWT authentication.
+"""
 import os
 import sys
 import logging
-import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -13,7 +28,9 @@ from src.db.session import get_db
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ── Load ML Models ─────────────────────────────────────────────
+# ── ML Model Loading (prepared for future direct model inference) ───────────
+# Currently, predictions use the Decision Engine instead of direct ensemble calls.
+# These functions are preserved for future use when direct ML inference is needed.
 def _get_models_directory():
     models_dir = os.getenv("WARIF_MODELS_DIR")
     if models_dir and os.path.isdir(models_dir):
@@ -28,6 +45,8 @@ def _get_models_directory():
     logger.warning(f"Models directory not found at {default_models_dir}. ML model loading will fail.")
     return None
 
+# Singleton ensemble instance — lazy-loaded on first call
+# Not currently used in endpoints; Decision Engine handles ML inference
 _ensemble = None
 
 def get_ensemble():
@@ -52,17 +71,8 @@ def get_ensemble():
     return _ensemble
 
 # ── Schemas ────────────────────────────────────────────────────
-class SensorInput(BaseModel):
-    soil_moisture: float
-    soil_temp: float = 25.0
-    soil_ph: float = 6.5
-    soil_ec: float = 1.8
-    air_temp: float
-    humidity: float
-    co2_ppm: float = 650.0
-    vpd_kpa: float = 1.0
-    growth_stage_encoded: int = 3
-    days_since_transplant: int = 30
+# SensorInput schema removed — not used in current endpoints
+# Decision Engine accepts raw dict sensor data instead
 
 class IrrigationPredictionOut(BaseModel):
     farm_id: int
@@ -79,6 +89,9 @@ class RetrainResponse(BaseModel):
     message: str
 
 # ── Endpoints ──────────────────────────────────────────────────
+
+# Returns a unified irrigation decision — combines ML + rules + weather + time-of-day
+# Prediction is saved to DB via _save_prediction for history tracking
 @router.get("/predictions/irrigation/{farm_id}", response_model=IrrigationPredictionOut)
 async def get_irrigation_prediction(
     farm_id: int,
@@ -162,8 +175,9 @@ async def _save_prediction(db: AsyncSession, farm_id: int, pred: IrrigationPredi
         print(f"[ML] Failed to save prediction: {e}")
 
 
+# Returns pre-evaluated accuracy metrics for all models in the ensemble
+# Note: these are static values from the last training run, not live computation
 @router.get("/model-metrics", response_model=dict)
-
 async def get_model_metrics(
     current_user: dict = Depends(get_current_user),
 ):
@@ -176,6 +190,8 @@ async def get_model_metrics(
     }
 
 
+# Queues a model retraining job — actual retraining is handled asynchronously
+# Currently returns a queued status; full implementation planned for future release
 @router.post("/models/retrain", response_model=RetrainResponse)
 async def retrain_models(
     current_user: dict = Depends(get_current_user),

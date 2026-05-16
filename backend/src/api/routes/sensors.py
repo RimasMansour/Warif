@@ -1,4 +1,18 @@
 # backend/src/api/routes/sensors.py
+"""
+Sensor Routes — Warif API
+=========================
+Handles all sensor-related endpoints:
+  - GET  /sensors         : historical readings with optional filters
+  - GET  /sensors/latest  : latest reading per sensor type (requires auth)
+  - POST /sensors         : ingest a new reading from IoT device (MQTT/hardware)
+
+On each ingestion, the pipeline:
+  1. Saves the raw reading to the DB
+  2. Updates device connectivity status
+  3. Runs kNN + SVM anomaly detection
+  4. Triggers the Decision Engine for recommendations and alerts
+"""
 import logging
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
@@ -19,6 +33,7 @@ router = APIRouter()
 RIYADH_TZ = ZoneInfo("Asia/Riyadh")
 
 
+# Public endpoint — used by frontend charts (water_usage, power_usage history)
 @router.get("", response_model=List[SensorReadingOut])
 async def list_sensor_readings(
     farm_id:     int           = Query(..., description="Farm ID"),
@@ -37,6 +52,9 @@ limit:       int           = Query(100, le=50000),
     return result.scalars().all()
 
 
+# Protected endpoint — requires valid JWT token
+# Returns one reading per sensor type with computed status (normal/warning/critical)
+# Light intensity is forced to 0 at night (18:00–06:00 Riyadh time)
 @router.get("/latest")
 async def get_latest_readings(
     farm_id: int = Query(..., description="Farm ID"),
@@ -88,6 +106,8 @@ async def get_latest_readings(
     return out
 
 
+# Internal endpoint — called by MQTT client or real IoT hardware sensors
+# Not used by the frontend directly
 @router.post("", status_code=201)
 async def ingest_sensor_reading(
     payload: dict,
@@ -112,14 +132,10 @@ async def ingest_sensor_reading(
                 detail="value must be a valid number"
             )
 
-        SENSOR_LABELS = {
-            "soil_moisture":    "رطوبة التربة",
-            "soil_temperature": "حرارة التربة",
-            "air_temperature":  "درجة الحرارة",
-            "air_humidity":     "رطوبة الهواء",
-        }
+        # Sensor type labels moved to Decision Engine for centralized alert generation
 
-        # 1. Lookup device to find its farm_id
+        # 1. Lookup device to resolve farm_id from device_id
+        # device_id comes from the IoT hardware payload
         device_obj = None
         device_id = payload.get("device_id", "unknown")
         device_result = await db.execute(
@@ -169,17 +185,9 @@ async def ingest_sensor_reading(
 
         if threshold:
             alert_status = _compute_status(value, threshold)
-            if alert_status in ("warning", "critical"):
-                severity = AlertSeverity.critical if alert_status == "critical" else AlertSeverity.warning
-                label = SENSOR_LABELS.get(sensor_type, sensor_type)
-                if alert_status == "critical":
-                    message = f"انحراف حرج في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تجاوزت الحد الأمثل ({threshold.max_value or threshold.min_value} {reading.unit}). الإجراء: مراجعة النظام فوراً."
-                else:
-                    message = f"انحراف طفيف في {label} - القيمة الحالية ({value:.1f} {reading.unit}) قريبة من الحد المتوقع ({threshold.warning_max or threshold.warning_min} {reading.unit}). التوصية: مراقبة التطور."
 
-                # Alert logic here skipped to avoid duplication (handled by Decision Engine)
-                pass
-
+        # 2. Gather latest readings for all sensors in this farm
+        # Used to build a complete snapshot for the Decision Engine
         full_sensor_data = {}
         device_obj = None
         try:
@@ -206,6 +214,8 @@ async def ingest_sensor_reading(
         except Exception as data_err:
             logger.warning(f"Data gathering failed: {data_err}")
 
+        # 3. Run ML anomaly detection (kNN + SVM)
+        # If anomaly detected, Decision Engine handles alert generation
         try:
             import sys, os
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../.."))
@@ -223,22 +233,13 @@ async def ingest_sensor_reading(
             svm_result = svm_predict(anomaly_features)
             is_anomaly = knn_result.get("is_anomaly", False) or svm_result.get("is_anomaly", False)
             if is_anomaly:
-                confidence = max(knn_result.get("confidence", 0), svm_result.get("confidence", 0))
-                rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
-                anomaly_severity = AlertSeverity.critical if confidence >= 0.8 else AlertSeverity.warning
-                label = SENSOR_LABELS.get(sensor_type, sensor_type)
-
-                if rule_violated:
-                    anomaly_msg = f"انحراف غير طبيعي في {label} - القيمة الحالية ({value:.1f} {reading.unit}) تنحرف عن النمط الطبيعي ({rule_violated}). الثقة: {confidence*100:.0f}%. الإجراء: فحص الحساس والنظام."
-                else:
-                    anomaly_msg = f"قراءة استثنائية في {label} - القيمة ({value:.1f} {reading.unit}) غير طبيعية بناءً على البيانات التاريخية. الثقة: {confidence*100:.0f}%. التوصية: تحقق من حالة الحساس."
-
-                # Alert logic here skipped to avoid duplication (handled by Decision Engine)
-                pass
+                # Anomaly detected - alert generation is delegated to Decision Engine
                 logger.info(f"[ANOMALY DETECTED] {sensor_type}={value} | kNN={knn_result['is_anomaly']} | SVM={svm_result['is_anomaly']}")
         except Exception as anomaly_err:
             logger.warning(f"Anomaly detection skipped: {anomaly_err}")
 
+        # 4. Run Decision Engine — generates recommendations and saves alerts
+        # Handles: irrigation, temperature, humidity, soil analysis
         if device_obj and device_obj.farm_id:
             try:
                 from src.services.decision_engine import SmartDecisionEngine
@@ -246,14 +247,14 @@ async def ingest_sensor_reading(
 
                 engine = SmartDecisionEngine()
 
-                # استخدم القرار الذكي الشامل (مع Anomaly Detection + Risk Assessment)
+                # Run full intelligence analysis combining ML + Anomaly Detection + Risk Assessment
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, device_obj.farm_id)
 
                 # Log the intelligence report
                 logger.info(f"[DIGITAL_TWIN] Farm {device_obj.farm_id}: {intelligence_report['overall_intelligence']['status']}")
                 logger.debug(f"Risk Level: {intelligence_report['overall_intelligence']['risk_level']}")
 
-                # Handle anomalies
+                # Save critical/high anomaly alerts — with 30-min cooldown to avoid duplicates
                 for anomaly in intelligence_report.get('anomalies', []):
                     if anomaly['severity'] in ['critical', 'high']:
                         cooldown_time = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -298,8 +299,22 @@ async def ingest_sensor_reading(
                             .order_by(desc(Recommendation.created_at))
                             .limit(1)
                         )
+<<<<<<< HEAD
                         if recent_rec_result.scalar_one_or_none() is None:
                             db.add(Recommendation(
+=======
+                        recent_rec = recent_rec_result.scalar_one_or_none()
+
+                        # Deduplication: skip if same recommendation was saved < 5 minutes ago
+                        should_save = True
+                        if recent_rec:
+                            time_diff = datetime.now(timezone.utc) - recent_rec.created_at.replace(tzinfo=timezone.utc)
+                            if time_diff < timedelta(minutes=5):
+                                should_save = False
+
+                        if should_save:
+                            rec = Recommendation(
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
                                 farm_id=device_obj.farm_id,
                                 message=sr.message,
                                 reasoning=sr.reasoning,
@@ -368,6 +383,12 @@ async def ingest_sensor_reading(
 
 
 def _compute_status(value: float, threshold) -> str:
+    """
+    Compute sensor status based on threshold ranges:
+      - 'critical' : value outside absolute min/max bounds
+      - 'warning'  : value outside warning bounds but within absolute bounds
+      - 'normal'   : value within optimal range
+    """
     if threshold is None:
         return "normal"
     if (threshold.min_value is not None and value < threshold.min_value) or \

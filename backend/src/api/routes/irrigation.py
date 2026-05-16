@@ -1,4 +1,20 @@
 # backend/src/api/routes/irrigation.py
+"""
+Irrigation Routes — Warif API
+==============================
+Handles all irrigation control and monitoring endpoints:
+  - GET  /status/{farm_id}       : get current irrigation status (public)
+  - POST /manual                 : start manual irrigation for a device
+  - POST /auto/{farm_id}         : trigger AI-based automatic irrigation
+  - POST /schedule               : schedule irrigation for a future time
+  - POST /stop/{device_id}       : stop active irrigation for a device
+  - POST /stop-farm/{farm_id}    : stop all active irrigation for a farm
+  - GET  /resources/{farm_id}    : get water and power usage statistics
+  - GET  /history/{farm_id}      : get irrigation history
+
+Note: The simulator writes directly to the DB and does NOT call these endpoints.
+All POST endpoints require JWT authentication.
+"""
 from typing import List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -20,6 +36,7 @@ from src.core.security import get_current_user
 router = APIRouter()
 
 
+# Public endpoint — no auth required (used by dashboard and simulator status checks)
 @router.get("/status/{farm_id}", response_model=IrrigationStatusOut)
 async def get_irrigation_status(
     farm_id: int,
@@ -53,6 +70,8 @@ async def get_irrigation_status(
     )
 
 
+# Triggered by the farmer manually from the dashboard
+# Creates an IrrigationCommand + IrrigationEvent and logs the action
 @router.post("/manual", response_model=IrrigationCommandOut, status_code=status.HTTP_201_CREATED)
 async def start_manual_irrigation(
     body: IrrigationManualIn,
@@ -94,11 +113,14 @@ async def start_manual_irrigation(
     return command
 
 
+# Triggered by the frontend when auto mode is ON and ML recommends irrigation
+# Stops any existing active irrigation before starting a new one
 @router.post("/auto/{farm_id}", response_model=IrrigationCommandOut, status_code=status.HTTP_201_CREATED)
 async def trigger_auto_irrigation(
     farm_id: int,
     duration_min: int = 15,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Trigger automatic irrigation based on ML/AI decision.
@@ -158,6 +180,8 @@ async def trigger_auto_irrigation(
     return command
 
 
+# Schedules irrigation for a specific future time
+# Creates a pending IrrigationEvent that activates at start_time
 @router.post("/schedule", response_model=IrrigationCommandOut, status_code=status.HTTP_201_CREATED)
 async def schedule_irrigation(
     body: IrrigationScheduleIn,
@@ -186,10 +210,12 @@ async def schedule_irrigation(
     return command
 
 
+# Stops the currently active irrigation session for a specific device
 @router.post("/stop/{device_id}", response_model=IrrigationEventOut)
 async def stop_irrigation(
     device_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Stop active irrigation for a device."""
     result = await db.execute(
@@ -214,10 +240,12 @@ async def stop_irrigation(
     return event
 
 
+# Stops ALL active irrigation sessions across the entire farm
 @router.post("/stop-farm/{farm_id}", response_model=dict)
 async def stop_farm_irrigation(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Stop all active irrigation for a farm by farm_id."""
     result = await db.execute(
@@ -241,17 +269,20 @@ async def stop_farm_irrigation(
     return {"stopped": stopped, "farm_id": farm_id}
 
 
+# Returns today's water and power usage compared to yesterday
+# Fan status is inferred from the latest air temperature reading (>= 30°C = active)
 @router.get("/resources/{farm_id}", response_model=dict)
 async def get_irrigation_resources(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get water and power usage from sensor readings for a farm."""
     from sqlalchemy import func
     from datetime import datetime, timezone, timedelta
     from src.db.models.models import SensorReading
 
-    # Today's and yesterday's boundaries
+    # Calculate today and yesterday boundaries in Saudi Arabia timezone (UTC+3)
     saudi_tz = timezone(timedelta(hours=3))
     now_saudi = datetime.now(saudi_tz)
     today_start = datetime(now_saudi.year, now_saudi.month, now_saudi.day, tzinfo=saudi_tz).astimezone(timezone.utc).replace(tzinfo=None)
@@ -338,6 +369,7 @@ async def get_irrigation_resources(
     }
 
 
+# Returns paginated irrigation event history for a farm
 @router.get("/history/{farm_id}", response_model=List[IrrigationEventOut])
 async def get_irrigation_history(
     farm_id: int,
@@ -363,6 +395,7 @@ async def get_irrigation_history(
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm:
+    """Fetch farm by ID and verify ownership. Raises 404 if not found or not owned by user."""
     result = await db.execute(
         select(Farm).where(Farm.id == farm_id, Farm.user_id == user_id)
     )

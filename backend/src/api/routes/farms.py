@@ -1,4 +1,21 @@
 # backend/src/api/routes/farms.py
+"""
+Farm Routes — Warif API
+========================
+Handles all farm and device management endpoints:
+  - POST   /farms                    : create a new farm
+  - GET    /farms                    : list all farms for current user
+  - GET    /farms/{farm_id}          : get farm details
+  - PATCH  /farms/{farm_id}          : update farm details
+  - DELETE /farms/{farm_id}          : delete a farm
+  - PATCH  /farms/{farm_id}/auto-mode     : toggle auto irrigation mode
+  - PATCH  /farms/{farm_id}/resources     : update water and energy consumption
+  - POST   /farms/{farm_id}/devices       : register a new device under a farm
+  - GET    /farms/{farm_id}/devices       : list all devices under a farm
+
+All endpoints require JWT authentication.
+Farm ownership is verified on every request.
+"""
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,12 +121,14 @@ async def update_auto_mode(
     }
 
 
+# Returns full details of a single farm owned by the current user
 @router.get("/{farm_id}", response_model=FarmOut)
 async def get_farm(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
+    """Fetch a single farm by ID, verifying ownership."""
     farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
     return farm
 
@@ -124,10 +143,10 @@ async def update_farm_resources(
     """Update water and energy consumption directly from the simulator/edge device."""
     farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
     
-    # Deduct water, ensuring it doesn't drop below zero
+    # Deduct water consumed — floor at 0 to prevent negative tank levels
     farm.current_water_level = max(0.0, farm.current_water_level - body.water_consumed_l)
-    
-    # Add consumed energy
+
+    # Accumulate total energy usage across all sessions
     farm.total_energy_kwh += body.energy_consumed_kwh
     
     await db.commit()
@@ -182,6 +201,7 @@ async def list_devices(
 
 
 async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm:
+    """Fetch farm by ID and verify ownership. Raises 404 if not found or not owned by user."""
     result = await db.execute(
         select(Farm).where(Farm.id == farm_id, Farm.user_id == user_id)
     )
@@ -200,11 +220,8 @@ async def delete_farm(
     """Delete a farm belonging to the current user."""
     farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
     
-    # Manual cascade delete for related entities if not handled by DB
-    # (Actually, SQLAlchemy can handle this if configured, but let's be explicit if needed)
-    # For now, let's just delete the farm record. 
-    # Note: Foreign key constraints in DB might prevent this if devices exist.
-    
+    # Note: ensure all related devices and data are deleted before calling this
+    # to avoid foreign key constraint violations
     await db.delete(farm)
     await db.commit()
     return None

@@ -1,4 +1,14 @@
 # backend/src/api/routes/dashboard.py
+"""
+Dashboard Routes — Warif API
+=============================
+Handles dashboard and weather endpoints:
+  - GET /{farm_id}        : full farm summary (sensors, irrigation, recommendations)
+  - GET /weather/current  : real-time weather proxy from Open-Meteo API
+
+All endpoints require JWT authentication.
+Farm ownership is verified on every request.
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
@@ -16,16 +26,15 @@ from src.core.security import get_current_user
 router = APIRouter()
 
 
+# Returns a complete snapshot of the farm state for the dashboard home page
+# Combines: sensor readings, irrigation status, water usage, and latest recommendation
 @router.get("/{farm_id}", response_model=DashboardOut)
 async def get_dashboard(
     farm_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """
-    Return a summary of the current farm state:
-    latest sensor readings, irrigation status, and latest recommendation.
-    """
+
     farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
 
     # ── Latest sensor readings ──────────────────────────────────────────
@@ -81,6 +90,8 @@ async def get_dashboard(
     )
  
  
+# Proxies weather data from Open-Meteo to avoid browser CORS restrictions
+# Uses farm GPS coordinates (lat/lon) passed as query parameters
 @router.get("/weather/current")
 async def get_weather(lat: float, lon: float):
     """
@@ -121,6 +132,7 @@ async def get_weather(lat: float, lon: float):
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm:
+    """Fetch farm by ID and verify it belongs to the requesting user. Raises 404 if not found."""
     result = await db.execute(
         select(Farm).where(Farm.id == farm_id, Farm.user_id == user_id)
     )

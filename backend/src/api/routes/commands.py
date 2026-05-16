@@ -1,14 +1,38 @@
+<<<<<<< HEAD
 import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+=======
+# backend/src/api/routes/commands.py
+"""
+Commands Routes — Warif API
+============================
+Handles device command and cooling control endpoints:
+  - GET  /commands         : list recent device commands
+  - POST /commands         : send a command to a device via MQTT
+  - POST /commands/cooling : control fan and cooler units for a farm
+
+All endpoints require JWT authentication.
+Farm ownership is verified on cooling commands.
+"""
+import logging
+import json
+from typing import List
+from datetime import datetime, timezone
+from fastapi import APIRouter, Depends, HTTPException
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
 from src.db.session import get_db
+<<<<<<< HEAD
 from src.db.models.models import DeviceCommand, ActivityLog, Recommendation, Farm
+=======
+from src.db.models.models import DeviceCommand, ActivityLog, Farm
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
 from src.api.schemas.schemas import CommandIn, CommandOut
 from src.services.mqtt_client import get_mqtt_client
 from src.core.security import get_current_user
@@ -18,6 +42,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+<<<<<<< HEAD
 # ─── Continuous Learning Helpers ──────────────────────────────────────────────
 
 async def _log_manual_override_feedback(
@@ -67,16 +92,21 @@ async def _log_manual_override_feedback(
         logger.warning(f"[ContinuousLearning] Could not log override feedback: {e}")
 
 
+=======
+# Returns recent device commands ordered by most recent first
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
 @router.get("", response_model=List[CommandOut])
-async def list_commands(limit: int = 50, db: AsyncSession = Depends(get_db)):
+async def list_commands(limit: int = 50, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     result = await db.execute(
         select(DeviceCommand).order_by(desc(DeviceCommand.issued_at)).limit(limit)
     )
     return result.scalars().all()
 
 
+# Sends a command to a physical device via MQTT broker
+# Command is saved to DB first, then published to MQTT
 @router.post("", response_model=CommandOut, status_code=201)
-async def send_command(payload: CommandIn, db: AsyncSession = Depends(get_db)):
+async def send_command(payload: CommandIn, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
     cmd = DeviceCommand(**payload.model_dump())
     db.add(cmd)
     await db.flush()
@@ -99,6 +129,8 @@ async def send_command(payload: CommandIn, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     return cmd
+# Controls fan and cooler units for a specific farm
+# Verifies farm ownership before executing any command
 @router.post("/cooling", status_code=201)
 async def control_cooling(
     payload: dict,
@@ -106,6 +138,7 @@ async def control_cooling(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
+<<<<<<< HEAD
     """
     التحكم في منظومة التبريد (مروحة + مبرد).
     - الوضع اليدوي: يسجل التعارض مع توصيات الذكاء الاصطناعي (فيدباك سلبي).
@@ -113,6 +146,8 @@ async def control_cooling(
     """
     import json
 
+=======
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
     fan_state = payload.get("fan", False)
     cooler_state = payload.get("cooler", False)
     farm_id_from_payload = payload.get("farm_id")
@@ -121,6 +156,10 @@ async def control_cooling(
 
     # ── BOLA Protection: تحقق من ملكية المزرعة ──────────────────────────────
     if farm_id_from_payload:
+<<<<<<< HEAD
+=======
+        # Verify the requesting user owns this farm
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
         farm_check = await db.execute(
             select(Farm).where(
                 Farm.id == int(farm_id_from_payload),
@@ -138,6 +177,7 @@ async def control_cooling(
         if not farm:
             raise HTTPException(status_code=404, detail="No farm found for user")
         farm_id = farm.id
+<<<<<<< HEAD
 
     # ── Continuous Learning: Override Detection (Manual Mode) ─────────────────
     if not is_auto_mode:
@@ -150,6 +190,10 @@ async def control_cooling(
         )
 
     # ── Save Device Commands ──────────────────────────────────────────────────
+=======
+    
+    # Save fan and cooler commands as pending device commands
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
     fan_cmd = DeviceCommand(
         device_id=f"fan_unit_{farm_id}",
         command="FAN_ON" if fan_state else "FAN_OFF",
@@ -158,7 +202,11 @@ async def control_cooling(
         issued_at=datetime.now(timezone.utc)
     )
     db.add(fan_cmd)
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 7cef6c902d234667ffd74d42f9f56a613e01d0f4
     cooler_cmd = DeviceCommand(
         device_id=f"cooling_unit_{farm_id}",
         command="COOLER_ON" if cooler_state else "COOLER_OFF",
