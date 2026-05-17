@@ -1,4 +1,15 @@
 # backend/src/db/models/models.py
+"""
+Database Models — Warif System
+================================
+Defines all SQLAlchemy ORM models and enums for the Warif database.
+
+Tables: users, farms, devices, sensor_readings, actuators,
+        irrigation_commands, irrigation_events, recommendations,
+        predictions, alerts, device_commands, activity_logs, sensor_thresholds
+
+All models inherit from Base (defined in session.py).
+"""
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, Float, String, Boolean,
@@ -68,6 +79,7 @@ class UserRole(str, enum.Enum):
     admin  = "admin"
 
 
+# Defined for future use — not yet referenced in active routes or services
 class ActuatorType(str, enum.Enum):
     irrigation_valve = "irrigation_valve"
     fan = "fan"
@@ -110,8 +122,8 @@ class Farm(Base):
     name       = Column(String(128), nullable=False)
     farm_type  = Column(SAEnum(FarmType), default=FarmType.greenhouse)
     crop_type  = Column(String(64))
-    current_water_level = Column(Float, default=1000.0)  # لتر
-    water_tank_capacity = Column(Float, default=1000.0)  # لتر
+    current_water_level = Column(Float, default=1000.0)  # liters
+    water_tank_capacity = Column(Float, default=1000.0)  # liters
     total_energy_kwh    = Column(Float, default=0.0)
     auto_mode  = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -231,6 +243,8 @@ class Recommendation(Base):
         return f"<Recommendation [{self.category}] {self.message[:30]}>"
 
 
+# Stores ML irrigation predictions — saved by ml.py after each Decision Engine call
+# Used for history tracking and future model evaluation
 class Prediction(Base):
     __tablename__ = "predictions"
 
