@@ -31,7 +31,6 @@
       "warif_device_id":"tuya_energy_001",
       "warif_name":     "Tuya Energy Meter",
       "poll_api":       "v2.0",
-      "skip_if_offline": true,
       "properties": {
         "forward_energy_total": { "sensor_type": "energy_kwh", "unit": "kWh", "scale": 0.001 }
       }
@@ -49,12 +48,14 @@
       "tuya_device_id":  "bfccd86ffbd8ec78aboefq",
       "warif_device_id": "tuya_fan_001",
       "warif_name":      "Tuya Fan (Humidity)",
+      "command_api":     "v2.0",
       "codes":           ["Power"]
     },
     "cooling": {
       "tuya_device_id":  "bfccd86ffbd8ec78aboefq",
       "warif_device_id": "tuya_cooling_001",
       "warif_name":      "Tuya Cooling Unit",
+      "command_api":     "v2.0",
       "codes":           ["Power", "TEMPONOFF"]
     }
   }

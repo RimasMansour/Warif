@@ -19,7 +19,6 @@ import requests
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-load_dotenv(".env.shared")
 load_dotenv(".env")
 
 logging.basicConfig(
@@ -48,7 +47,7 @@ def _get_tuya_api():
     endpoint      = os.getenv("TUYA_API_ENDPOINT", "https://openapi.tuyaeu.com")
 
     if not access_id or not access_secret:
-        log.error("TUYA_ACCESS_ID and TUYA_ACCESS_SECRET must be set in .env.shared")
+        log.error("TUYA_ACCESS_ID and TUYA_ACCESS_SECRET must be set in .env")
         sys.exit(1)
 
     api = TuyaOpenAPI(endpoint, access_id, access_secret)
@@ -61,6 +60,15 @@ def _get_tuya_api():
     return api
 
 
+def _is_device_online(api, tuya_id: str) -> bool:
+    """Return True only if Tuya confirms the device is currently online."""
+    try:
+        resp = api.get(f"/v1.0/devices/{tuya_id}")
+        return bool(resp.get("result", {}).get("online", False))
+    except Exception:
+        return False
+
+
 def _fetch_device_status(api, tuya_id: str, poll_api: str) -> dict:
     """Return {code: value} for a device. Empty dict on failure."""
     if poll_api == "v2.0":
@@ -69,27 +77,33 @@ def _fetch_device_status(api, tuya_id: str, poll_api: str) -> dict:
         resp = api.get(f"/v1.0/devices/{tuya_id}/status")
 
     if not resp.get("success"):
+        log.warning(f"Tuya API failed for {tuya_id}: {resp.get('msg', resp.get('code', 'unknown error'))}")
         return {}
 
     raw = resp.get("result", [])
     if isinstance(raw, list):
-        return {item["code"]: item["value"] for item in raw}
+        return {item["code"]: item["value"] for item in raw if isinstance(item, dict)}
     if isinstance(raw, dict):
         props = raw.get("properties", raw)
         if isinstance(props, list):
-            return {item["code"]: item["value"] for item in props}
-        return props
+            return {item["code"]: item["value"] for item in props if isinstance(item, dict)}
+        if isinstance(props, dict):
+            return props
+    log.warning(f"Unexpected Tuya response format for {tuya_id}: {raw}")
     return {}
 
 
 # ── Warif API helper ──────────────────────────────────────────────────────────
 
-def _push_reading(warif_device_id: str, sensor_type: str, value: float, unit: str):
+def _push_reading(warif_device_id: str, sensor_type: str, value: float, unit: str, farm_id: int = None):
+    payload = {"device_id": warif_device_id, "sensor_type": sensor_type,
+               "value": value, "unit": unit}
+    if farm_id is not None:
+        payload["farm_id"] = farm_id
     try:
         resp = requests.post(
             f"{WARIF_API}/api/v1/sensors",
-            json={"device_id": warif_device_id, "sensor_type": sensor_type,
-                  "value": value, "unit": unit},
+            json=payload,
             timeout=10,
         )
         if resp.status_code not in (200, 201):
@@ -102,19 +116,19 @@ def _push_reading(warif_device_id: str, sensor_type: str, value: float, unit: st
 
 def poll_once(api, config: dict):
     for dev in config.get("sensor_devices", []):
-        label          = dev["label"]
-        tuya_id        = dev["tuya_device_id"]
-        warif_id       = dev["warif_device_id"]
-        poll_api       = dev.get("poll_api", "v1.0")
-        skip_if_offline = dev.get("skip_if_offline", False)
+        label    = dev["label"]
+        tuya_id  = dev["tuya_device_id"]
+        warif_id = dev["warif_device_id"]
+        poll_api = dev.get("poll_api", "v1.0")
+
+        if not _is_device_online(api, tuya_id):
+            log.warning(f"{label} ({tuya_id}): offline (Tuya confirms device is down)")
+            continue
 
         status = _fetch_device_status(api, tuya_id, poll_api)
 
         if not status:
-            if not skip_if_offline:
-                log.warning(f"{label}: no data returned from Tuya")
-            else:
-                log.debug(f"{label}: offline — skipping")
+            log.warning(f"{label} ({tuya_id}): no data returned from Tuya — property codes may have changed")
             continue
 
         pushed = 0
@@ -129,6 +143,66 @@ def poll_once(api, config: dict):
         if pushed:
             log.info(f"{label}: pushed {pushed} reading(s)")
 
+    # ── Poll actuator devices to keep connectivity status up to date ──────────
+    # Pushing any reading for an actuator device updates its last_seen so the
+    # connectivity monitor can correctly mark it online/offline on the dashboard.
+    farm_id = config.get("farm_id")
+    seen_tuya_ids = set()  # avoid double-polling devices shared between actuators
+    for name, act in config.get("actuators", {}).items():
+        tuya_id  = act.get("tuya_device_id", "")
+        warif_id = act.get("warif_device_id", "")
+        if not tuya_id or not warif_id or tuya_id in seen_tuya_ids:
+            continue
+        seen_tuya_ids.add(tuya_id)
+
+        # Check real-time online status first — shadow data can be stale for offline devices
+        if not _is_device_online(api, tuya_id):
+            log.warning(f"actuator/{name} ({tuya_id}): offline (Tuya confirms device is down)")
+            continue
+
+        poll_api = act.get("command_api", "v1.0")  # v2.0 devices need v2.0 for status too
+        status = _fetch_device_status(api, tuya_id, poll_api)
+        if not status:
+            log.warning(f"actuator/{name} ({tuya_id}): no status data returned")
+            continue
+
+        # Push the switch/power state as a heartbeat so last_seen is updated
+        switch_code = act.get("switch_code") or (act.get("codes") or [None])[0]
+        if switch_code and switch_code in status:
+            value = 1.0 if status[switch_code] else 0.0
+            _push_reading(warif_id, "valve_state", value, "bool", farm_id=farm_id)
+            log.info(f"actuator/{name}: online  ({switch_code}={status[switch_code]})")
+
+
+def _register_actuators(config: dict):
+    """Ensure every actuator device exists as a Device record in the Warif DB.
+    Called once at startup. Uses farm_id from config so sensors.py auto-creates
+    the Device row if it is missing. Safe to call repeatedly — sensors.py skips
+    creation if the record already exists.
+    """
+    farm_id = config.get("farm_id")
+    if not farm_id:
+        return
+    seen = set()
+    for name, act in config.get("actuators", {}).items():
+        warif_id = act.get("warif_device_id", "")
+        if not warif_id or warif_id in seen:
+            continue
+        seen.add(warif_id)
+        try:
+            resp = requests.post(
+                f"{WARIF_API}/api/v1/sensors",
+                json={"device_id": warif_id, "sensor_type": "valve_state",
+                      "value": 0.0, "unit": "bool", "farm_id": farm_id},
+                timeout=10,
+            )
+            if resp.status_code in (200, 201):
+                log.info(f"Registered actuator device in DB: {warif_id}")
+            else:
+                log.warning(f"Registration push failed for {warif_id}: {resp.status_code}")
+        except requests.RequestException as e:
+            log.warning(f"Registration push error for {warif_id}: {e}")
+
 
 def run():
     config = json.loads(CONFIG_FILE.read_text())
@@ -136,6 +210,8 @@ def run():
 
     log.info(f"Bridge running — polling every {POLL_INTERVAL}s → {WARIF_API}")
     log.info("Press Ctrl+C to stop\n")
+
+    _register_actuators(config)
 
     while True:
         try:

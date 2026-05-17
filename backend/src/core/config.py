@@ -23,12 +23,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 480
 
-    # MQTT
-    MQTT_BROKER_HOST: str = "localhost"
-    MQTT_BROKER_PORT: int = 1883
-    MQTT_USERNAME: str = ""
-    MQTT_PASSWORD: str = ""
-
     # App
     DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
@@ -60,7 +54,7 @@ class Settings(BaseSettings):
         return bool(value)
 
     model_config = SettingsConfigDict(
-        env_file=(str(BASE_DIR / ".env"), str(BASE_DIR / ".env.shared")),
+        env_file=str(BASE_DIR / ".env"),
         env_file_encoding="utf-8",
         extra="ignore"
     )

@@ -148,18 +148,6 @@ export const getIrrigationResources = async (farm_id) => {
   })
 }
 
-export const triggerFanControl = async (device_id, action = "start") => {
-  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/commands`, {
-    method: "POST",
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      device_id,
-      command: action === "start" ? "FAN_ON" : "FAN_OFF",
-      payload: JSON.stringify({ speed: 100 })
-    })
-  })
-}
-
 // User Profile
 export const updateUser = async (userData) => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {

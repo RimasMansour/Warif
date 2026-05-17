@@ -5,7 +5,7 @@ Sensor Routes — Warif API
 Handles all sensor-related endpoints:
   - GET  /sensors         : historical readings with optional filters
   - GET  /sensors/latest  : latest reading per sensor type (requires auth)
-  - POST /sensors         : ingest a new reading from IoT device (MQTT/hardware)
+  - POST /sensors         : ingest a new reading from IoT device or hardware
 
 On each ingestion, the pipeline:
   1. Saves the raw reading to the DB
@@ -106,8 +106,7 @@ async def get_latest_readings(
     return out
 
 
-# Internal endpoint — called by MQTT client or real IoT hardware sensors
-# Not used by the frontend directly
+# Internal endpoint — called by real IoT hardware sensors, not the frontend directly
 @router.post("", status_code=201)
 async def ingest_sensor_reading(
     payload: dict,
@@ -142,6 +141,20 @@ async def ingest_sensor_reading(
             select(Device).where(Device.device_id == device_id)
         )
         device_obj = device_result.scalar_one_or_none()
+
+        # Auto-register unknown actuator devices when farm_id is provided in payload
+        # (used by tuya_bridge.py to register irrigation/fan/cooling actuators)
+        payload_farm_id = payload.get("farm_id")
+        if device_obj is None and payload_farm_id:
+            device_obj = Device(
+                farm_id=int(payload_farm_id),
+                device_id=device_id,
+                name=device_id.replace("_", " ").title(),
+                type="actuator",
+                is_online=True,
+            )
+            db.add(device_obj)
+            await db.flush()
 
         farm_id = device_obj.farm_id if device_obj else None
 
@@ -214,11 +227,11 @@ async def ingest_sensor_reading(
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)
                 smart_recs = intelligence_report.get('recommendations', [])
 
-                cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil, "general": RecommendationCategory.general}
+                cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
                 sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
 
                 for sr in smart_recs:
-                    if sr.category not in ("irrigation", "temperature", "humidity", "soil", "general"):
+                    if sr.category not in ("irrigation", "temperature", "humidity", "soil"):
                         continue
 
                     sev_lower = (sr.severity or "normal").lower()
@@ -241,7 +254,7 @@ async def ingest_sensor_reading(
                                 farm_id=farm_id,
                                 message=sr.message,
                                 reasoning=sr.reasoning,
-                                category=cat_map.get(sr.category, RecommendationCategory.general),
+                                category=cat_map.get(sr.category, RecommendationCategory.irrigation),
                                 severity=RecommendationSeverity.normal,
                                 is_read=False,
                             ))

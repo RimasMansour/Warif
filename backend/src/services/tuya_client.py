@@ -52,16 +52,26 @@ def _get_config() -> dict:
     return _config
 
 
-def _send_commands(tuya_device_id: str, commands: list) -> bool:
-    """Send a list of {code, value} commands to a Tuya device."""
+def _send_commands(tuya_device_id: str, commands: list, use_v2: bool = False) -> bool:
+    """Send a list of {code, value} commands to a Tuya device.
+    use_v2=True uses the v2.0 shadow/properties/issue endpoint (needed for devices
+    that do not support the v1.0 commands API).
+    """
     api = _get_api()
     if api is None:
         return False
     try:
-        resp = api.post(
-            f"/v1.0/devices/{tuya_device_id}/commands",
-            {"commands": commands},
-        )
+        if use_v2:
+            properties = {cmd["code"]: cmd["value"] for cmd in commands}
+            resp = api.post(
+                f"/v2.0/cloud/thing/{tuya_device_id}/shadow/properties/issue",
+                {"properties": properties},
+            )
+        else:
+            resp = api.post(
+                f"/v1.0/devices/{tuya_device_id}/commands",
+                {"commands": commands},
+            )
         if resp.get("success"):
             return True
         log.error(f"Tuya command rejected for {tuya_device_id}: {resp}")
@@ -103,11 +113,12 @@ def control_fan(on: bool) -> bool:
     cfg = _get_config().get("actuators", {}).get("fan", {})
     device_id = cfg.get("tuya_device_id", "")
     codes     = cfg.get("codes", ["Power"])
+    use_v2    = cfg.get("command_api", "v1.0") == "v2.0"
     if not device_id:
         log.warning("Fan device not configured in tuya_devices.json")
         return False
     commands = [{"code": c, "value": on} for c in codes]
-    ok = _send_commands(device_id, commands)
+    ok = _send_commands(device_id, commands, use_v2=use_v2)
     log.info(f"Fan → {'ON' if on else 'OFF'}  success={ok}")
     return ok
 
@@ -121,10 +132,11 @@ def control_cooling(on: bool) -> bool:
     cfg = _get_config().get("actuators", {}).get("cooling", {})
     device_id = cfg.get("tuya_device_id", "")
     codes     = cfg.get("codes", ["Power", "TEMPONOFF"])
+    use_v2    = cfg.get("command_api", "v1.0") == "v2.0"
     if not device_id:
         log.warning("Cooling device not configured in tuya_devices.json")
         return False
     commands = [{"code": c, "value": on} for c in codes]
-    ok = _send_commands(device_id, commands)
+    ok = _send_commands(device_id, commands, use_v2=use_v2)
     log.info(f"Cooling → {'ON' if on else 'OFF'}  success={ok}")
     return ok

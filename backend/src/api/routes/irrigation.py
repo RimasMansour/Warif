@@ -303,6 +303,14 @@ async def stop_farm_irrigation(
         stopped += 1
 
     await db.commit()
+
+    # ── Tuya Physical Control (farm 22 only) ─────────────────────────────────
+    if tuya_client.is_tuya_farm(farm_id):
+        try:
+            await asyncio.to_thread(tuya_client.control_irrigation, False)
+        except Exception:
+            pass
+
     return {"stopped": stopped, "farm_id": farm_id}
 
 
@@ -457,7 +465,8 @@ async def _get_or_create_actuator(device_id: str, db: AsyncSession) -> Actuator:
         device = dev_result.scalar_one_or_none()
 
         if not device:
-            # Determine farm_id from device naming convention (valve_farm_<id>_xx)
+            # Determine farm_id from device naming convention.
+            # Handles "valve_farm_<id>_xx" and "irrigation_<id>" formats.
             farm_id = 1
             parts = device_id.split("_")
             for i, p in enumerate(parts):
@@ -466,6 +475,11 @@ async def _get_or_create_actuator(device_id: str, db: AsyncSession) -> Actuator:
                         farm_id = int(parts[i + 1])
                     except ValueError:
                         pass
+            if farm_id == 1:  # fallback: try last segment (e.g. "irrigation_22")
+                try:
+                    farm_id = int(parts[-1])
+                except (ValueError, IndexError):
+                    pass
             # Check if farm exists, get first farm if not
             farm_res = await db.execute(select(Farm).where(Farm.id == farm_id))
             farm = farm_res.scalar_one_or_none()

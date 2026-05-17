@@ -4,7 +4,7 @@ Commands Routes — Warif API
 ============================
 Handles device command and cooling control endpoints:
   - GET  /commands         : list recent device commands
-  - POST /commands         : send a command to a device via MQTT
+  - POST /commands         : send a command to a device
   - POST /commands/cooling : control fan and cooler units for a farm
   - POST /commands/irrigation : control irrigation valve for a farm
 
@@ -23,7 +23,6 @@ from sqlalchemy import select, desc
 from src.db.session import get_db
 from src.db.models.models import DeviceCommand, ActivityLog, Recommendation, Farm
 from src.api.schemas.schemas import CommandIn, CommandOut
-from src.services.mqtt_client import get_mqtt_client
 from src.services import tuya_client
 from src.core.security import get_current_user
 from src.ai.engine import verify_action_outcome
@@ -93,28 +92,11 @@ async def list_commands(limit: int = 50, db: AsyncSession = Depends(get_db), cur
 
 @router.post("", response_model=CommandOut, status_code=201)
 async def send_command(payload: CommandIn, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    """Sends a command to a physical device via MQTT broker."""
+    """Save a device command to the database."""
     cmd = DeviceCommand(**payload.model_dump())
     db.add(cmd)
-    await db.flush()
-    await db.refresh(cmd)
-
-    try:
-        mqtt_client = get_mqtt_client()
-        command_payload = {
-            "command_id": cmd.id,
-            "command_type": cmd.command_type,
-            "parameters": cmd.parameters or {},
-        }
-        success = mqtt_client.publish_command(cmd.device_id, cmd.command_type, command_payload)
-        if not success:
-            logger.warning(f"Failed to publish command {cmd.id} via MQTT, but command saved to database")
-    except Exception as e:
-        logger.error(f"Error publishing command to MQTT: {e}")
-        await db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to publish command to device")
-
     await db.commit()
+    await db.refresh(cmd)
     return cmd
 
 

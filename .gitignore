@@ -29,23 +29,26 @@ dist/
 
 # === Environment files ===
 .env
-backend/.env
-frontend/.env
-.env.local
-.env.production
-.env*.local
+.env.*
 !.env.example
-!backend/.env.example
-!backend/.env.shared
-!frontend/.env.example
+!**/.env.example
 
 # === IDEs ===
 .idea/
 .vscode/
 *.swp
 *.swo
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 .DS_Store
 Thumbs.db
+
+# === Build artifacts ===
+dist-ssr/
+logs/
 
 # === Docker ===
 *.log
@@ -63,6 +66,7 @@ backend/src/ml/models/*.h5
 # === Misc ===
 *.bak
 *.tmp
+.claude/
 
 # Scratch / temporary development scripts - not for production
 backend/scratch/

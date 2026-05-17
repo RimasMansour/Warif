@@ -15,9 +15,6 @@ passlib[bcrypt]>=1.7.4
 pydantic-settings>=2.0.0
 pydantic[email]>=2.0.0
 
-# ─── MQTT ────────────────────────────────────
-paho-mqtt>=2.0.0
-
 # ─── ML / Data Science ───────────────────────
 scikit-learn>=1.4.0
 xgboost>=2.0.0

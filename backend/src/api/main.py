@@ -1,7 +1,13 @@
 # backend/src/api/main.py
 import asyncio
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+# Load .env into os.environ so os.getenv() works in all modules (e.g. tuya_client)
+# pydantic-settings reads .env into the Settings model but does NOT populate os.environ
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 from src.core.config import settings
 # DISABLED LOCALLY - Rimas's work on Chatbot
