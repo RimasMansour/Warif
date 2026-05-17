@@ -24,7 +24,7 @@ from sqlalchemy import select, desc
 
 from src.db.session import get_db
 from src.core.security import get_current_user
-from src.db.models.models import Alert, AlertStatus
+from src.db.models.models import Alert, AlertStatus, Farm
 from src.api.schemas.schemas import AlertOut
 
 router = APIRouter()
@@ -35,24 +35,33 @@ class AlertFeedbackRequest(BaseModel):
     helpful: bool
 
 
-# Returns filtered list of alerts — supports filtering by status, severity, and farm_id
-# Serializes enum values to strings for frontend compatibility
+# Returns filtered list of alerts scoped to the requesting user's farm
+# farm_id is required; ownership is verified before returning any data
 @router.get("", response_model=List[dict])
 async def list_alerts(
+    farm_id:  int           = Query(..., description="Farm ID — required"),
     status:   Optional[str] = Query(None, description="open | acknowledged | resolved"),
     severity: Optional[str] = Query(None),
-    farm_id:  Optional[int] = Query(None),
     limit:    int           = Query(50, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    q = select(Alert).order_by(desc(Alert.created_at)).limit(limit)
+    farm_check = await db.execute(
+        select(Farm).where(Farm.id == farm_id, Farm.user_id == int(current_user["sub"]))
+    )
+    if not farm_check.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Access denied: Farm not owned by current user")
+
+    q = (
+        select(Alert)
+        .where(Alert.farm_id == farm_id)
+        .order_by(desc(Alert.created_at))
+        .limit(limit)
+    )
     if status:
         q = q.where(Alert.status == status)
     if severity:
         q = q.where(Alert.severity == severity)
-    if farm_id:
-        q = q.where(Alert.farm_id == farm_id)
     result = await db.execute(q)
     alerts = result.scalars().all()
 

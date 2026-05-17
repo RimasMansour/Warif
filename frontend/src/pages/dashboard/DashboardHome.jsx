@@ -134,7 +134,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           <div className="animate-fade-in-up delay-3">
             <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
           </div>
-          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2">
+          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 lg:max-h-[600px] overflow-hidden">
             <DashboardAlertsCard
               onGo={onGo}
               alerts={alerts}
@@ -201,7 +201,7 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="flex-1 mt-4 flex flex-col gap-3">
+      <div className="flex-1 mt-4 min-h-0 overflow-y-auto flex flex-col gap-3 scrollbar-neutral pr-1">
         {alerts.length === 0 ? (
           <EmptyState
             compact={true}

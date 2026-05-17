@@ -161,6 +161,7 @@ async def _get_latest_sensors(farm_id: int, db: AsyncSession) -> dict:
             (SensorReading.sensor_type == sub.c.sensor_type)
             & (SensorReading.timestamp == sub.c.max_ts),
         )
+        .where(SensorReading.farm_id == farm_id)
     )
     readings = result.scalars().all()
 

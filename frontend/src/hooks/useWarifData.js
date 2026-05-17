@@ -232,14 +232,13 @@ export function useAutoAlerts(sensors, globalAutoMode) {
   const fetchAlerts = useCallback(async () => {
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
-      // Get farmId from sessionStorage first (most current), 
-      // then localStorage, then fetch without filter
       const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
-      const farmId = sessionFarms.length > 0 
-        ? sessionFarms[0].id 
+      const farmId = sessionFarms.length > 0
+        ? sessionFarms[0].id
         : (userData.farmId || null);
+      if (!farmId) return;
       const token = localStorage.getItem('warif_token');
-      const url = `${API_BASE}/api/v1/alerts?status=open${farmId ? `&farm_id=${farmId}` : ''}`;
+      const url = `${API_BASE}/api/v1/alerts?farm_id=${farmId}&status=open`;
       const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
       });

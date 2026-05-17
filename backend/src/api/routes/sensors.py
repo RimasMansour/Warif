@@ -39,7 +39,7 @@ async def list_sensor_readings(
     farm_id:     int           = Query(..., description="Farm ID"),
     device_id:   Optional[str] = Query(None),
     sensor_type: Optional[str] = Query(None),
-limit:       int           = Query(100, le=50000),
+    limit:       int           = Query(100, le=50000),
     db: AsyncSession = Depends(get_db),
 ):
     """Return historical sensor readings, most recent first, filtered by farm."""
@@ -183,46 +183,65 @@ async def ingest_sensor_reading(
             logger.warning(f"[Ingestion] ML Prediction skipped: {e}")
 
         # 3. Decision Engine Stage
-        if device_obj and device_obj.farm_id:
+        if device_obj and farm_id:
             try:
                 from src.services.decision_engine import SmartDecisionEngine
                 from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus
-                
-                # Fetch full context
-                full_sensor_data = {}
-                # (Logic to populate full_sensor_data)
-                
+
+                # Fetch latest reading per sensor type for this farm
+                from sqlalchemy import func as sqlfunc
+                sub = (
+                    select(
+                        SensorReading.sensor_type,
+                        sqlfunc.max(SensorReading.timestamp).label("max_ts"),
+                    )
+                    .where(SensorReading.farm_id == farm_id)
+                    .group_by(SensorReading.sensor_type)
+                    .subquery()
+                )
+                latest_rows = await db.execute(
+                    select(SensorReading).join(
+                        sub,
+                        (SensorReading.sensor_type == sub.c.sensor_type)
+                        & (SensorReading.timestamp == sub.c.max_ts),
+                    ).where(SensorReading.farm_id == farm_id)
+                )
+                full_sensor_data = {r.sensor_type: r.value for r in latest_rows.scalars().all()}
+                # Include the reading just flushed (may not be visible in the query above yet)
+                full_sensor_data[sensor_type] = value
+
                 engine = SmartDecisionEngine()
-                intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, device_obj.farm_id)
+                intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)
                 smart_recs = intelligence_report.get('recommendations', [])
 
-                cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
+                cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil, "general": RecommendationCategory.general}
                 sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
 
                 for sr in smart_recs:
-                    if sr.category not in ("irrigation", "temperature", "humidity", "soil"):
+                    if sr.category not in ("irrigation", "temperature", "humidity", "soil", "general"):
                         continue
 
                     sev_lower = (sr.severity or "normal").lower()
-                    
+
                     # ── RULES: normal, low, informational, optimization -> RECOMMENDATIONS ──
                     if sev_lower in ("normal", "low", "informational", "optimization"):
+                        cooldown_5min = datetime.now(timezone.utc) - timedelta(minutes=5)
                         recent_rec_result = await db.execute(
                             select(Recommendation)
                             .where(
-                                Recommendation.farm_id == device_obj.farm_id,
+                                Recommendation.farm_id == farm_id,
                                 Recommendation.category == cat_map.get(sr.category),
-                                Recommendation.message == sr.message
+                                Recommendation.message == sr.message,
+                                Recommendation.created_at >= cooldown_5min,
                             )
-                            .order_by(desc(Recommendation.created_at))
                             .limit(1)
                         )
                         if recent_rec_result.scalar_one_or_none() is None:
                             db.add(Recommendation(
-                                farm_id=device_obj.farm_id,
+                                farm_id=farm_id,
                                 message=sr.message,
                                 reasoning=sr.reasoning,
-                                category=cat_map.get(sr.category, RecommendationCategory.irrigation),
+                                category=cat_map.get(sr.category, RecommendationCategory.general),
                                 severity=RecommendationSeverity.normal,
                                 is_read=False,
                             ))
@@ -233,7 +252,7 @@ async def ingest_sensor_reading(
                         cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
                         existing = await db.execute(
                             select(Alert).where(
-                                Alert.farm_id == device_obj.farm_id,
+                                Alert.farm_id == farm_id,
                                 Alert.message == sr.message,
                                 Alert.status == AlertStatus.open,
                                 Alert.created_at >= cooldown
@@ -246,7 +265,7 @@ async def ingest_sensor_reading(
                                 explanation=sr.reasoning,
                                 severity=alert_sev,
                                 status=AlertStatus.open,
-                                farm_id=device_obj.farm_id,
+                                farm_id=farm_id,
                             ))
 
             except Exception as rec_err:
@@ -257,7 +276,7 @@ async def ingest_sensor_reading(
             "status": "ok",
             "sensor_type": sensor_type,
             "value": value,
-            "alert_generated": False
+            "alert_generated": False,
         }
 
     except HTTPException:

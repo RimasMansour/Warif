@@ -313,9 +313,3 @@ export const askChatbot = async (question, sensor_data = null, language = "ar") 
   })
 }
 
-// Alerts
-export const getAlerts = async () => {
-  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/alerts`, {
-    headers: getAuthHeaders()
-  })
-}
