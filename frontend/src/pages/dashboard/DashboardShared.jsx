@@ -788,7 +788,7 @@ export function RecommendationCard({
 
   return (
     <div
-      className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col ${compact ? 'p-4' : 'p-5 md:p-6'}`}
+      className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col shrink-0 ${compact ? 'p-4' : 'p-5 md:p-6'}`}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
@@ -990,7 +990,7 @@ export function AlertCard({
 
   return (
     <div
-      className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col overflow-hidden ${compact ? 'p-4' : 'p-5 md:p-6'}`}
+      className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col overflow-hidden shrink-0 ${compact ? 'p-4' : 'p-5 md:p-6'}`}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
       <div className="flex items-start justify-between gap-2 mb-3">
