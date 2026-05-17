@@ -1,7 +1,7 @@
 # backend/src/services/presentation_formatter.py
 """
-Presentation Formatter - تحويل البيانات التقنية إلى صيغة احترافية مفهومة للمزارع
-لا أرقام معقدة، لا confidence scores، فقط: ماذا يحدث؟ وماذا تفعل؟
+Presentation Formatter - Transforms technical telemetry into intuitive insights for end-users.
+Translates complex metrics and model outputs into actionable advice.
 """
 
 import logging
@@ -14,51 +14,52 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class AlertPresentation:
-    """صيغة الإنذار الاحترافية"""
-    icon: str  # 🚨 | ⚠️ | 🔔
-    title: str  # العنوان الرئيسي
+    """Persisted alert presentation schema for end-user UI display"""
+    icon: str  # Icon visual representation (e.g., 🚨, ⚠️, 🔔)
+    title: str  # Main title header
     severity: str  # "critical" | "warning" | "info"
 
-    # المعلومات الأساسية
-    current_value: str  # "رطوبة التربة 25%"
-    expected_value: str  # "الحد المقبول: 40-70%"
-    difference: str  # "أقل من الحد بـ 15%"
+    # Core Metrics
+    current_value: str  # Actual current value (e.g., "Soil Moisture: 25%")
+    expected_value: str  # Target optimal boundary (e.g., "Acceptable Range: 40-70%")
+    difference: str  # Deviation delta (e.g., "15% below threshold")
 
-    # الإجراء
-    action: str  # "قم بتفعيل الري الآن"
-    urgency: str  # "فوري" | "خلال ساعة" | "قريباً"
+    # Action Plan
+    action: str  # Actionable corrective advice
+    urgency: str  # Response urgency level
 
-    # معلومات إضافية
-    reason: Optional[str] = None  # لماذا هذا مهم؟
+    # Contextual metadata
+    reason: Optional[str] = None  # Contextual reasoning explaining criticality
     timestamp: Optional[str] = None
 
 
 @dataclass
 class RecommendationPresentation:
-    """صيغة التوصية الاحترافية"""
-    icon: str  # 💡 | 📈 | 🎯
-    title: str  # العنوان الرئيسي
+    """Recommendation presentation schema for end-user UI display"""
+    icon: str  # Icon visual representation (e.g., 💡, 📈, 🎯)
+    title: str  # Main title header
 
-    # التحليل
-    data_insight: str  # "الطلب على المياه ارتفع بنسبة 30% هذا الأسبوع"
-    reason: str  # لماذا هذا يحدث؟
+    # Diagnostic Insight
+    data_insight: str  # Analytical data insight message
+    reason: str  # Underlying reasoning explaining context
 
-    # الاقتراح
-    suggestion: str  # "يُنصح بزيادة فترات الري"
-    timing: str  # "على الفور" | "خلال 24 ساعة" | "للمرة القادمة"
+    # Proposed Action
+    suggestion: str  # Actionable advice suggestion
+    timing: str  # Suggested execution window
 
-    # معلومات إضافية (مع قيم افتراضية)
-    benefit: Optional[str] = None  # الفائدة المتوقعة
+    # Operational Metadata
+    benefit: Optional[str] = None  # Expected outcome or utility benefit
     priority: str = "normal"  # "high" | "normal" | "low"
     category: str = "general"  # "irrigation" | "cooling" | "health"
 
 
 class PresentationFormatter:
     """
-    محول البيانات التقنية إلى صيغة احترافية
+    Presentation Formatter Engine.
+    Converts raw database metrics and model decisions into clean, formatted UI assets.
     """
 
-    # ✅ الرموز التعبيرية المناسبة
+    # UI visual icons mapping
     ICONS = {
         'critical': '🚨',
         'warning': '⚠️',
@@ -68,7 +69,7 @@ class PresentationFormatter:
         'improvement': '📈',
     }
 
-    # ✅ الحدود المثالية للمحاصيل (tomatoes by default)
+    # Optimal microclimate ranges for target crop (tomatoes by default)
     OPTIMAL_RANGES = {
         'soil_moisture': {'min': 55, 'max': 70, 'unit': '%'},
         'air_temperature': {'min': 18, 'max': 27, 'unit': '°C'},
@@ -76,7 +77,7 @@ class PresentationFormatter:
         'soil_temperature': {'min': 18, 'max': 28, 'unit': '°C'},
     }
 
-    # ✅ الرسائل الاحترافية (بدون تفاصيل تقنية)
+    # Human-friendly alert templates
     ALERT_MESSAGES = {
         'drought': {
             'title': 'ري ناقص - رطوبة التربة منخفضة جداً',
@@ -167,7 +168,7 @@ class PresentationFormatter:
     }
 
     def _generate_specific_reason(self, alert_type: str, device_name: Optional[str] = None, sensor_name: Optional[str] = None) -> str:
-        """توليد رسالة سبب محددة تشير للجهاز بالضبط"""
+        """Generates a detailed, context-aware explanation citing the specific device"""
         device_info = f"({device_name})" if device_name else ""
 
         reason_map = {
@@ -192,12 +193,12 @@ class PresentationFormatter:
                     expected_str: Optional[str] = None,
                     difference_str: Optional[str] = None) -> AlertPresentation:
         """
-        تحويل إنذار تقني إلى صيغة احترافية مع سبب محدد
+        Converts a raw technical alert record into a formatted end-user display card.
         """
 
         template = self.ALERT_MESSAGES.get(alert_type, {})
 
-        # توليد سبب محدد يذكر الجهاز/الحساس بالضبط
+        # Generate a detailed diagnostic message citing the specific device
         specific_reason = self._generate_specific_reason(alert_type, device_name, sensor_name)
 
         return AlertPresentation(
@@ -218,7 +219,7 @@ class PresentationFormatter:
                             data_insight: Optional[str] = None,
                             category: str = 'general') -> RecommendationPresentation:
         """
-        تحويل توصية تقنية إلى صيغة احترافية
+        Formats raw ML ensemble and engine recommendations into structured UI assets.
         """
 
         template = self.RECOMMENDATION_MESSAGES.get(rec_type, {})
@@ -236,21 +237,21 @@ class PresentationFormatter:
         )
 
     def _get_severity(self, alert_type: str) -> str:
-        """حدد درجة الخطورة"""
+        """Determines alert criticality based on target category"""
         critical_alerts = ['heat_stress', 'flooding', 'anomaly_detected', 'disease_risk']
         if alert_type in critical_alerts:
             return 'critical'
         return 'warning'
 
     def _get_priority(self, rec_type: str) -> str:
-        """حدد الأولوية"""
+        """Determines recommendation action priority"""
         high_priority = ['improve_ventilation', 'decrease_irrigation', 'optimize_schedule']
         if rec_type in high_priority:
             return 'high'
         return 'normal'
 
     def format_soil_moisture_alert(self, current: float, optimal_min: float, optimal_max: float) -> AlertPresentation:
-        """إنذار متخصص لرطوبة التربة"""
+        """Generates customized UI presentation card for soil moisture anomalies"""
         diff_from_min = current - optimal_min
         diff_from_max = optimal_max - current
 
@@ -281,7 +282,7 @@ class PresentationFormatter:
         )
 
     def format_temperature_alert(self, current: float) -> AlertPresentation:
-        """إنذار متخصص لدرجة الحرارة"""
+        """Generates customized UI presentation card for air temperature anomalies"""
         optimal_min, optimal_max = 18, 27
 
         if current > 38:
@@ -317,7 +318,7 @@ class PresentationFormatter:
         )
 
     def format_humidity_alert(self, current: float) -> AlertPresentation:
-        """إنذار متخصص للرطوبة"""
+        """Generates customized UI presentation card for relative air humidity anomalies"""
         optimal_min, optimal_max = 60, 85
 
         if current > 90:

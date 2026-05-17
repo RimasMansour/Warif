@@ -1,10 +1,10 @@
 # backend/src/services/anomaly_alert_system.py
 """
-نظام التنبيهات المتقدمة - كشف الشذوذ والأعطال
 Advanced Anomaly & Malfunction Detection Alert System
-
-يدمج AnomalyDetector مع نظام الـ Alerts لتوليد تنبيهات تلقائية
-عند اكتشاف قراءات شاذة أو سلوك غريب في الحساسات
+======================================================
+Overview:
+    Integrates the AnomalyDetector with the system Alert manager to automate 
+    alert generation upon detecting statistical outliers or physical device malfunctions.
 """
 
 import logging
@@ -18,10 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 class AnomalyAlertSystem:
-    """نظام التنبيهات المتقدم - يجمع بين كشف الشذوذ والتنبيهات التلقائية"""
+    """Advanced alert orchestration system pairing anomaly detection with real-time logging"""
 
     def __init__(self):
-        """تهيئة كاشف الشذوذ"""
+        """Initializes internal AnomalyDetector instance"""
         self.detector = AnomalyDetector()
 
     async def check_sensor_reading_anomalies(
@@ -33,32 +33,32 @@ class AnomalyAlertSystem:
         db: AsyncSession
     ) -> Alert | None:
         """
-        فحص قراءة حساس جديدة للتحقق من الشذوذ
-        إذا اُكتشف شذوذ → توليد alert تلقائي
+        Analyzes a new sensor reading to verify normal telemetry operation.
+        Triggers an automated system alert if an anomaly is identified.
 
         Args:
-            device_id: معرف الجهاز (مثل: "sensor_farm_20_temp_1")
-            farm_id: معرف المزرعة
-            sensor_type: نوع الحساس (air_temperature, soil_moisture, ...)
-            value: قيمة القراءة الحالية
-            db: جلسة قاعدة البيانات
+            device_id: Primary key or hardware identifier of the target sensor device.
+            farm_id: Reference key indicating farm partition.
+            sensor_type: Categorical type of the sensor telemetry (e.g. soil_moisture, air_temperature).
+            value: Telemetry value parsed from incoming feed.
+            db: Database session instance.
 
         Returns:
-            Alert object إذا اُكتشف شذوذ، None إذا كانت القراءة طبيعية
+            Alert model instance if an anomaly is identified, otherwise None.
         """
         try:
-            # فحص الشذوذ باستخدام AnomalyDetector
+            # Perform statistical/rule-based validation
             anomaly_report: AnomalyReport | None = await self.detector.detect_anomalies(
                 sensor_type=sensor_type,
                 value=value,
                 timestamp=datetime.now(timezone.utc)
             )
 
-            # إذا لم يُكتشف شذوذ → قراءة طبيعية
+            # Return early if reading conforms to physical boundaries
             if not anomaly_report or not anomaly_report.is_anomalous:
                 return None
 
-            # ✅ شذوذ مُكتشف → توليد alert
+            # Log anomaly detection status
             logger.warning(
                 f"[Anomaly Detected] Device: {device_id}, "
                 f"Type: {anomaly_report.anomaly_type}, "
@@ -66,7 +66,7 @@ class AnomalyAlertSystem:
                 f"Value: {value}"
             )
 
-            # تحويل severity من string إلى AlertSeverity enum
+            # Map string severity definitions to SQLAlchemy AlertSeverity schema
             severity_map = {
                 "critical": AlertSeverity.critical,
                 "high": AlertSeverity.high,
@@ -75,7 +75,7 @@ class AnomalyAlertSystem:
             }
             alert_severity = severity_map.get(anomaly_report.severity, AlertSeverity.warning)
 
-            # بناء رسالة Alert مفصلة
+            # Construct contextualized alert notification message
             alert_message = _build_anomaly_alert_message(
                 anomaly_report=anomaly_report,
                 device_id=device_id,
@@ -83,7 +83,7 @@ class AnomalyAlertSystem:
                 sensor_type=sensor_type
             )
 
-            # التحقق من عدم وجود alert مشابه مفتوح بالفعل
+            # Check for concurrent active alerts to prevent flooding
             existing_alert = await db.execute(
                 select(Alert).where(
                     and_(
@@ -94,11 +94,11 @@ class AnomalyAlertSystem:
                 )
             )
             if existing_alert.scalar_one_or_none():
-                # alert مشابه موجود بالفعل - لا نوليد مكرر
+                # Redundant alert check - skip logging duplicates
                 logger.info(f"[Duplicate Alert Prevented] {device_id} already has open alert")
                 return None
 
-            # إنشاء Alert جديد
+            # Persist new alert to PostgreSQL
             alert = Alert(
                 farm_id=farm_id,
                 device_id=device_id,
@@ -133,30 +133,30 @@ def _build_anomaly_alert_message(
     current_value: float,
     sensor_type: str
 ) -> str:
-    """بناء رسالة تنبيه مفصلة وسهلة الفهم"""
+    """Builds a formatted, human-readable notification body containing diagnostic info"""
 
     anomaly_titles = {
-        "sensor_stuck": "🔴 حساس معطل - عالق على قيمة ثابتة",
-        "unrealistic_jump": "⚠️ قفزة غير واقعية في القراءات",
-        "pattern_break": "📊 انحراف عن النمط المتوقع",
-        "threshold_violation": "🚨 تجاوز الحد الحرج",
+        "sensor_stuck": "🔴 Sensor Malfunction - Stuck Flatline Reading",
+        "unrealistic_jump": "⚠️ Unrealistic Reading Step Jump",
+        "pattern_break": "📊 Telemetry Pattern Deviation",
+        "threshold_violation": "🚨 Critical Boundary Threshold Violation",
     }
 
-    title = anomaly_titles.get(anomaly_report.anomaly_type, "⚠️ شذوذ مكتشف")
+    title = anomaly_titles.get(anomaly_report.anomaly_type, "⚠️ Anomaly Detected")
 
     message = f"""{title}
 
-📍 الجهاز: {device_id}
-🌡️ نوع الحساس: {sensor_type}
-💾 القيمة الحالية: {current_value:.2f}
+📍 Device: {device_id}
+🌡️ Sensor Type: {sensor_type}
+💾 Current Value: {current_value:.2f}
 
-🔍 التحليل:
+🔍 Diagnosis:
 {anomaly_report.probable_cause}
 
-📋 النوع: {anomaly_report.anomaly_type}
-💪 الثقة: {int(anomaly_report.confidence * 100)}%
+📋 Anomaly Type: {anomaly_report.anomaly_type}
+💪 Confidence: {int(anomaly_report.confidence * 100)}%
 
-✅ الإجراء المقترح:
+✅ Recommended Action:
 {anomaly_report.recommended_action}
 """
     return message
@@ -167,7 +167,7 @@ _anomaly_alert_system = None
 
 
 def get_anomaly_alert_system() -> AnomalyAlertSystem:
-    """الحصول على instance من نظام التنبيهات"""
+    """Retrieves the global Singleton instance of AnomalyAlertSystem"""
     global _anomaly_alert_system
     if _anomaly_alert_system is None:
         _anomaly_alert_system = AnomalyAlertSystem()
