@@ -133,31 +133,29 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
       });
     }
     if (range === 'M') {
-      const startDate = new Date(now);
-      startDate.setDate(now.getDate() - 29);
-      startDate.setHours(0, 0, 0, 0);
-      const buckets = Array.from({ length: 30 }, () => []);
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const buckets = Array.from({ length: daysInMonth }, () => []);
       rawData?.forEach(r => {
-        const diffDays = Math.floor((new Date(r.timestamp) - startDate) / 86400000);
-        if (diffDays >= 0 && diffDays < 30) buckets[diffDays].push(r.value || 0);
+        const d = new Date(r.timestamp);
+        if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+          buckets[d.getDate() - 1].push(r.value || 0);
+        }
       });
       return buckets.map((items, i) => {
-        const targetDate = new Date(startDate);
-        targetDate.setDate(startDate.getDate() + i);
         const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
-        return { label: `${targetDate.getDate()}`, value: Math.round(value) };
+        return { label: `${i + 1}`, value: Math.round(value) };
       });
     }
     if (range === 'Y') {
       const buckets = Array.from({ length: 12 }, () => []);
       rawData?.forEach(r => {
         const d = new Date(r.timestamp);
-        const monthsAgo = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-        if (monthsAgo >= 0 && monthsAgo < 12) buckets[11 - monthsAgo].push(r.value || 0);
+        if (d.getFullYear() === now.getFullYear()) {
+          buckets[d.getMonth()].push(r.value || 0);
+        }
       });
       return buckets.map((items, i) => {
-        const targetMonth = (now.getMonth() - 11 + i + 12) % 12;
-        const label = isEn ? monthsEn[targetMonth] : monthsAr[targetMonth];
+        const label = isEn ? monthsEn[i] : monthsAr[i];
         const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
         return { label, value: Math.round(value) };
       });
@@ -510,31 +508,29 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
       });
     }
     if (range === 'M') {
-      const startDate = new Date(now);
-      startDate.setDate(now.getDate() - 29);
-      startDate.setHours(0, 0, 0, 0);
-      const buckets = Array.from({ length: 30 }, () => []);
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const buckets = Array.from({ length: daysInMonth }, () => []);
       rawData?.forEach(r => {
-        const diffDays = Math.floor((new Date(r.timestamp) - startDate) / 86400000);
-        if (diffDays >= 0 && diffDays < 30) buckets[diffDays].push(r.value || 0);
+        const d = new Date(r.timestamp);
+        if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+          buckets[d.getDate() - 1].push(r.value || 0);
+        }
       });
       return buckets.map((items, i) => {
-        const targetDate = new Date(startDate);
-        targetDate.setDate(startDate.getDate() + i);
         const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
-        return { label: `${targetDate.getDate()}`, value: Math.round(value) };
+        return { label: `${i + 1}`, value: Math.round(value) };
       });
     }
     if (range === 'Y') {
       const buckets = Array.from({ length: 12 }, () => []);
       rawData?.forEach(r => {
         const d = new Date(r.timestamp);
-        const monthsAgo = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
-        if (monthsAgo >= 0 && monthsAgo < 12) buckets[11 - monthsAgo].push(r.value || 0);
+        if (d.getFullYear() === now.getFullYear()) {
+          buckets[d.getMonth()].push(r.value || 0);
+        }
       });
       return buckets.map((items, i) => {
-        const targetMonth = (now.getMonth() - 11 + i + 12) % 12;
-        const label = isEn ? monthsEn[targetMonth] : monthsAr[targetMonth];
+        const label = isEn ? monthsEn[i] : monthsAr[i];
         const value = items.length > 0 ? items.reduce((s, v) => s + v, 0) / items.length : 0;
         return { label, value: Math.round(value) };
       });
