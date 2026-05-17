@@ -6,6 +6,7 @@ import { getFarms } from '../services/api'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+const getStoredToken = () => sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token');
 const authHeaders = () => getAuthHeaders()
 
 // Global Persistence Cache to prevent "zeroing" on navigation
@@ -26,7 +27,7 @@ let simState = {
 
 // Expose manual triggers for UI
 export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15) {
-  const token = localStorage.getItem('warif_token');
+  const token = getStoredToken();
   try {
     if (action === 'stop') {
       const res = await fetch(`${API_BASE}/api/v1/irrigation/stop-farm/${farmId}`, {
@@ -62,7 +63,7 @@ export async function triggerManualCooling(mode = "stop", farmId = null) {
   if (mode === 'full')     payload = { fan: true,  cooler: true,  farm_id: farmId };
   if (mode === 'fan_only') payload = { fan: true,  cooler: false, farm_id: farmId };
 
-  const token = localStorage.getItem('warif_token');
+  const token = getStoredToken();
   try {
     const res = await fetch(`${API_BASE}/api/v1/commands/cooling`, {
       method: 'POST',
@@ -145,7 +146,7 @@ export function useAutoMode(farmId) {
   // Load auto_mode from backend on mount
   useEffect(() => {
     if (!farmId) return;
-    const token = localStorage.getItem('warif_token');
+    const token = getStoredToken();
     fetch(`${API_BASE}/api/v1/farms/${farmId}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
@@ -162,7 +163,7 @@ export function useAutoMode(farmId) {
   const toggleAutoMode = async (newValue) => {
     if (!farmId) return;
     setLoading(true);
-    const token = localStorage.getItem('warif_token');
+    const token = getStoredToken();
     try {
       await fetch(`${API_BASE}/api/v1/farms/${farmId}/auto-mode`, {
         method: 'PATCH',
@@ -237,7 +238,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         ? sessionFarms[0].id
         : (userData.farmId || null);
       if (!farmId) return;
-      const token = localStorage.getItem('warif_token');
+      const token = getStoredToken();
       const url = `${API_BASE}/api/v1/alerts?farm_id=${farmId}&status=open`;
       const res = await fetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
@@ -318,7 +319,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
 
   const dismissAlert = useCallback(async (id) => {
     try {
-      const token = localStorage.getItem('warif_token');
+      const token = getStoredToken();
       await fetch(`${API_BASE}/api/v1/alerts/${id}/ack`, {
         method: 'POST',
         headers: { "Authorization": `Bearer ${token}` }
@@ -487,7 +488,7 @@ export function useIrrigationResources(farmId, intervalMs = 15000) {
 
   const fetch_data = useCallback(async () => {
     try {
-      const token = localStorage.getItem('warif_token');
+      const token = getStoredToken();
       const res = await fetch(`${API_BASE}/api/v1/irrigation/resources/${farmId}`, {
         headers: {
           "Authorization": `Bearer ${token}`
@@ -585,7 +586,7 @@ export function useDevices(providedFarmId = null) {
 }
 
 export async function submitRecommendationFeedback(farmId, recId, helpful) {
-  const token = localStorage.getItem('warif_token');
+  const token = getStoredToken();
   try {
     const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/feedback/${recId}`, {
       method: 'POST',
@@ -606,7 +607,7 @@ export async function submitRecommendationFeedback(farmId, recId, helpful) {
 }
 
 export async function executeRecommendation(category, farmId, durationMin = 15) {
-  const token = localStorage.getItem('warif_token');
+  const token = getStoredToken();
   try {
     if (category === 'irrigation') {
       return await triggerManualIrrigation('start', farmId, durationMin);
@@ -623,7 +624,7 @@ export async function executeRecommendation(category, farmId, durationMin = 15) 
 }
 
 export async function submitAlertFeedback(alertId, helpful) {
-  const token = localStorage.getItem('warif_token');
+  const token = getStoredToken();
   try {
     const res = await fetch(`${API_BASE}/api/v1/alerts/${alertId}/feedback`, {
       method: 'POST',
@@ -650,7 +651,7 @@ export function useActivityLogs(farmId, limit = 20) {
   const fetchLogs = useCallback(async () => {
     try {
       if (!farmId) { setLoading(false); return; }
-      const token = localStorage.getItem('warif_token');
+      const token = getStoredToken();
       const res = await fetch(
         `${API_BASE}/api/v1/logs?farm_id=${farmId}&limit=${limit}`,
         { headers: { Authorization: `Bearer ${token}` } }

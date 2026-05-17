@@ -85,6 +85,7 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
 
     if (error instanceof ApiError && error.status === 401) {
       localStorage.removeItem('warif_token')
+      sessionStorage.removeItem('warif_token')
       localStorage.removeItem('warif_user')
       if (!window.location.pathname.includes('/signin')) {
         window.location.href = '/signin'
@@ -97,7 +98,7 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
 }
 
 export function getAuthHeaders() {
-  const token = localStorage.getItem('warif_token')
+  const token = sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token')
   return {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Bearer ${token}` })
