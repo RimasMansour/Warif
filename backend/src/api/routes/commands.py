@@ -25,7 +25,7 @@ from src.db.models.models import DeviceCommand, ActivityLog, Recommendation, Far
 from src.api.schemas.schemas import CommandIn, CommandOut
 from src.services import tuya_client
 from src.core.security import get_current_user
-from src.ai.engine import verify_action_outcome
+from src.ml.engine import verify_action_outcome
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
