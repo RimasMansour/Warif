@@ -798,7 +798,11 @@ export function RecommendationCard({
             {domainCategory}
           </h3>
         </div>
-
+        {formatRecMeta() && (
+          <div className="font-bold text-[10px] text-gray-400 uppercase tracking-widest whitespace-nowrap">
+            {formatRecMeta()}
+          </div>
+        )}
       </div>
 
       <div className="flex items-start gap-3.5 mb-4">
@@ -818,41 +822,6 @@ export function RecommendationCard({
       </div>
 
       <div className="pt-3 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-3 mt-auto">
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <div className="flex items-center gap-2 relative">
-            <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
-              {isEn ? 'Helpful?' : 'مفيدة؟'}
-            </span>
-            <button
-              onClick={() => onFeedback?.(rec.id, 'down')}
-              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
-                ${feedbackState[rec.id] === 'down'
-                  ? 'bg-red-50 border-red-300 text-red-600 scale-110'
-                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500'}`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
-              </svg>
-            </button>
-            <button
-              onClick={() => onFeedback?.(rec.id, 'up')}
-              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
-                ${feedbackState[rec.id] === 'up'
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
-                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
-              </svg>
-            </button>
-          </div>
-          {formatRecMeta() && (
-            <span className="font-bold text-[10px] text-gray-400 uppercase tracking-widest whitespace-nowrap text-start">
-              {formatRecMeta()}
-            </span>
-          )}
-        </div>
-
         {!globalAutoMode ? (
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 flex-1 w-full mt-2 lg:mt-0">
             <div className="flex items-start xl:items-center gap-2">
@@ -904,6 +873,37 @@ export function RecommendationCard({
             </p>
           </div>
         )}
+
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 relative">
+            <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
+              {isEn ? 'Helpful?' : 'مفيدة؟'}
+            </span>
+            <button
+              onClick={() => onFeedback?.(rec.id, 'down')}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
+                ${feedbackState[rec.id] === 'down'
+                  ? 'bg-red-50 border-red-300 text-red-600 scale-110'
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500'}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => onFeedback?.(rec.id, 'up')}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
+                ${feedbackState[rec.id] === 'up'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
+              </svg>
+            </button>
+          </div>
+
+        </div>
       </div>
     </div>
   );
@@ -993,79 +993,35 @@ export function AlertCard({
       className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col overflow-hidden ${compact ? 'p-4' : 'p-5 md:p-6'}`}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      <div className="flex items-center gap-2.5 mb-3">
-        <span
-          className="font-bold text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0"
-          style={{ backgroundColor: cfg.bg, color: cfg.dot, border: `1px solid ${cfg.border}` }}
-        >
-          {cfg.label}
-        </span>
-        <span className={`font-bold text-gray-800 tracking-tight leading-tight ${compact ? 'text-[15px]' : 'text-[17px] md:text-lg'}`}>
-          {domainTitle}
-        </span>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="font-bold text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-lg whitespace-nowrap shrink-0"
+            style={{ backgroundColor: cfg.bg, color: cfg.dot, border: `1px solid ${cfg.border}` }}
+          >
+            {cfg.label}
+          </span>
+          <span className={`font-bold text-gray-800 tracking-tight leading-tight ${compact ? 'text-[14px]' : 'text-[15px] md:text-[16px]'}`}>
+            {domainTitle}
+          </span>
+        </div>
+        {formatAlertMeta() && (
+          <div className="font-bold text-[10px] text-gray-400 uppercase tracking-widest whitespace-nowrap mt-1">
+            {formatAlertMeta()}
+          </div>
+        )}
       </div>
 
-      <p className={`font-medium text-gray-600 leading-relaxed mb-3 text-start ${compact ? 'text-[13px]' : 'text-[14px] md:text-[15px]'}`} style={{ wordBreak: 'break-word' }}>
+      <p className={`font-medium text-gray-600 leading-relaxed mb-3 text-start ${compact ? 'text-[12px]' : 'text-[13.5px] md:text-[14px]'}`} style={{ wordBreak: 'break-word' }}>
         {safeMessage}
       </p>
 
 
 
-      {safeAction && (
-        <div className="mb-4 p-3 rounded-2xl bg-gray-50/80 border border-gray-100/80 flex gap-2.5 items-start">
-          <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 mt-0.5 text-emerald-600 bg-emerald-50 border border-emerald-100">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-            <div className="font-bold text-[11px] text-gray-400 uppercase tracking-widest text-start">
-              {isEn ? 'Recommended Action' : 'الإجراء الموصى به'}
-            </div>
-            <p className={`font-medium text-gray-700 leading-snug text-start ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
-              {safeAction}
-            </p>
-          </div>
-        </div>
-      )}
+
 
       {/* Unified Footer Area */}
       <div className="pt-3 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-3 mt-auto">
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <div className="flex items-center gap-2 relative">
-            <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
-              {isEn ? 'Appropriate?' : 'مفيدة؟'}
-            </span>
-            <button
-              onClick={() => onFeedback?.(alert.id, 'down')}
-              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
-                ${feedbackState[alert.id] === 'down'
-                  ? 'bg-red-50 border-red-300 text-red-600 scale-110'
-                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500'}`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
-              </svg>
-            </button>
-            <button
-              onClick={() => onFeedback?.(alert.id, 'up')}
-              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
-                ${feedbackState[alert.id] === 'up'
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
-                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
-              </svg>
-            </button>
-          </div>
-          {formatAlertMeta() && (
-            <span className="font-bold text-[10px] text-gray-400 uppercase tracking-widest whitespace-nowrap text-start">
-              {formatAlertMeta()}
-            </span>
-          )}
-        </div>
-
         {!globalAutoMode ? (
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 flex-1 w-full mt-2 lg:mt-0">
             <div className="flex items-start xl:items-center gap-2">
@@ -1114,6 +1070,37 @@ export function AlertCard({
             </p>
           </div>
         )}
+
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 relative">
+            <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
+              {isEn ? 'Appropriate?' : 'مفيدة؟'}
+            </span>
+            <button
+              onClick={() => onFeedback?.(alert.id, 'down')}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
+                ${feedbackState[alert.id] === 'down'
+                  ? 'bg-red-50 border-red-300 text-red-600 scale-110'
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500'}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => onFeedback?.(alert.id, 'up')}
+              className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
+                ${feedbackState[alert.id] === 'up'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
+                  : 'bg-gray-50/80 border-gray-100 text-gray-400 hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-600'}`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3z"/>
+              </svg>
+            </button>
+          </div>
+
+        </div>
       </div>
     </div>
   );

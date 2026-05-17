@@ -357,8 +357,8 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="animate-fade-in-up delay-4 h-full">
-            <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-full card-interactive">
+          <div className="animate-fade-in-up delay-4">
+            <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 card-interactive">
               <div className="flex items-center justify-between mb-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
                   <div className="text-xl font-black text-gray-800 tracking-tight">{T.totalDailyWater}</div>
@@ -381,7 +381,7 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
           </div>
 
           <div className="animate-fade-in-up delay-5">
-            <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 h-[320px] card-interactive justify-start flex flex-col">
+            <CardShell className="p-6 relative overflow-hidden bg-white border border-gray-100/50 card-interactive">
               <div className="flex items-center justify-between mb-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
                   <div className="text-xl font-black text-gray-800 tracking-tight">{T.totalDailyPower}</div>
