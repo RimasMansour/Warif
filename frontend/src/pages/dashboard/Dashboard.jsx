@@ -855,7 +855,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                             const isCooler  = device.name.includes('مكيف') || nameLower.includes('cool');
                             const isIrrig   = device.name.includes('ري') || device.name.includes('مضخة') || nameLower.includes('irrig');
                             
-                            const isConnected = device.status === 'active' || device.status === 'normal';
+                            const isConnected = device.is_online !== false;
                             const connectedLabel = isConnected
                               ? (isEn ? 'Connected and running' : 'تعمل')
                               : (isEn ? 'Disconnected' : 'غير متصلة');
@@ -915,8 +915,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                             const isFanActuator = nameLower.includes('fan') || nameLower.includes('مروح');
                             const isCoolerActuator = nameLower.includes('cool') || nameLower.includes('تبريد') || nameLower.includes('مكيف');
                             
-                            const isActive = device.status === 'active';
-                            const statusText = isActive ? (isEn ? "Working" : "تعمل") : (isEn ? "Idle" : "خامل");
+                            const isActive = device.is_online !== false;
+                            const statusText = isActive ? (isEn ? "Working" : "تعمل") : (isEn ? "Offline" : "غير متصل");
                             
                             const iconBg = isPump ? 'bg-blue-50 border-blue-100/30' : isCoolerActuator ? 'bg-cyan-50 border-cyan-100/30' : 'bg-emerald-50 border-emerald-100/30';
                             const iconColor = isPump ? 'text-[#0EA5E9]' : isCoolerActuator ? 'text-[#06B6D4]' : 'text-[#059669]';
@@ -965,7 +965,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                                     </p>
                                   </div>
                                 </div>
-                                <div className={`text-[14px] font-black ${isActive ? 'text-emerald-600' : 'text-gray-400'}`}>{statusText}</div>
+                                <div className={`text-[14px] font-black ${isActive ? 'text-emerald-600' : 'text-red-500'}`}>{statusText}</div>
                               </div>
                             );
                           })}

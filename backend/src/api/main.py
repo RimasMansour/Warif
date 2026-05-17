@@ -72,16 +72,42 @@ async def startup_monitoring():
     else:
         print(msg)
 
-    async def continuous_monitoring():
-        """المراقبة المستمرة للفيدباك والدقة والاتصال"""
-        await asyncio.sleep(5)  # انتظر 5 ثواني حتى يبدأ الـ API
+    async def connectivity_monitoring():
+        """مراقبة اتصال الأجهزة — تعمل دائماً بشكل مستقل عن ML"""
+        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+        from sqlalchemy.orm import sessionmaker
+        from src.services.connectivity_monitor import ConnectivityMonitor
+        from src.db.models.models import Farm
+        from sqlalchemy import select
 
+        await asyncio.sleep(5)
+        engine = create_async_engine(settings.DATABASE_URL, echo=False)
+        async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+        while True:
+            try:
+                async with async_session_maker() as db:
+                    result = await db.execute(select(Farm))
+                    farms = result.scalars().all()
+                    for farm in farms:
+                        try:
+                            alerts = await ConnectivityMonitor.check_farm_connectivity(farm.id, db)
+                            if alerts:
+                                print(f"[Connectivity] {len(alerts)} new alert(s) for farm {farm.id}")
+                        except Exception as e:
+                            print(f"[Connectivity Error] Farm {farm.id}: {e}")
+            except Exception as e:
+                print(f"[Connectivity Fatal]: {e}")
+            await asyncio.sleep(60)
+
+    async def ml_monitoring():
+        """مراقبة دقة ML والفيدباك — قد تفشل إذا لم تكن مكتبات ML مثبتة"""
+        await asyncio.sleep(10)
         while True:
             try:
                 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
                 from sqlalchemy.orm import sessionmaker
                 from src.ml.feedback_integration import FeedbackLearningBridge
-                from src.services.connectivity_monitor import ConnectivityMonitor
                 from src.db.models.models import Farm
                 from sqlalchemy import select
 
@@ -91,39 +117,27 @@ async def startup_monitoring():
                 async with async_session_maker() as db:
                     result = await db.execute(select(Farm))
                     farms = result.scalars().all()
-
                     for farm in farms:
                         try:
-                            # مراقبة الفيدباك والدقة
                             bridge = FeedbackLearningBridge(db)
                             stats = await bridge.calculate_feedback_accuracy(farm.id, days=7)
                             accuracy = stats['overall_accuracy']
                             total = stats['total_feedback']
-
                             if total > 0:
                                 if accuracy < 80:
-                                    print(f"⚠️  [EMERGENCY] المزرعة {farm.id}: {accuracy:.1f}%")
+                                    print(f"[EMERGENCY] Farm {farm.id}: {accuracy:.1f}%")
                                 elif accuracy < 85:
-                                    print(f"⚠️  [WARNING] المزرعة {farm.id}: {accuracy:.1f}%")
-
-                            # مراقبة اتصال الأجهزة
-                            monitor = ConnectivityMonitor()
-                            alerts = await monitor.check_farm_connectivity(farm.id, db)
-                            if alerts:
-                                print(f"🔌 [Connectivity] {len(alerts)} تنبيه اتصال جديد للمزرعة {farm.id}")
-
+                                    print(f"[WARNING] Farm {farm.id}: {accuracy:.1f}%")
                         except Exception as e:
-                            print(f"[Monitor Error] Farm {farm.id}: {e}")
+                            print(f"[ML Monitor Error] Farm {farm.id}: {e}")
 
                 await engine.dispose()
-                await asyncio.sleep(60)
-
             except Exception as e:
-                print(f"[Monitor Fatal Error]: {e}")
-                await asyncio.sleep(60)
+                print(f"[ML Monitor Fatal]: {e}")
+            await asyncio.sleep(60)
 
-    # بدء المراقبة كـ background task
-    asyncio.create_task(continuous_monitoring())
+    asyncio.create_task(connectivity_monitoring())
+    asyncio.create_task(ml_monitoring())
 
 
 # ── Health ────────────────────────────────────────────────────────────────
