@@ -244,7 +244,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
 
                   // 2. If registration success, login to get token
                   const loginData = await loginUser(final.username, final.password);
-                  localStorage.setItem('warif_token', loginData.access_token);
+                  sessionStorage.setItem('warif_token', loginData.access_token);
                   loggedIn = true;
 
                   // 3. Create initial farm
@@ -309,7 +309,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                     plantType: final.plantType
                   }));
 
-                  localStorage.setItem('warif_logged_in', 'true');
+                  sessionStorage.setItem('warif_logged_in', 'true');
                   setIsSubmitting(false);
                   onLogin();
                 } catch (err) {
@@ -435,8 +435,8 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
     
     try {
       const data = await loginUser(username, password);
-      localStorage.setItem('warif_token', data.access_token);
-      localStorage.setItem('warif_logged_in', 'true');
+      sessionStorage.setItem('warif_token', data.access_token);
+      sessionStorage.setItem('warif_logged_in', 'true');
       try {
         const { getFarms, getMe } = await import('../../services/api.js');
         const me = await getMe();
@@ -460,7 +460,7 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
       // Fallback to localStorage
       const savedUser = JSON.parse(localStorage.getItem('warif_user') || '{}');
       if (savedUser.username === username && savedUser.password === password) {
-        localStorage.setItem('warif_logged_in', 'true');
+        sessionStorage.setItem('warif_logged_in', 'true');
         setLoading(false);
         onLogin();
         return;

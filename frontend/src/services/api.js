@@ -237,7 +237,7 @@ export const saveNewPassword = async (newPassword) => {
   localStorage.setItem('warif_user', JSON.stringify(savedUser));
   
   // Try to update backend too (if user is logged in)
-  const token = localStorage.getItem('warif_token');
+  const token = sessionStorage.getItem('warif_token');
   if (token) {
     try {
       await fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/me`, {

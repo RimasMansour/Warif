@@ -4,8 +4,8 @@ import Dashboard from './pages/dashboard/Dashboard'
 
 export default function App() {
   const [screen, setScreen] = useState(() => {
-    const isLoggedIn = localStorage.getItem('warif_logged_in') === 'true';
-    const hasToken = !!localStorage.getItem('warif_token');
+    const isLoggedIn = sessionStorage.getItem('warif_logged_in') === 'true';
+    const hasToken = !!sessionStorage.getItem('warif_token');
     return (isLoggedIn && hasToken) ? 'dashboard' : 'login';
   });
   const [lang, setLang] = useState(() => {

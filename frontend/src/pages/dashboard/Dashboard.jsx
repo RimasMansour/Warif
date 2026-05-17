@@ -412,7 +412,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
         setLoading(true);
         setTimeout(() => {
           localStorage.removeItem('warif_remember'); 
-          localStorage.removeItem('warif_logged_in');
+          sessionStorage.removeItem('warif_logged_in');
+          sessionStorage.removeItem('warif_token');
           sessionStorage.removeItem('warif_session_user');
           sessionStorage.removeItem('warif_session_farms');
           onLogout?.();
