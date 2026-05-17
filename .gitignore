@@ -71,3 +71,5 @@ backend/src/ml/models/*.h5
 # Scratch / temporary development scripts - not for production
 backend/scratch/
 backend/scripts/update_warif_s_pass.py
+backend/scripts/seed_data.py
+backend/scripts/test_engine.py
