@@ -1,4 +1,13 @@
 # backend/src/api/schemas/schemas.py
+"""
+API Schemas — Warif Backend
+=============================
+Pydantic models for request validation and response serialization.
+Used by all API routes for input/output data contracts.
+
+Sections: Auth, User, Farm, Device, Sensor, Dashboard,
+          Irrigation, Recommendation, Prediction, Alert, Command, Thresholds
+"""
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
@@ -128,8 +137,8 @@ class DashboardOut(BaseModel):
     soil_temperature: Optional[float]
     air_temperature: Optional[float]
     air_humidity:    Optional[float]
-    water_tank_level: Optional[float] # نسبة مئوية
-    water_usage:     Optional[float] = None # الاستهلاك اليومي للمياه
+    water_tank_level: Optional[float]  # percentage (0-100)
+    water_usage:     Optional[float] = None  # daily water consumption in liters
     energy_kwh:      Optional[float]
     light_intensity: Optional[float]
     irrigation_status: Optional[str]
@@ -142,7 +151,7 @@ class DashboardOut(BaseModel):
 class IrrigationManualIn(BaseModel):
     device_id:     str
     duration_min:  Optional[int] = Field(None, gt=0, le=120)
-    target_volume: Optional[float] = Field(None, gt=0) # لتر
+    target_volume: Optional[float] = Field(None, gt=0)  # liters
 
 
 class IrrigationScheduleIn(BaseModel):
@@ -221,51 +230,6 @@ class AlertOut(BaseModel):
     threshold:    Optional[float]
     created_at:   datetime
     resolved_at:  Optional[datetime]
-
-    model_config = {"from_attributes": True}
-
-
-# ── Professional Presentation Schemas (للعرض الاحترافي في الداشبورد) ──────
-
-class AlertPresentation(BaseModel):
-    """إنذار بصيغة احترافية مفهومة للمزارع"""
-    icon: str  # 🚨 | ⚠️ | 🔔
-    title: str  # "رطوبة التربة منخفضة جداً"
-    severity: str  # "critical" | "warning" | "info"
-
-    # المعلومات الأساسية (بدون أرقام معقدة)
-    current_value: str  # "رطوبة التربة: 25%"
-    expected_value: str  # "الحد المقبول: 40-70%"
-    difference: str  # "أقل من الحد بـ 15%"
-
-    # الإجراء المطلوب
-    action: str  # "قم بتفعيل الري الآن"
-    urgency: str  # "فوري" | "خلال ساعة" | "قريباً"
-
-    # معلومات إضافية
-    reason: Optional[str] = None  # "النبات يحتاج للماء..."
-    timestamp: Optional[str] = None
-
-
-class RecommendationPresentation(BaseModel):
-    """توصية بصيغة احترافية مفهومة للمزارع"""
-    icon: str  # 💡 | 📈 | 🎯
-    title: str  # "زيادة الري تدريجياً"
-
-    # التحليل المبني على البيانات
-    data_insight: str  # "رطوبة التربة قريبة من الحد الأدنى"
-    reason: str  # لماذا هذا مهم؟
-
-    # الاقتراح العملي
-    suggestion: str  # "أضف فترة ري إضافية كل يومين"
-    benefit: Optional[str] = None  # "توفير 30% من المياه"
-
-    # الوقت
-    timing: str  # "على الفور" | "خلال 24 ساعة"
-
-    # معلومات إضافية
-    priority: str = "normal"  # "high" | "normal" | "low"
-    category: str = "general"  # "irrigation" | "cooling" | "health"
 
     model_config = {"from_attributes": True}
 
