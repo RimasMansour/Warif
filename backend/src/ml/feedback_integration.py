@@ -1,14 +1,14 @@
 """
-Feedback Integration Module -- ربط الفيدباك مع نظام التعلم المستمر
-=========================================================================
+Feedback Integration Module -- Closed-loop user feedback correlation with Continual Learning
+========================================================================================
 
-يقوم هذا الملف بـ:
-1. قراءة الفيدباك من جدول Recommendation
-2. تحويله إلى بيانات تدريبية للنموذج
-3. استخدام الفيدباك في إعادة تدريب النموذج (Continual Learning)
-4. قياس تحسن دقة التوصيات بناءً على الفيدباك الفعلي
+Responsibilities:
+1. Extracts user-submitted utility feedback from the Recommendations table.
+2. Converts evaluation signals into supervised training datasets.
+3. Incorporates explicit field validations into the continual retraining pipeline.
+4. Quantifies the precision improvement of recommendations over time based on feedback.
 
-هذا تطبيق عملي لمفهوم التوأم الرقمي (Digital Twin)
+Serves as a real-world application of the Digital Twin closed-loop paradigm.
 """
 
 import pandas as pd
@@ -19,7 +19,7 @@ from sqlalchemy import select, and_
 
 class FeedbackLearningBridge:
     """
-    يربط الفيدباك من المستخدمين مع نظام التعلم المستمر
+    Bridges user-submitted utility feedback with the continual learning retraining engine.
     """
 
     def __init__(self, db_session: AsyncSession):
@@ -27,14 +27,16 @@ class FeedbackLearningBridge:
 
     async def get_recent_feedback(self, farm_id: int, hours: int = 24) -> pd.DataFrame:
         """
-        يجلب الفيدباك الحديث من التوصيات
+        Retrieves recent recommendation feedback logs.
 
-        المخرج: DataFrame يحتوي على:
-        - id: معرّف التوصية
-        - helpful: True/False (الفيدباك)
-        - created_at: وقت التوصية
-        - feedback_at: وقت الفيدباك
-        - category: فئة التوصية
+        Returns:
+            DataFrame containing:
+            - id: Recommendation ID
+            - helpful: Boolean feedback signal
+            - created_at: Timestamp of recommendation creation
+            - feedback_at: Timestamp when feedback was logged
+            - category: Recommendation category
+            - message: The recommendation text
         """
         from src.db.models.models import Recommendation
 
@@ -75,9 +77,9 @@ class FeedbackLearningBridge:
 
     async def calculate_feedback_accuracy(self, farm_id: int, days: int = 7) -> dict:
         """
-        يحسب دقة التوصيات بناءً على الفيدباك الفعلي
+        Calculates recommendation accuracy derived from real-world user feedback.
 
-        هذا يعكس الأداء الحقيقي للنموذج من وجهة نظر المستخدم
+        Reflects overall operational precision of the model from the end-user's perspective.
         """
         from src.db.models.models import Recommendation
         from sqlalchemy import func, cast, Integer
@@ -128,9 +130,9 @@ class FeedbackLearningBridge:
         self, farm_id: int, threshold: float = 0.75, days: int = 7
     ) -> list:
         """
-        يجد الفئات التي تحتاج تحسين (دقتها أقل من الحد الأدنى)
+        Identifies agricultural advice categories operating below the performance threshold.
 
-        هذا مفيد لقياس أي نوع توصيات يحتاج تحسين
+        Assists in prioritizing domain areas requiring model refinement.
         """
         stats = await self.calculate_feedback_accuracy(farm_id, days)
 
@@ -150,10 +152,9 @@ class FeedbackLearningBridge:
         self, farm_id: int, hours: int = 168
     ) -> dict:
         """
-        يعد بيانات الفيدباك للتدريب
+        Prepares accumulated user feedback records to construct retraining sets.
 
-        يجمع التوصيات مع الفيدباك الإيجابي والسلبي
-        لاستخدامها في تحسين النموذج
+        Aggregates utility signals across categories to prioritize model enhancement.
         """
         feedback_df = await self.get_recent_feedback(farm_id, hours)
 
@@ -173,7 +174,7 @@ class FeedbackLearningBridge:
             'positive_feedback': positive,
             'negative_feedback': negative,
             'total': total,
-            'ready_for_training': total >= 10,  # يحتاج 10 نقاط على الأقل
+            'ready_for_training': total >= 10,  # Requires at least 10 samples
             'by_category': feedback_df.groupby('category')['helpful'].agg(['sum', 'count']).to_dict(),
             'hours_span': hours
         }
@@ -181,11 +182,11 @@ class FeedbackLearningBridge:
 
 async def initialize_feedback_monitoring(db_session: AsyncSession):
     """
-    تهيئة نظام مراقبة الفيدباك
+    Initializes the user feedback integration pipeline.
 
-    يجب استدعاء هذه الدالة عند بدء التطبيق
+    Should be invoked during application startup to bootstrap the closed-loop system.
     """
     print("[ML] Feedback Integration Module initialized")
-    print("[ML] النظام جاهز لمراقبة فيدباك المستخدمين والتعلم منه")
+    print("[ML] System ready to track, monitor, and progressively learn from user feedback.")
 
     return FeedbackLearningBridge(db_session)

@@ -29,7 +29,7 @@ class AnomalyReport:
 
 
 class AnomalyDetector:
-    """عقل التوأم الرقمي - كاشف الشذوذ"""
+    """Digital Twin Engine - Anomaly Detector Core"""
 
     def __init__(self):
         self.history_window = 100  # Keep last 100 readings for pattern analysis
@@ -59,7 +59,7 @@ class AnomalyDetector:
         }
 
     def update_history(self, sensor_type: str, value: float, timestamp: datetime):
-        """تحديث السجل التاريخي للحساس"""
+        """Updates historical window of sensor readings"""
         if sensor_type not in self.sensor_history:
             self.sensor_history[sensor_type] = []
             self.sensor_timestamps[sensor_type] = []
@@ -73,7 +73,7 @@ class AnomalyDetector:
             self.sensor_timestamps[sensor_type] = self.sensor_timestamps[sensor_type][-self.history_window:]
 
     def check_out_of_bounds(self, sensor_type: str, value: float) -> Optional[AnomalyReport]:
-        """فحص إذا كانت القيمة خارج النطاق الفيزيائي المعقول"""
+        """Validates if sensor value is within realistic physical boundaries"""
         if sensor_type not in self.sensor_bounds:
             return None
 
@@ -86,14 +86,14 @@ class AnomalyDetector:
                 anomaly_type="unrealistic_jump",
                 confidence=0.99,
                 affected_sensor=sensor_type,
-                probable_cause=f"قيمة {value} خارج النطاق المعقول ({min_val}-{max_val})",
-                recommended_action="تحقق من الحساس فوراً - قد يكون معطل",
+                probable_cause=f"Value {value} is out of realistic physical bounds ({min_val}-{max_val})",
+                recommended_action="Inspect the sensor immediately; potential physical malfunction detected",
                 timestamp=datetime.now()
             )
         return None
 
     def check_rate_of_change(self, sensor_type: str, current_value: float) -> Optional[AnomalyReport]:
-        """فحص سرعة التغيير - قفزات غير واقعية"""
+        """Validates value rate of change to detect anomalous temporal spikes"""
         if sensor_type not in self.sensor_history or len(self.sensor_history[sensor_type]) < 2:
             return None
 
@@ -109,14 +109,14 @@ class AnomalyDetector:
                 anomaly_type="unrealistic_jump",
                 confidence=min(0.99, 0.6 + (change / (max_change * 5))),
                 affected_sensor=sensor_type,
-                probable_cause=f"قفزة غير واقعية: من {previous_value} إلى {current_value}",
-                recommended_action="تحقق من الحساس - قد يكون هناك خلل في النقل أو الحساس",
+                probable_cause=f"Unrealistic step change: from {previous_value} to {current_value}",
+                recommended_action="Inspect the sensor and check the telemetry channel for noise",
                 timestamp=datetime.now()
             )
         return None
 
     def check_stuck_sensor(self, sensor_type: str, current_value: float, history_depth: int = 10) -> Optional[AnomalyReport]:
-        """فحص الحساس العالق - نفس القيمة لفترة طويلة"""
+        """Checks for persistent flatline readings, which indicates a frozen sensor"""
         if sensor_type not in self.sensor_history or len(self.sensor_history[sensor_type]) < history_depth:
             return None
 
@@ -131,14 +131,14 @@ class AnomalyDetector:
                 anomaly_type="sensor_stuck",
                 confidence=0.95,
                 affected_sensor=sensor_type,
-                probable_cause=f"الحساس عالق على القيمة {current_value} لعدة قراءات متتالية",
-                recommended_action="أعد تشغيل الحساس أو استبدله",
+                probable_cause=f"Sensor stuck on value {current_value} for consecutive historical readings",
+                recommended_action="Reboot, recalibrate, or replace the sensor",
                 timestamp=datetime.now()
             )
         return None
 
     def check_pattern_break(self, sensor_type: str, current_value: float) -> Optional[AnomalyReport]:
-        """فحص كسر النمط - انحراف عن السلوك المتوقع"""
+        """Analyzes reading statistical deviation to detect pattern breaks (Z-Score)"""
         if sensor_type not in self.sensor_history or len(self.sensor_history[sensor_type]) < 20:
             return None
 
@@ -165,8 +165,8 @@ class AnomalyDetector:
                 anomaly_type="pattern_break",
                 confidence=confidence,
                 affected_sensor=sensor_type,
-                probable_cause=f"القيمة {current_value} انحرفت عن النمط المتوقع (المتوسط: {mean:.1f}، الانحراف: {std:.1f})",
-                recommended_action="تحقق من ظروف المزرعة - قد تكون هناك مشكلة حقيقية",
+                probable_cause=f"Value {current_value} deviated significantly from normal pattern (mean: {mean:.1f}, std: {std:.1f})",
+                recommended_action="Verify physical greenhouse conditions; a real environmental issue might be occurring",
                 timestamp=datetime.now()
             )
         return None
@@ -176,7 +176,7 @@ class AnomalyDetector:
                                  warning_max: Optional[float] = None,
                                  critical_min: Optional[float] = None,
                                  critical_max: Optional[float] = None) -> Optional[AnomalyReport]:
-        """فحص تجاوز الحدود - نسبة إلى الحدود المثالية"""
+        """Validates readings against defined optimal agricultural thresholds"""
 
         # Define optimal ranges based on crop needs (tomatoes by default)
         optimal_ranges = {
@@ -199,8 +199,8 @@ class AnomalyDetector:
                 anomaly_type="threshold_violation",
                 confidence=0.95,
                 affected_sensor=sensor_type,
-                probable_cause=f"تجاوز الحد الحرج: {value} > {critical_max}",
-                recommended_action="تدخل فوري مطلوب!",
+                probable_cause=f"Critical upper limit violated: {value} > {critical_max}",
+                recommended_action="Immediate corrective action required!",
                 timestamp=datetime.now()
             )
 
@@ -211,8 +211,8 @@ class AnomalyDetector:
                 anomaly_type="threshold_violation",
                 confidence=0.95,
                 affected_sensor=sensor_type,
-                probable_cause=f"تجاوز الحد الحرج: {value} < {critical_min}",
-                recommended_action="تدخل فوري مطلوب!",
+                probable_cause=f"Critical lower limit violated: {value} < {critical_min}",
+                recommended_action="Immediate corrective action required!",
                 timestamp=datetime.now()
             )
 
@@ -223,8 +223,8 @@ class AnomalyDetector:
                 anomaly_type="threshold_violation",
                 confidence=0.85,
                 affected_sensor=sensor_type,
-                probable_cause=f"تحذير: قريب من الحد الأقصى {value} > {warning_max}",
-                recommended_action="راقب الوضع وكن مستعداً للتدخل",
+                probable_cause=f"Warning threshold exceeded: {value} > {warning_max}",
+                recommended_action="Monitor telemetry trend closely and prepare for preventative intervention",
                 timestamp=datetime.now()
             )
 
@@ -233,8 +233,8 @@ class AnomalyDetector:
     async def detect_anomalies(self, sensor_type: str, value: float,
                               timestamp: datetime) -> Optional[AnomalyReport]:
         """
-        كاشف الشذوذ الرئيسي
-        يجرب عدة فحوصات ويرجع أول شذوذ يجده
+        Main Anomaly Detection Interface.
+        Runs all configured verification checks sequentially and returns the first detected anomaly.
         """
 
         # Update history first

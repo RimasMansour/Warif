@@ -1,22 +1,19 @@
 """
-Warif ML Pipeline -- الخطوة 2: تدريب النماذج
-==============================================
-ما الذي يحدث هنا؟
-    1. نقرأ warif_dataset.csv اللي ولّدناها في الخطوة 1
-    2. ندرّب 3 نماذج: Random Forest, XGBoost, LSTM
-    3. نقيّم كل نموذج ونطبع النتائج
-    4. نحفظ كل نموذج كملف منفصل
+Warif ML Pipeline -- Step 2: Model Training Pipeline
+==================================================
+Overview:
+    1. Loads dataset from warif_dataset.csv (generated in Step 1).
+    2. Trains three distinct base estimators: Random Forest, XGBoost, and LSTM.
+    3. Evaluates performance metrics for each estimator.
+    4. Persists the trained model artifacts to individual files.
 
-ليش 3 نماذج وليس واحد؟
-    كل نموذج له نقطة قوة مختلفة:
-    - RF     : قوي مع البيانات الجدولية، سهل التفسير
-    - XGBoost: دقة عالية مع التفاعلات المعقدة بين الـ features
-    - LSTM   : يفهم الأنماط الزمنية (كيف تتغير القراءات مع الوقت)
-    الـ Ensemble يجمع الثلاثة للحصول على أفضل قرار.
-
-لما تتوفر بيانات حقيقية:
-    غيري السطر: df = pd.read_csv(...)
-    وأشيري لملف الـ sensors الحقيقي -- باقي الكود يبقى كما هو.
+Why Ensemble Estimation?
+    Each base estimator operates on a distinct architectural principle:
+    - Random Forest: Robust handling of tabular data, high interpretability.
+    - XGBoost: Superior gradient boosted tree formulation for complex feature interactions.
+    - LSTM: Recurrent architecture specialized in learning temporal dependency sequences.
+    
+    The final Ensemble aggregates predictions to produce a optimized, unified decision.
 """
 
 import os
@@ -40,7 +37,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-# ── الأعمدة التي يستخدمها النموذج ─────────────────────────────────────────
+# ── Feature & Label Column Definitions ─────────────────────────────────────────
 FEATURE_COLS = [
     'soil_moisture',
     'soil_temp',
@@ -58,12 +55,11 @@ LABEL_COL = 'irrigation_needed'
 
 def load_data(path: str):
     """
-    يقرأ الـ dataset ويقسمها لـ train/test.
+    Loads dataset and performs a stratified train/test split.
 
-    ليش 80/20؟
-        80% للتدريب -- النموذج يتعلم منها
-        20% للاختبار -- نقيّم عليها بدون ما النموذج شافها قبل
-        هذا يعطينا تقييم حقيقي لأداء النموذج
+    Split Strategy:
+        80% Training: Used to optimize model parameters.
+        20% Testing: Held out to evaluate generalization performance.
     """
     df = pd.read_csv(path)
 
@@ -73,26 +69,24 @@ def load_data(path: str):
     X_train, X_test, y_train, y_test = train_test_split(
         X, y,
         test_size=0.2,
-        random_state=42,    # لضمان نفس التقسيم في كل تشغيل
-        stratify=y          # يحافظ على نفس نسبة 0/1 في train و test
+        random_state=42,    # Guarantees reproducibility across runs
+        stratify=y          # Preserves class distribution proportions
     )
 
-    print(f"Train: {len(X_train)} صف  |  Test: {len(X_test)} صف")
+    print(f"[ML] Dataset Split Completed. Training size: {len(X_train)} | Test size: {len(X_test)}")
     return X_train, X_test, y_train, y_test
 
 
 def scale_features(X_train, X_test):
     """
-    يوحّد مقياس الـ features (StandardScaler).
+    Standardizes feature scales using a StandardScaler.
 
-    ليش مهم؟
-        soil_moisture تتراوح 30-95
-        co2_ppm       تتراوح 300-1500
-        بدون scaling النموذج قد يعطي co2 وزناً أكبر فقط لأن أرقامه أكبر
-        بعد scaling كل feature بنفس الوزن الابتدائي
+    Rationale:
+        Variables like soil moisture and CO2 ppm operate on different scales.
+        Feature scaling prevents distance-biased parameters from weighting larger values unfairly.
 
-    ملاحظة: نحسب الـ scaler على train فقط ثم نطبقه على test
-            حتى لا يتسرب أي معلومة من test للتدريب
+    Note:
+        The scaler is fit solely on the training partition to avoid data leakage.
     """
     scaler = StandardScaler()
     X_train_sc = scaler.fit_transform(X_train)
@@ -102,28 +96,27 @@ def scale_features(X_train, X_test):
 
 def train_random_forest(X_train, y_train):
     """
-    Random Forest -- النموذج الأساسي في Warif.
+    Random Forest Estimator.
 
-    n_estimators=200: 200 شجرة قرار، كل واحدة تعطي رأيها
-                      الأغلبية تفوز -- هذا يقلل الأخطاء
-    max_depth=15:     نحدد عمق الأشجار لمنع Overfitting
-                      (حفظ البيانات بدل التعلم منها)
+    Parameters:
+        n_estimators=200: Builds 200 decision trees to vote on outcome, reducing variance.
+        max_depth=15: Limits maximum tree depth to prevent overfitting.
     """
-    print("\n[1/3] تدريب Random Forest...")
+    print("\n[1/3] Training Random Forest Classifier...")
 
     rf = RandomForestClassifier(
         n_estimators=200,
         max_depth=15,
         min_samples_split=5,
         random_state=42,
-        n_jobs=-1           # يستخدم كل أنوية المعالج للسرعة
+        n_jobs=-1           # Parallel processing using all available CPU cores
     )
     rf.fit(X_train, y_train)
 
-    # أهم features حسب RF -- مفيد لفهم ما يؤثر على قرار الري
+    # Feature importances extraction
     importances = pd.Series(rf.feature_importances_, index=FEATURE_COLS)
     top3 = importances.nlargest(3)
-    print("   أهم 3 features:")
+    print("   Top 3 Feature Importances:")
     for feat, val in top3.items():
         print(f"      {feat}: {val:.3f}")
 
@@ -132,20 +125,20 @@ def train_random_forest(X_train, y_train):
 
 def train_xgboost(X_train, y_train):
     """
-    XGBoost -- النموذج الأعلى دقة في Warif.
+    XGBoost Gradient Boosted Decision Trees.
 
-    يبني أشجار بشكل تتابعي -- كل شجرة تصحح أخطاء السابقة
-    n_estimators=300: 300 جولة تصحيح
-    learning_rate=0.05: خطوات صغيرة = تعلم أبطأ لكن أدق
+    Parameters:
+        n_estimators=300: 300 sequential boosting stages.
+        learning_rate=0.05: Moderate step size shrinkage to prevent overfitting.
     """
-    print("\n[2/3] تدريب XGBoost...")
+    print("\n[2/3] Training XGBoost Classifier...")
 
     xgb = XGBClassifier(
         n_estimators=300,
         max_depth=6,
         learning_rate=0.05,
-        subsample=0.8,          # يستخدم 80% من البيانات في كل جولة
-        colsample_bytree=0.8,   # يستخدم 80% من الـ features في كل شجرة
+        subsample=0.8,          # Row subsample ratio
+        colsample_bytree=0.8,   # Column subsample ratio
         random_state=42,
         eval_metric='logloss',
         verbosity=0
@@ -157,18 +150,16 @@ def train_xgboost(X_train, y_train):
 
 def train_lstm(X_train, y_train, X_test, y_test):
     """
-    LSTM -- النموذج الزمني في Warif.
+    Recurrent Neural Network (LSTM).
 
-    ليش LSTM للـ sensors؟
-        بيانات الـ sensors لها طابع زمني -- قراءة الساعة 8 مرتبطة
-        بقراءة الساعة 9. LSTM يفهم هذا الترابط.
+    Specialization:
+        Sensor telemetry naturally possesses sequential temporal dynamics.
+        LSTM nodes leverage memory gates to capture temporal correlations over time.
 
-    الـ reshape:
-        LSTM تتوقع شكل (samples, timesteps, features)
-        نعامل كل صف كـ sequence من خطوة زمنية واحدة حالياً
-        لما تتوفر بيانات حقيقية نزيد timesteps لـ 24 (ساعات)
+    Reshaping:
+        LSTM layers expect 3D tensors: (samples, timesteps, features).
     """
-    print("\n[3/3] تدريب LSTM...")
+    print("\n[3/3] Training LSTM Recurrent Network...")
 
     # reshape: (samples, 1, features)
     X_train_3d = X_train.reshape(X_train.shape[0], 1, X_train.shape[1])
@@ -177,11 +168,11 @@ def train_lstm(X_train, y_train, X_test, y_test):
     model = Sequential([
         LSTM(64, input_shape=(1, X_train.shape[1]),
              return_sequences=True),
-        Dropout(0.2),           # يطفئ 20% من النيورونات عشوائياً
-        LSTM(32),               # طبقة LSTM ثانية
+        Dropout(0.2),           # Dropout regularization layer
+        LSTM(32),               # Secondary recurrent layer
         Dropout(0.2),
         Dense(16, activation='relu'),
-        Dense(1,  activation='sigmoid')  # مخرج 0 أو 1
+        Dense(1,  activation='sigmoid')  # Sigmoid output activation for binary classification
     ])
 
     model.compile(
@@ -190,8 +181,7 @@ def train_lstm(X_train, y_train, X_test, y_test):
         metrics=['accuracy']
     )
 
-    # EarlyStopping: يوقف التدريب لما الـ validation لا يتحسن
-    # هذا يمنع Overfitting ويوفر الوقت
+    # Early Stopping callback terminates training when validation loss ceases to improve.
     early_stop = EarlyStopping(
         monitor='val_loss',
         patience=5,
@@ -212,13 +202,13 @@ def train_lstm(X_train, y_train, X_test, y_test):
 
 def evaluate_model(name, model, X_test, y_test, is_lstm=False):
     """
-    يقيّم النموذج ويطبع النتائج بشكل واضح.
+    Evaluates model and prints key performance metrics.
 
-    المقاييس المستخدمة (من Warif scope):
-        Accuracy : نسبة التوقعات الصحيحة الكلية
-        Precision: من كل مرة قال "يحتاج ري"، كم مرة كان صح؟
-        Recall   : من كل مرة كان يحتاج ري فعلاً، كم مرة اكتشفناه؟
-        F1       : التوازن بين Precision و Recall
+    Metrics:
+        Accuracy: Overall percentage of correct classifications.
+        Precision: Ratio of true positive decisions out of all positive predictions.
+        Recall: Sensitivity in detecting actual irrigation requirements.
+        F1-Score: Harmonic mean of precision and recall.
     """
     if is_lstm:
         X_input = X_test.reshape(X_test.shape[0], 1, X_test.shape[1]) \
@@ -233,7 +223,7 @@ def evaluate_model(name, model, X_test, y_test, is_lstm=False):
     print(f"   Accuracy : {acc:.4f}  ({acc*100:.1f}%)")
     print(classification_report(
         y_test, y_pred,
-        target_names=['لا ري', 'يحتاج ري'],
+        target_names=['no_irrigation', 'irrigation_required'],
         digits=3
     ))
 
@@ -242,13 +232,10 @@ def evaluate_model(name, model, X_test, y_test, is_lstm=False):
 
 def save_models(rf, xgb, lstm_model, scaler, base_dir):
     """
-    يحفظ كل نموذج كملف منفصل.
+    Serializes and persists trained model weights and transformer pipelines.
 
-    ليش نحفظها؟
-        حتى لا نعيد التدريب في كل مرة.
-        النموذج المحفوظ يُحمَّل مباشرة عند الاستخدام.
-        عند إعادة التدريب (Continual Learning) نحفظ نسخة جديدة
-        ونحتفظ بالقديمة كـ backup -- هذا هو model versioning.
+    Ensures trained models can be loaded directly for operational inference
+    without redundant training cycles.
     """
     models_dir = os.path.join(base_dir, "saved_models")
     os.makedirs(models_dir, exist_ok=True)
@@ -258,7 +245,7 @@ def save_models(rf, xgb, lstm_model, scaler, base_dir):
     joblib.dump(scaler, os.path.join(models_dir, "scaler.pkl"))
     lstm_model.save(    os.path.join(models_dir, "lstm_model.keras"))
 
-    print(f"\nالنماذج محفوظة في: {models_dir}")
+    print(f"\nModels successfully saved to: {models_dir}")
     print("   rf_model.pkl")
     print("   xgb_model.pkl")
     print("   lstm_model.keras")
@@ -270,23 +257,23 @@ if __name__ == "__main__":
     data_path  = os.path.join(base_dir, "warif_dataset.csv")
 
     print("=" * 50)
-    print("Warif -- تدريب النماذج")
+    print("Warif ML Pipeline: Model Optimization")
     print("=" * 50)
 
-    # 1. تحميل البيانات
+    # 1. Load telemetry dataset
     X_train, X_test, y_train, y_test = load_data(data_path)
 
-    # 2. توحيد المقياس
+    # 2. Execute feature scaling
     X_train_sc, X_test_sc, scaler = scale_features(X_train, X_test)
 
-    # 3. تدريب النماذج
+    # 3. Train base estimators
     rf         = train_random_forest(X_train_sc, y_train)
     xgb        = train_xgboost(X_train_sc, y_train)
     lstm, X3d  = train_lstm(X_train_sc, y_train, X_test_sc, y_test)
 
-    # 4. التقييم
+    # 4. Generalization performance evaluation
     print("\n" + "=" * 50)
-    print("نتائج التقييم على بيانات الاختبار")
+    print("Estimator Evaluation Metrics on Holdout Test Set")
     print("=" * 50)
 
     acc_rf,  _ = evaluate_model("Random Forest", rf,   X_test_sc, y_test)
@@ -294,9 +281,9 @@ if __name__ == "__main__":
     acc_lstm,_ = evaluate_model("LSTM",           lstm, X_test_sc, y_test,
                                 is_lstm=True)
 
-    # 5. ملخص مقارن
+    # 5. Performance comparison summary
     print("\n" + "=" * 50)
-    print("ملخص المقارنة")
+    print("Comparative Model Summary")
     print("=" * 50)
     results = {
         "Random Forest": acc_rf,
@@ -308,10 +295,10 @@ if __name__ == "__main__":
         print(f"   {name:15s}: {acc*100:5.1f}%  {bar}")
 
     best = max(results, key=results.get)
-    print(f"\n   الافضل: {best} ({results[best]*100:.1f}%)")
-    print("   ملاحظة: الـ Ensemble يجمع الثلاثة للحصول على قرار اقوى")
+    print(f"\n   Top Performing Estimator: {best} ({results[best]*100:.1f}%)")
+    print("   Note: The Ensemble voting system combines all estimators for optimal decisions.")
 
-    # 6. حفظ النماذج
+    # 6. Persist Estimator Artifacts
     save_models(rf, xgb, lstm, scaler, base_dir)
 
-    print("\nالخطوة 2 اكتملت -- جاهز للخطوة 3 (Database + Continual Learning)")
+    print("\nStep 2 Completed -- System ready for Step 3 (Database & Continual Learning setup).")

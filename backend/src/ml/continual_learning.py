@@ -1,19 +1,16 @@
 """
-Warif ML Pipeline -- الخطوة 3: قاعدة البيانات والـ Continual Learning
+Warif ML Pipeline -- Step 3: Database and Continual Learning Engine
 ======================================================================
-ما الذي يحدث هنا؟
-    1. نبني قاعدة بيانات SQLite تحفظ كل قراءة sensor
-    2. نحفظ كل تنبؤ مع النتيجة الفعلية
-    3. نراقب دقة النماذج باستمرار
-    4. لما الدقة تنخفض عن حد معين -- نعيد التدريب تلقائياً
-    5. نحفظ النموذج الجديد مع رقم إصدار (v1, v2, v3...)
+Overview:
+    1. Manages a PostgreSQL database backend tracking sensor telemetry.
+    2. Logs each prediction alongside the actual field/physical outcome.
+    3. Monitors model inference accuracy continuously.
+    4. Triggers automatic model retraining when accuracy drops below the threshold.
+    5. Persists the retrained model versions systematically (e.g., v1.0, v2.0).
 
-ليش SQLite؟
-    خفيفة، لا تحتاج server منفصل، تعمل مباشرة كملف .db
-    مناسبة للـ prototype -- لما يكبر النظام نهاجر لـ PostgreSQL أو TimescaleDB
-
-هذا هو قلب مبدأ Continual Learning في Warif:
-    بيانات حقيقية تتراكم --> دقة النموذج تُقاس --> إعادة تدريب عند الحاجة
+Core Design Philosophy:
+    Accumulating physical field data enables active closed-loop validation,
+    forming the core of the Digital Twin continual learning system.
 """
 
 import os
@@ -41,30 +38,30 @@ FEATURE_COLS = [
     'growth_stage_encoded', 'days_since_transplant',
 ]
 
-# الحد الأدنى للدقة -- لما تنخفض عنه نعيد التدريب
+# Accuracy threshold: triggers retraining if validation accuracy falls below this value
 ACCURACY_THRESHOLD = 0.85
 
-# الحد الأدنى لعدد السجلات الجديدة قبل إعادة التدريب
+# Minimum count of new labeled field records required to initiate retraining
 MIN_NEW_RECORDS = 1
 
 
 # ══════════════════════════════════════════════════════════════
-# قاعدة البيانات
+# DATABASE OPERATIONS
 # ══════════════════════════════════════════════════════════════
 
 class WarifDatabase:
     """
-    يدير قاعدة بيانات Warif.
+    Manages the Warif PostgreSQL storage engine for ML telemetry.
 
-    الجداول:
-        sensor_readings  : كل قراءة واردة من الـ sensors
-        predictions      : كل تنبؤ أجراه النموذج + النتيجة الفعلية
-        model_versions   : سجل كل إصدار نموذج مع دقته
+    Schema Components:
+        ml_sensor_readings: Historical telemetry logged from active IoT sensors.
+        ml_predictions: Logs ML inference outputs correlated with physical outcomes.
+        ml_model_versions: Archives training metadata, accuracy scores, and weights.
     """
 
     def __init__(self, db_path: str = None):
         self._create_tables()
-        print("قاعدة البيانات (PostgreSQL) جاهزة")
+        print("[DB] PostgreSQL schemas validated and ready.")
 
     def _get_conn(self):
         return psycopg2.connect(
@@ -76,11 +73,11 @@ class WarifDatabase:
         )
 
     def _create_tables(self):
-        """ينشئ الجداول إذا لم تكن موجودة"""
+        """Initializes necessary PostgreSQL tables if not present"""
         conn = self._get_conn()
         c = conn.cursor()
 
-        # جدول قراءات الـ sensors
+        # Telemetry storage schema
         c.execute("""
             CREATE TABLE IF NOT EXISTS ml_sensor_readings (
                 id                   SERIAL PRIMARY KEY,
@@ -96,15 +93,14 @@ class WarifDatabase:
                 vpd_kpa              REAL,
                 growth_stage_encoded INTEGER,
                 days_since_transplant INTEGER,
-                irrigation_needed    INTEGER,   -- القرار الفعلي (0 أو 1)
+                irrigation_needed    INTEGER,   -- Actual ground truth label (0 or 1)
                 source               TEXT DEFAULT 'synthetic'
-                -- لما تتوفر sensors حقيقية: source = 'real'
+                -- 'real' for verified telemetry, 'synthetic' for simulated data
             )
         """)
 
-        # جدول التنبؤات
-        # نحفظ هنا ما توقعه النموذج وما حدث فعلاً
-        # هذا يسمح لنا بقياس الدقة مع مرور الوقت
+        # Predictions logging schema
+        # Correlating predictions and outcomes allows accuracy calculation over time
         c.execute("""
             CREATE TABLE IF NOT EXISTS ml_predictions (
                 id               SERIAL PRIMARY KEY,
@@ -114,15 +110,15 @@ class WarifDatabase:
                 rf_prediction    INTEGER,
                 xgb_prediction   INTEGER,
                 lstm_prediction  INTEGER,
-                ensemble_pred    INTEGER,   -- القرار النهائي للـ Ensemble
-                actual_outcome   INTEGER,   -- ما حدث فعلاً (يُحدَّث لاحقاً)
-                is_correct       INTEGER,   -- 1 = صح، 0 = خطأ
+                ensemble_pred    INTEGER,   -- Final prediction from Ensemble
+                actual_outcome   INTEGER,   -- Ground truth label observed post-action
+                is_correct       INTEGER,   -- Boolean flag: 1 = correct, 0 = incorrect
                 FOREIGN KEY (reading_id) REFERENCES ml_sensor_readings(id)
             )
         """)
 
-        # جدول إصدارات النماذج
-        # كل مرة نعيد التدريب نسجل هنا الدقة الجديدة
+        # Model versions tracking schema
+        # Persists performance metrics across retrained instances
         c.execute("""
             CREATE TABLE IF NOT EXISTS ml_model_versions (
                 id               SERIAL PRIMARY KEY,
@@ -133,7 +129,7 @@ class WarifDatabase:
                 xgb_accuracy     REAL,
                 lstm_accuracy    REAL,
                 ensemble_accuracy REAL,
-                data_source      TEXT,   -- 'synthetic' أو 'mixed' أو 'real'
+                data_source      TEXT,   -- Indicates dataset origin: 'synthetic', 'mixed', or 'real'
                 notes            TEXT
             )
         """)
@@ -142,7 +138,7 @@ class WarifDatabase:
         conn.close()
 
     def save_reading(self, reading: dict) -> int:
-        """يحفظ قراءة sensor جديدة ويعيد الـ ID"""
+        """Persists a new sensor telemetry reading and returns the primary key ID"""
         conn = self._get_conn()
         c = conn.cursor()
 
@@ -176,7 +172,7 @@ class WarifDatabase:
         return reading_id
 
     def save_prediction(self, prediction: dict):
-        """يحفظ تنبؤ النموذج"""
+        """Persists model prediction details for analytical tracking"""
         conn = self._get_conn()
         c = conn.cursor()
 
@@ -202,7 +198,7 @@ class WarifDatabase:
         conn.close()
 
     def save_model_version(self, version_info: dict):
-        """يسجل إصدار نموذج جديد بعد إعادة التدريب"""
+        """Logs retrained model metadata to version history"""
         conn = self._get_conn()
         c = conn.cursor()
 
@@ -229,11 +225,11 @@ class WarifDatabase:
 
     def get_recent_accuracy(self, last_n: int = 100) -> float:
         """
-        يحسب دقة النموذج على آخر N تنبؤ.
+        Computes model accuracy over the last N logged predictions.
 
-        ليش هذا مهم؟
-            لو الدقة بدأت تنخفض = النموذج لم يعد يناسب البيانات الجديدة
-            هذا هو إشارة إعادة التدريب في Continual Learning
+        Critical functionality:
+            Serves as the feedback trigger. Performance degradation signals concept drift
+            or shifts in microclimate conditions, triggering automated retraining.
         """
         conn = self._get_conn()
         c = conn.cursor()
@@ -249,13 +245,13 @@ class WarifDatabase:
         conn.close()
 
         if not rows:
-            return 1.0   # لا يوجد بيانات كافية بعد
+            return 1.0   # Insufficient historical data to evaluate
 
         correct = sum(r[0] for r in rows if r[0] is not None)
         return correct / len(rows)
 
     def get_unlabeled_count(self) -> int:
-        """يعيد عدد السجلات الجديدة التي لم تُستخدم في التدريب بعد"""
+        """Returns count of new unlabeled real-world samples collected"""
         conn = self._get_conn()
         c = conn.cursor()
         c.execute("""
@@ -268,7 +264,7 @@ class WarifDatabase:
         return count
 
     def get_all_labeled_data(self) -> pd.DataFrame:
-        """يجلب كل البيانات المعلّمة للتدريب"""
+        """Retrieves all labeled records available for supervised training"""
         conn = self._get_conn()
         df = pd.read_sql("""
             SELECT soil_moisture, soil_temp, soil_ph, soil_ec,
@@ -282,7 +278,7 @@ class WarifDatabase:
         return df
 
     def get_stats(self) -> dict:
-        """ملخص إحصائيات قاعدة البيانات"""
+        """Returns operational database statistics and metadata"""
         conn = self._get_conn()
         c = conn.cursor()
 
@@ -307,26 +303,25 @@ class WarifDatabase:
             'n_readings'  : n_readings,
             'n_predictions': n_predictions,
             'n_versions'  : n_versions,
-            'latest_version': latest[0] if latest else 'لا يوجد',
+            'latest_version': latest[0] if latest else 'None',
             'latest_acc'  : latest[1] if latest else 0,
         }
 
 
 # ══════════════════════════════════════════════════════════════
-# Ensemble -- يجمع قرارات الثلاثة نماذج
+# ENSEMBLE DECISION ORCHESTRATION
 # ══════════════════════════════════════════════════════════════
 
 class WarifEnsemble:
     """
-    يحمّل النماذج المحفوظة ويجمع قراراتها.
+    Loads persisted base estimators and aggregates predictions using weighted soft voting.
 
-    استراتيجية الـ Weighted Voting (من Warif scope):
-        RF     وزن 0.35
-        XGBoost وزن 0.40  (الأعلى دقة)
-        LSTM   وزن 0.25
+    Default Ensemble Configuration:
+        Random Forest: Weight = 0.35
+        XGBoost:       Weight = 0.40 (High-performance gradient boosting)
+        LSTM:          Weight = 0.25 (Temporal sequence modeling)
 
-    الأوزان تتعدّل تلقائياً بعد كل إعادة تدريب
-    بناءً على أداء كل نموذج على بيانات الاختبار
+    The weights are dynamically updated post-retraining based on individual test set accuracy.
     """
 
     def __init__(self, models_dir: str):
@@ -336,7 +331,7 @@ class WarifEnsemble:
         self._load_models()
 
     def _load_models(self):
-        """يحمّل النماذج من الملفات المحفوظة"""
+        """Loads trained model artifacts from the designated directory"""
         try:
             self.rf     = joblib.load(
                 os.path.join(self.models_dir, "rf_model.pkl"))
@@ -345,7 +340,7 @@ class WarifEnsemble:
             self.scaler = joblib.load(
                 os.path.join(self.models_dir, "scaler.pkl"))
 
-            # LSTM اختياري -- قد لا يكون موجوداً في كل بيئة
+            # Optional LSTM loader fallback (depends on Tensorflow installation/availability)
             lstm_path = os.path.join(self.models_dir, "lstm_model.keras")
             if os.path.exists(lstm_path):
                 try:
@@ -363,25 +358,28 @@ class WarifEnsemble:
                 self.has_lstm = False
                 self.weights  = {'rf': 0.45, 'xgb': 0.55, 'lstm': 0.0}
 
-            print(f"النماذج محملة -- الإصدار: {self.version}")
+            print(f"[ML] Estimators loaded successfully. Active Ensemble Version: {self.version}")
 
         except FileNotFoundError as e:
             raise FileNotFoundError(
-                f"النماذج غير موجودة. شغّل train_models.py أولاً.\n{e}"
+                f"Persisted model files not found. Execute train_models.py first.\n{e}"
             )
 
     def predict(self, features: dict) -> dict:
         """
-        يأخذ قراءة sensor واحدة ويعيد قرار الري.
+        Infers irrigation decisions based on incoming microclimate feature dict.
 
-        المدخل: dict فيه قيم الـ sensors
-        المخرج: dict فيه تنبؤ كل نموذج + القرار النهائي
+        Args:
+            features: Dictionary containing sensor telemetry.
+
+        Returns:
+            Dictionary containing individual predictions, overall vote, and confidence metrics.
         """
-        # تحويل القراءة لـ array
+        # Convert reading to numpy array
         X = np.array([[features[col] for col in FEATURE_COLS]])
         X_sc = self.scaler.transform(X)
 
-        # تنبؤ كل نموذج
+        # Generate model predictions
         rf_pred  = int(self.rf.predict(X_sc)[0])
         xgb_pred = int(self.xgb.predict(X_sc)[0])
 
@@ -408,14 +406,14 @@ class WarifEnsemble:
             'ensemble_pred': ensemble_pred,
             'confidence'   : round(score, 3),
             'model_version': self.version,
-            'decision'     : 'يحتاج ري' if ensemble_pred == 1 else 'لا يحتاج ري'
+            'decision'     : 'irrigation_required' if ensemble_pred == 1 else 'no_irrigation_required'
         }
 
     def update_weights(self, rf_acc, xgb_acc, lstm_acc):
         """
-        يعدّل أوزان الـ Ensemble بناءً على الدقة الجديدة.
+        Dynamically adjusts voting weights based on validation accuracy metrics.
 
-        النموذج الأدق يحصل على وزن أكبر -- تلقائياً.
+        Models with superior validation accuracy receive proportionally higher weights.
         """
         total = rf_acc + xgb_acc + lstm_acc
         if total > 0:
@@ -424,26 +422,26 @@ class WarifEnsemble:
                 'xgb' : round(xgb_acc  / total, 3),
                 'lstm': round(lstm_acc / total, 3),
             }
-            print(f"   أوزان جديدة: RF={self.weights['rf']} "
+            print(f"   Dynamic weights updated: RF={self.weights['rf']} "
                   f"XGB={self.weights['xgb']} "
                   f"LSTM={self.weights['lstm']}")
 
 
 # ══════════════════════════════════════════════════════════════
-# Continual Learning -- قلب النظام
+# CONTINUAL LEARNING PIPELINE
 # ══════════════════════════════════════════════════════════════
 
 class ContinualLearner:
     """
-    يراقب أداء النماذج ويعيد تدريبها عند الحاجة.
+    Monitors model performance metrics and triggers retraining pipelines when necessary.
 
-    دورة العمل:
-        1. قراءة sensor جديدة تصل
-        2. النموذج يتنبأ
-        3. نحفظ التنبؤ في قاعدة البيانات
-        4. لما يتأكد القرار الفعلي (تم الري أم لا) نحدّث السجل
-        5. كل فترة نحسب الدقة على آخر 100 قراءة
-        6. لو الدقة انخفضت عن 85% -- نعيد التدريب
+    Lifecycle:
+        1. Parse new microclimate sensor readings.
+        2. Execute real-time inference using the active Ensemble.
+        3. Save telemetry and prediction records to PostgreSQL.
+        4. Log physical ground truth outcomes post-action.
+        5. Monitor accuracy over a sliding window (default: last 100 predictions).
+        6. Trigger retraining if accuracy drops below threshold or new data criteria are met.
     """
 
     def __init__(self, db: WarifDatabase, ensemble: WarifEnsemble,
@@ -459,20 +457,21 @@ class ContinualLearner:
 
     def process_reading(self, reading: dict) -> dict:
         """
-        يعالج قراءة sensor واحدة:
-        1. يحفظها في قاعدة البيانات
-        2. يأخذ تنبؤ من الـ Ensemble
-        3. يحفظ التنبؤ
+        Processes an incoming telemetry point:
+        1. Saves readings to the PostgreSQL database.
+        2. Invokes real-time prediction using the Ensemble.
+        3. Stores the prediction record for active tracking.
 
-        المخرج: القرار النهائي + تفاصيل التنبؤ
+        Returns:
+            Dictionary containing prediction details and final irrigation decision.
         """
-        # حفظ القراءة
+        # Persist telemetry point
         reading_id = self.db.save_reading(reading)
 
-        # أخذ التنبؤ
+        # Invoke inference
         result = self.ensemble.predict(reading)
 
-        # حفظ التنبؤ
+        # Persist prediction
         actual = reading.get('irrigation_needed')
         is_correct = None
         if actual is not None:
@@ -489,8 +488,8 @@ class ContinualLearner:
             'is_correct'    : is_correct,
         })
 
-        # ----- تطبيق مبدأ التوأم الرقمي للتعلم المستمر -----
-        # التعلم المستمر فور توفر نتيجة فعلية من المزرعة
+        # ----- Digital Twin Continual Learning Loop -----
+        # Trigger retraining validation when actual outcome is logged
         if actual is not None:
             import threading
             threading.Thread(target=self.check_and_retrain, daemon=True).start()
@@ -499,25 +498,26 @@ class ContinualLearner:
 
     def check_and_retrain(self) -> bool:
         """
-        يتحقق هل يجب إعادة التدريب.
+        Validates retraining conditions.
 
-        شروط إعادة التدريب (أي شرط منهم):
-            1. الدقة على آخر 100 تنبؤ انخفضت عن 85%
-            2. تراكم 50+ سجل حقيقي جديد لم يُستخدم في التدريب
+        Triggers retraining if:
+            1. Accuracy on the sliding window (last 100 predictions) falls below ACCURACY_THRESHOLD.
+            2. Minimum new labeled real-world samples criteria are satisfied.
 
-        يعيد True لو تمت إعادة التدريب
+        Returns:
+            Boolean indicating whether retraining occurred.
         """
         if not self._retrain_lock.acquire(blocking=False):
-            print("   إعادة التدريب قيد التنفيذ حالياً، تم تخطي الطلب.")
+            print("   Retraining already in progress. Execution request skipped.")
             return False
 
         try:
             recent_acc   = self.db.get_recent_accuracy(last_n=100)
             new_records  = self.db.get_unlabeled_count()
 
-            print(f"\nمراقبة الأداء:")
-            print(f"   الدقة على آخر 100 تنبؤ: {recent_acc*100:.1f}%")
-            print(f"   سجلات حقيقية جديدة: {new_records}")
+            print(f"\nPerformance Monitor:")
+            print(f"   Accuracy over last 100 predictions: {recent_acc*100:.1f}%")
+            print(f"   New labeled field records: {new_records}")
 
             should_retrain = (
                 recent_acc < ACCURACY_THRESHOLD or
@@ -525,45 +525,45 @@ class ContinualLearner:
             )
 
             if should_retrain:
-                print("\nتطبيق مبدأ التوأم الرقمي: بدء التدريب المستمر على البيانات الجديدة...")
+                print("\n[Digital Twin Engine] Initiating continuous ML model retraining on updated dataset...")
                 self._retrain()
                 return True
             else:
-                print("   الاداء مستقر -- لا حاجة لإعادة التدريب الآن")
+                print("   Performance metrics stable. Retraining skipped.")
                 return False
         finally:
             self._retrain_lock.release()
 
     def _retrain(self):
         """
-        يعيد تدريب النماذج على البيانات المدمجة:
-            - البيانات الأصلية (Synthetic)
-            - البيانات الحقيقية الجديدة من المزرعة
+        Executes retraining of estimators using a combined dataset:
+            - Historical synthetic baseline data.
+            - Newly-accumulated verified field telemetry.
 
-        هذا هو Continual Learning -- نبني على ما تعلمناه سابقاً
-        بدل ما نبدأ من صفر
+        Implements progressive continual learning by warm-starting estimators
+        and avoiding cold-start parameter initialization.
         """
         from sklearn.ensemble import RandomForestClassifier
         from xgboost import XGBClassifier
 
-        # 1. تحميل بيانات التدريب الكاملة (synthetic + real)
+        # 1. Retrieve full combined training dataset
         df_original = pd.read_csv(self.dataset_path)
         df_real     = self.db.get_all_labeled_data()
 
         if len(df_real) > 0:
-            # دمج البيانات -- Real Data تأخذ أولوية أعلى
-            # نكررها مرتين لزيادة وزنها في التدريب
+            # Merge datasets: real-world data is given higher weight
+            # Duplicated to increase impact during gradient steps
             df_combined = pd.concat(
                 [df_original, df_real, df_real],
                 ignore_index=True
             )
             data_source = 'mixed'
-            print(f"   بيانات مدمجة: {len(df_original)} synthetic "
-                  f"+ {len(df_real)} real (x2)")
+            print(f"   Aggregated Dataset: {len(df_original)} synthetic "
+                  f"+ {len(df_real)} real (oversampled x2)")
         else:
             df_combined = df_original
             data_source = 'synthetic'
-            print(f"   بيانات: {len(df_original)} synthetic فقط")
+            print(f"   Aggregated Dataset: {len(df_original)} synthetic baseline samples only")
 
         X = df_combined[FEATURE_COLS].values
         y = df_combined['irrigation_needed'].values
@@ -572,12 +572,12 @@ class ContinualLearner:
             X, y, test_size=0.2, random_state=42, stratify=y
         )
 
-        # 2. إعادة حساب الـ scaler
+        # 2. Recompute scaling transformations
         scaler = StandardScaler()
         X_train_sc = scaler.fit_transform(X_train)
         X_test_sc  = scaler.transform(X_test)
 
-        # 3. إعادة تدريب RF و XGBoost
+        # 3. Retrain Random Forest and XGBoost estimators
         rf = RandomForestClassifier(
             n_estimators=200, max_depth=15,
             min_samples_split=5, random_state=42, n_jobs=-1
@@ -593,7 +593,7 @@ class ContinualLearner:
         xgb.fit(X_train_sc, y_train)
         xgb_acc = accuracy_score(y_test, xgb.predict(X_test_sc))
 
-        # LSTM -- Warm Start (يكمل من الأوزان السابقة)
+        # LSTM Warm Start (continues training on existing weights)
         lstm_acc = 0.0
         if self.ensemble.has_lstm:
             X_train_3d = X_train_sc.reshape(
@@ -606,7 +606,7 @@ class ContinualLearner:
                 monitor='val_loss', patience=3,
                 restore_best_weights=True
             )
-            # يكمل التدريب من الأوزان الحالية (Warm Start)
+            # Increment training epochs on existing weights
             self.ensemble.lstm.fit(
                 X_train_3d, y_train,
                 epochs=20, batch_size=32,
@@ -618,14 +618,14 @@ class ContinualLearner:
             ).astype(int).flatten()
             lstm_acc = accuracy_score(y_test, lstm_pred)
 
-        # 4. تحديث الإصدار
+        # 4. Increment versioning schema
         self.version_num += 1
         new_version = f"v{self.version_num}.0"
 
-        # 5. حفظ النماذج الجديدة
+        # 5. Persist updated base estimators
         models_dir = os.path.join(self.base_dir, "saved_models")
 
-        # احتفظ بالإصدار القديم كـ backup
+        # Archive old estimators as backup copies
         old_version = f"v{self.version_num - 1}.0"
         for fname in ['rf_model.pkl', 'xgb_model.pkl', 'scaler.pkl']:
             old_path = os.path.join(models_dir, fname)
@@ -645,7 +645,7 @@ class ContinualLearner:
                 os.path.join(models_dir, "lstm_model.keras")
             )
 
-        # 6. تحديث الـ Ensemble
+        # 6. Update references in the active Ensemble
         self.ensemble.rf     = rf
         self.ensemble.xgb    = xgb
         self.ensemble.scaler = scaler
@@ -653,7 +653,7 @@ class ContinualLearner:
         self.ensemble.update_weights(rf_acc, xgb_acc,
                                      lstm_acc if lstm_acc > 0 else rf_acc)
 
-        # 7. تسجيل الإصدار الجديد في قاعدة البيانات
+        # 7. Log new estimator version into PostgreSQL history
         ensemble_acc = accuracy_score(
             y_test,
             [self.ensemble.predict(
@@ -673,25 +673,25 @@ class ContinualLearner:
                              f'{len(df_real)} real records added',
         })
 
-        print(f"\n   اكتملت إعادة التدريب -- الإصدار الجديد: {new_version}")
-        print(f"   RF: {rf_acc*100:.1f}%  "
-              f"XGB: {xgb_acc*100:.1f}%  "
-              f"Ensemble: {ensemble_acc*100:.1f}%")
-        print(f"   النموذج القديم محفوظ كـ backup")
+        print(f"\n   Model Retraining Complete -- Version: {new_version}")
+        print(f"   Random Forest Accuracy: {rf_acc*100:.1f}%  "
+              f"XGBoost Accuracy: {xgb_acc*100:.1f}%  "
+              f"Ensemble Accuracy: {ensemble_acc*100:.1f}%")
+        print(f"   Legacy estimators backed up successfully.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# نظام الفيدباك والمراقبة المستمرة -- ربط الفيدباك مع التعلم المستمر
+# FEEDBACK SYSTEM INTEGRATION & CLOSED-LOOP VALIDATION
 # ══════════════════════════════════════════════════════════════════════════════
 
 class FeedbackMonitor:
     """
-    يراقب الفيدباك من المستخدمين ويستخدمه لتحسين النموذج
+    Integrates user feedback into the active continual learning loop.
 
-    هذا هو تطبيق مفهوم Digital Twin:
-    - مراقبة مستمرة للأداء الفعلي (الفيدباك)
-    - تعلم تلقائي من التقييمات الفعلية
-    - تحسن مستمر للنموذج
+    Applies the Digital Twin concept:
+    - Tracks real-world deployment accuracy from explicit user actions.
+    - Automates data labeling from feedback loops.
+    - Promotes progressive model optimization.
     """
 
     def __init__(self, db: WarifDatabase, ensemble: WarifEnsemble, learner: ContinualLearner):
@@ -702,7 +702,7 @@ class FeedbackMonitor:
 
     def record_user_feedback(self, recommendation_id: int, farm_id: int, is_helpful: bool):
         """
-        يسجل فيدباك المستخدم على توصية
+        Records user utility evaluation for a given system recommendation.
         """
         key = f"farm_{farm_id}_rec_{recommendation_id}"
         self.feedback_history[key] = {
@@ -711,12 +711,12 @@ class FeedbackMonitor:
             'farm_id': farm_id,
             'recommendation_id': recommendation_id
         }
-        status = '✅ مفيدة' if is_helpful else '❌ غير مفيدة'
-        print(f"   [Feedback] التوصية {recommendation_id}: {status}")
+        status = 'Helpful' if is_helpful else 'Unhelpful'
+        print(f"   [Feedback] Recommendation {recommendation_id} rated as: {status}")
 
     def calculate_accuracy(self, farm_id: int = None) -> dict:
         """
-        يحسب دقة التوصيات بناءً على الفيدباك الفعلي
+        Calculates recommendation accuracy derived from user feedback logs.
         """
         relevant = [fb for key, fb in self.feedback_history.items()
                    if farm_id is None or fb['farm_id'] == farm_id]
@@ -737,21 +737,21 @@ class FeedbackMonitor:
 
     def check_quality(self, threshold: float = 85.0) -> bool:
         """
-        تحديد جودة التوصيات بناءً على الفيدباك
+        Validates whether overall recommendation accuracy satisfies the operational threshold.
         """
         stats = self.calculate_accuracy()
         accuracy = stats.get('accuracy_percentage', 100)
 
         if accuracy < threshold and stats['total_feedback'] > 0:
-            print(f"\n⚠️  تحذير: دقة التوصيات = {accuracy:.1f}% (حد: {threshold}%)")
+            print(f"\n[WARNING] Recommendation accuracy dropped to {accuracy:.1f}% (operational threshold: {threshold}%)")
             return False
 
-        print(f"✅ جودة التوصيات: {accuracy:.1f}%")
+        print(f"[STATUS] Recommendation quality within bounds: {accuracy:.1f}%")
         return True
 
 
 # ══════════════════════════════════════════════════════════════
-# تشغيل تجريبي -- يحاكي وصول بيانات من المزرعة
+# PIPELINE DEMO & SYSTEM SIMULATION
 # ══════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
@@ -762,47 +762,47 @@ if __name__ == "__main__":
     db_path      = os.path.join(base_dir, "warif_farm.db")
 
     print("=" * 55)
-    print("Warif -- قاعدة البيانات والـ Continual Learning")
+    print("Warif ML Pipeline: Closed-Loop Continual Learning Engine")
     print("=" * 55)
 
-    # 1. تهيئة قاعدة البيانات والنماذج
+    # 1. Initialize DB storage and ensemble estimators
     db       = WarifDatabase(db_path)
     ensemble = WarifEnsemble(models_dir)
     learner  = ContinualLearner(db, ensemble, base_dir, dataset_path)
 
-    # 2. محاكاة وصول قراءات من المزرعة
-    print("\n--- محاكاة وصول 5 قراءات من الـ sensors ---")
+    # 2. Telemetry Feed Simulation (5 Samples)
+    print("\n--- Telemetry Feed Simulation (5 Samples) ---")
 
     sample_readings = [
-        {   # قراءة 1: رطوبة منخفضة + حرارة عالية = يحتاج ري
+        {   # Sample 1: Low soil moisture, high temperature (irrigation required)
             'soil_moisture': 45.0, 'soil_temp': 26.0, 'soil_ph': 6.4,
             'soil_ec': 1.8, 'air_temp': 34.0, 'humidity': 65.0,
             'co2_ppm': 650.0, 'vpd_kpa': 1.3,
             'growth_stage_encoded': 3, 'days_since_transplant': 38,
             'irrigation_needed': 1, 'source': 'synthetic',
         },
-        {   # قراءة 2: رطوبة مثالية = لا يحتاج ري
+        {   # Sample 2: Optimal soil moisture (no irrigation required)
             'soil_moisture': 72.0, 'soil_temp': 24.5, 'soil_ph': 6.4,
             'soil_ec': 1.8, 'air_temp': 26.3, 'humidity': 78.0,
             'co2_ppm': 650.0, 'vpd_kpa': 1.1,
             'growth_stage_encoded': 3, 'days_since_transplant': 38,
             'irrigation_needed': 0, 'source': 'synthetic',
         },
-        {   # قراءة 3: رطوبة هواء عالية = لا تروي
+        {   # Sample 3: High relative humidity (no irrigation required)
             'soil_moisture': 68.0, 'soil_temp': 23.0, 'soil_ph': 6.5,
             'soil_ec': 2.0, 'air_temp': 24.0, 'humidity': 93.0,
             'co2_ppm': 700.0, 'vpd_kpa': 0.6,
             'growth_stage_encoded': 2, 'days_since_transplant': 25,
             'irrigation_needed': 0, 'source': 'synthetic',
         },
-        {   # قراءة 4: طور إزهار + رطوبة منخفضة = خطر
+        {   # Sample 4: Flowering phase with low soil moisture (critical irrigation required)
             'soil_moisture': 58.0, 'soil_temp': 25.0, 'soil_ph': 6.3,
             'soil_ec': 1.6, 'air_temp': 27.0, 'humidity': 74.0,
             'co2_ppm': 800.0, 'vpd_kpa': 1.0,
             'growth_stage_encoded': 2, 'days_since_transplant': 22,
             'irrigation_needed': 1, 'source': 'synthetic',
         },
-        {   # قراءة 5: EC عالي = تأخير الري
+        {   # Sample 5: High Soil EC (delay irrigation)
             'soil_moisture': 63.0, 'soil_temp': 24.0, 'soil_ph': 6.6,
             'soil_ec': 3.8, 'air_temp': 28.0, 'humidity': 76.0,
             'co2_ppm': 750.0, 'vpd_kpa': 1.2,
@@ -819,34 +819,33 @@ if __name__ == "__main__":
         if match:
             correct += 1
 
-        print(f"\n   القراءة {i}:")
+        print(f"\n   Reading {i}:")
         print(f"      soil_moisture={reading['soil_moisture']}%  "
               f"air_temp={reading['air_temp']}C  "
               f"humidity={reading['humidity']}%")
-        print(f"      القرار: {result['decision']}  "
-              f"(ثقة: {result['confidence']})")
-        print(f"      الفعلي: {'يحتاج ري' if actual == 1 else 'لا يحتاج'}  "
-              f"-- {'صح' if match else 'خطا'}")
+        print(f"      Ensemble Decision: {result['decision']}  "
+              f"(Confidence Score: {result['confidence']})")
+        print(f"      Ground Truth Outcome: {'irrigation_required' if actual == 1 else 'no_irrigation_required'}  "
+              f"-- Result: {'CORRECT' if match else 'INCORRECT'}")
 
-    print(f"\n   دقة على هذه القراءات: {correct}/5 "
-          f"({correct/5*100:.0f}%)")
+    print(f"\n   Inference Accuracy on sample batch: {correct}/5 ({correct/5*100:.0f}%)")
 
-    # 3. فحص هل يجب إعادة التدريب
+    # 3. Evaluate Retraining Trigger
     print("\n" + "-" * 55)
     learner.check_and_retrain()
 
-    # 4. إحصائيات قاعدة البيانات
+    # 4. Log Operational Database Metrics
     print("\n" + "-" * 55)
     stats = db.get_stats()
-    print("احصائيات قاعدة البيانات:")
-    print(f"   قراءات sensors محفوظة : {stats['n_readings']}")
-    print(f"   تنبؤات محفوظة          : {stats['n_predictions']}")
-    print(f"   إصدارات نماذج          : {stats['n_versions']}")
-    print(f"   آخر إصدار              : {stats['latest_version']}")
+    print("Database Operational Status Summary:")
+    print(f"   Saved telemetry reading records: {stats['n_readings']}")
+    print(f"   Logged prediction records      : {stats['n_predictions']}")
+    print(f"   Trained estimator versions     : {stats['n_versions']}")
+    print(f"   Active estimator version       : {stats['latest_version']}")
 
     print("\n" + "=" * 55)
-    print("الخطوة 3 اكتملت -- Pipeline جاهز")
-    print("لما تتصل الـ sensors الحقيقية:")
-    print("   غيري source='synthetic' الى source='real'")
-    print("   والنظام يكمل من نفسه")
+    print("Step 3 Complete -- Pipeline Ready for Deployment")
+    print("When transitioning to production IoT devices:")
+    print("   Change source='synthetic' to source='real'")
+    print("   The closed-loop learning engine will execute automatically.")
     print("=" * 55)
