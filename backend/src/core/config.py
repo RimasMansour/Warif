@@ -1,3 +1,19 @@
+# backend/src/core/config.py
+"""
+Application Configuration — Warif Backend
+==========================================
+Loads all settings from environment variables and .env file.
+Uses pydantic-settings for validation and type coercion.
+
+Key settings:
+  - DATABASE_URL  : built from DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+  - JWT_SECRET_KEY: must be overridden in production via environment variable
+  - ALLOWED_ORIGINS: list of allowed frontend URLs for CORS
+  - JWT_EXPIRE_MINUTES: token validity period (default 480 min = 8 hours)
+
+In production (Railway): all secrets are set as environment variables.
+In development: loaded from backend/.env file.
+"""
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import field_validator
 from typing import List
@@ -38,6 +54,7 @@ class Settings(BaseSettings):
         "https://*.up.railway.app",
     ]
 
+    # Optional — Slack notifications (not currently active in production)
     SLACK_WEBHOOK_URL: str = ""
 
     @field_validator("DEBUG", mode="before")

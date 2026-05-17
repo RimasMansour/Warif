@@ -1,4 +1,15 @@
 # backend/src/core/security.py
+"""
+Security Utilities — Warif Backend
+=====================================
+Handles all authentication and authorization logic:
+  - hash_password()     : bcrypt password hashing
+  - verify_password()   : bcrypt password verification
+  - create_access_token(): JWT token generation
+  - decode_token()      : JWT token validation
+  - get_current_user()  : FastAPI dependency — extracts user from JWT
+  - require_admin()     : FastAPI dependency — enforces admin role
+"""
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import jwt, JWTError

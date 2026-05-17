@@ -1,4 +1,18 @@
 # backend/src/api/main.py
+"""
+Warif FastAPI Application Entry Point
+=======================================
+Initializes the FastAPI app with:
+  - CORS middleware configured for Railway and local development
+  - All API routers mounted under /api/v1/
+  - Background monitoring tasks started on startup:
+      * connectivity_monitoring: checks device online/offline status every 60s
+      * ml_monitoring: tracks ML recommendation accuracy every 60s
+
+To run locally:
+    cd backend
+    python -m uvicorn src.api.main:app --reload --port 8000
+"""
 import asyncio
 from pathlib import Path
 from fastapi import FastAPI
@@ -62,7 +76,7 @@ app.include_router(logs.router,            prefix="/api/v1/logs",            tag
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_monitoring():
-    """بدء نظام المراقبة 24/7 عند تشغيل الخادم"""
+    """Start background monitoring tasks when the server boots."""
     import sys
     out = sys.stdout.buffer if hasattr(sys.stdout, 'buffer') else None
     msg = "\n" + "="*70 + "\nWarif - System monitoring started (24/7)\n" + "="*70 + "\n"
@@ -73,7 +87,7 @@ async def startup_monitoring():
         print(msg)
 
     async def connectivity_monitoring():
-        """مراقبة اتصال الأجهزة — تعمل دائماً بشكل مستقل عن ML"""
+        """Monitor device connectivity — runs independently of ML monitoring."""
         from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
         from sqlalchemy.orm import sessionmaker
         from src.services.connectivity_monitor import ConnectivityMonitor
@@ -101,7 +115,7 @@ async def startup_monitoring():
             await asyncio.sleep(60)
 
     async def ml_monitoring():
-        """مراقبة دقة ML والفيدباك — قد تفشل إذا لم تكن مكتبات ML مثبتة"""
+        """Monitor ML feedback accuracy — gracefully handles missing ML libraries."""
         await asyncio.sleep(10)
         while True:
             try:
