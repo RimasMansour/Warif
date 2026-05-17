@@ -112,6 +112,14 @@ def _push_reading(warif_device_id: str, sensor_type: str, value: float, unit: st
         log.warning(f"Push error [{sensor_type}]: {e}")
 
 
+def _mark_offline(warif_device_id: str):
+    """Immediately mark a device offline in the DB without waiting for the 5-min timeout."""
+    try:
+        requests.post(f"{WARIF_API}/api/v1/sensors/offline/{warif_device_id}", timeout=5)
+    except requests.RequestException:
+        pass
+
+
 # ── Poll loop ─────────────────────────────────────────────────────────────────
 
 def poll_once(api, config: dict):
@@ -123,6 +131,7 @@ def poll_once(api, config: dict):
 
         if not _is_device_online(api, tuya_id):
             log.warning(f"{label} ({tuya_id}): offline (Tuya confirms device is down)")
+            _mark_offline(warif_id)
             continue
 
         status = _fetch_device_status(api, tuya_id, poll_api)
@@ -144,29 +153,35 @@ def poll_once(api, config: dict):
             log.info(f"{label}: pushed {pushed} reading(s)")
 
     # ── Poll actuator devices to keep connectivity status up to date ──────────
-    # Pushing any reading for an actuator device updates its last_seen so the
-    # connectivity monitor can correctly mark it online/offline on the dashboard.
+    # Fetch status once per unique Tuya device, then push heartbeats to ALL
+    # warif_device_ids that share that physical device (e.g. fan + cooling).
     farm_id = config.get("farm_id")
-    seen_tuya_ids = set()  # avoid double-polling devices shared between actuators
+    tuya_status_cache: dict = {}   # tuya_id -> status dict (None = offline)
+
     for name, act in config.get("actuators", {}).items():
         tuya_id  = act.get("tuya_device_id", "")
         warif_id = act.get("warif_device_id", "")
-        if not tuya_id or not warif_id or tuya_id in seen_tuya_ids:
-            continue
-        seen_tuya_ids.add(tuya_id)
-
-        # Check real-time online status first — shadow data can be stale for offline devices
-        if not _is_device_online(api, tuya_id):
-            log.warning(f"actuator/{name} ({tuya_id}): offline (Tuya confirms device is down)")
+        if not tuya_id or not warif_id:
             continue
 
-        poll_api = act.get("command_api", "v1.0")  # v2.0 devices need v2.0 for status too
-        status = _fetch_device_status(api, tuya_id, poll_api)
-        if not status:
-            log.warning(f"actuator/{name} ({tuya_id}): no status data returned")
+        # Fetch from Tuya only once per physical device
+        if tuya_id not in tuya_status_cache:
+            if not _is_device_online(api, tuya_id):
+                log.warning(f"actuator/{name} ({tuya_id}): offline (Tuya confirms device is down)")
+                tuya_status_cache[tuya_id] = None
+            else:
+                poll_api = act.get("command_api", "v1.0")
+                st = _fetch_device_status(api, tuya_id, poll_api)
+                tuya_status_cache[tuya_id] = st if st else None
+                if not st:
+                    log.warning(f"actuator/{name} ({tuya_id}): no status data returned")
+
+        status = tuya_status_cache.get(tuya_id)
+        if status is None:
+            _mark_offline(warif_id)
             continue
 
-        # Push the switch/power state as a heartbeat so last_seen is updated
+        # Push heartbeat for every warif_device_id so each gets its own last_seen update
         switch_code = act.get("switch_code") or (act.get("codes") or [None])[0]
         if switch_code and switch_code in status:
             value = 1.0 if status[switch_code] else 0.0

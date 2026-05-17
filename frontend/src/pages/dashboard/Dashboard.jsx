@@ -896,7 +896,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                                     </p>
                                   </div>
                                 </div>
-                                <div className={`text-[14px] font-black ${isConnected ? 'text-emerald-600' : 'text-gray-400'}`}>{connectedLabel}</div>
+                                <div className={`text-[14px] font-black ${isConnected ? 'text-emerald-600' : 'text-red-500'}`}>{connectedLabel}</div>
                               </div>
                             );
                           })}

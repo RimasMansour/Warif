@@ -106,6 +106,20 @@ async def get_latest_readings(
     return out
 
 
+# Called by tuya_bridge when a device fails the Tuya online check — marks it offline immediately
+# without waiting for the 5-minute connectivity monitor timeout.
+@router.post("/offline/{device_id}")
+async def mark_device_offline(device_id: str, db: AsyncSession = Depends(get_db)):
+    from datetime import datetime, timezone
+    result = await db.execute(select(Device).where(Device.device_id == device_id))
+    device = result.scalar_one_or_none()
+    if device and device.is_online:
+        device.is_online = False
+        device.connection_lost_at = datetime.now(timezone.utc)
+        await db.commit()
+    return {"ok": True}
+
+
 # Internal endpoint — called by real IoT hardware sensors, not the frontend directly
 @router.post("", status_code=201)
 async def ingest_sensor_reading(

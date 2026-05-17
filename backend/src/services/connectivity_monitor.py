@@ -44,38 +44,47 @@ class ConnectivityMonitor:
 
                     if time_since_last_seen > DEVICE_TIMEOUT_SECONDS:
                         # الجهاز مقطوع ❌
-                        if device.is_online:  # إذا كان يُعتبر متصل قبلاً
-                            # تحديث حالة الجهاز
+                        if device.is_online:
                             device.is_online = False
                             device.connection_lost_at = now
-                            await db.flush()
+                            # Commit the status flip immediately so alert creation
+                            # failures cannot roll it back.
+                            try:
+                                await db.commit()
+                            except Exception:
+                                await db.rollback()
+                                continue
 
-                            # توليد تنبيه
-                            alert = await _generate_connectivity_alert(
-                                farm_id=farm_id,
-                                device=device,
-                                db=db
+                            logger.warning(
+                                f"[Connectivity] Device {device.device_id} "
+                                f"disconnected! Last seen: {device.last_seen}"
                             )
-                            if alert:
-                                generated_alerts.append(alert)
-                                logger.warning(
-                                    f"[Connectivity] Device {device.device_id} "
-                                    f"disconnected! Last seen: {device.last_seen}"
+
+                            try:
+                                alert = await _generate_connectivity_alert(
+                                    farm_id=farm_id, device=device, db=db
                                 )
+                                await db.commit()
+                                if alert:
+                                    generated_alerts.append(alert)
+                            except Exception as alert_err:
+                                logger.error(
+                                    f"[Connectivity] Alert creation failed for "
+                                    f"{device.device_id}: {alert_err}"
+                                )
+                                await db.rollback()
                     else:
                         # الجهاز متصل ✅
-                        if not device.is_online:  # إذا كان يُعتبر مقطوع قبلاً
-                            # الاتصال استرجع
+                        if not device.is_online:
                             device.is_online = True
                             device.connection_lost_at = None
-                            await db.flush()
-
-                            logger.info(
-                                f"[Connectivity] Device {device.device_id} "
-                                f"reconnected successfully"
-                            )
-
-            await db.commit()
+                            try:
+                                await db.commit()
+                                logger.info(
+                                    f"[Connectivity] Device {device.device_id} reconnected"
+                                )
+                            except Exception:
+                                await db.rollback()
 
         except Exception as e:
             logger.error(f"[ConnectivityMonitor] Error checking farm {farm_id}: {e}")

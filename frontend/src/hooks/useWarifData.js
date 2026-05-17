@@ -519,10 +519,11 @@ export function useDevices(providedFarmId = null) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
       try {
         let farmId = providedFarmId;
-        
+
         // 1. If no farmId provided, fetch it from the API
         if (!farmId) {
           const farms = await getFarms();
@@ -547,14 +548,16 @@ export function useDevices(providedFarmId = null) {
           results = Array.isArray(res) ? res : [];
           console.log(`[useDevices] Found ${results.length} devices in DB`);
         }
-        
-        setDevices(results);
-      } catch (err) { 
+
+        if (!cancelled) setDevices(results);
+      } catch (err) {
         console.error("[useDevices] Error loading devices:", err);
-        setDevices([]); 
-      } finally { setLoading(false); }
+        if (!cancelled) setDevices([]);
+      } finally { if (!cancelled) setLoading(false); }
     };
     load();
+    const interval = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [providedFarmId]);
 
   const counts = {

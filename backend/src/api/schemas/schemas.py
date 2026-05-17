@@ -93,6 +93,7 @@ class DeviceOut(BaseModel):
     name:      Optional[str]
     type:      Optional[str]
     status:    str
+    is_online: bool = True
 
     model_config = {"from_attributes": True}
 
