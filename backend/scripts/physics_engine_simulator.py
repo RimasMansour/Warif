@@ -20,6 +20,7 @@ sys.path.insert(0, str(BACKEND_DIR))
 os.chdir(str(BACKEND_DIR))
 
 import asyncio
+import json
 import time
 import requests
 import math
@@ -269,14 +270,12 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
         if fan_cmd_obj or cooler_cmd_obj:
             manual_override = True
             if fan_cmd_obj:
-                import json
                 payload = fan_cmd_obj.payload
                 if isinstance(payload, str):
                     payload = json.loads(payload)
                 payload = payload or {}
                 manual_fan = payload.get("fan", False)
             if cooler_cmd_obj:
-                import json
                 payload = cooler_cmd_obj.payload
                 if isinstance(payload, str):
                     payload = json.loads(payload)
