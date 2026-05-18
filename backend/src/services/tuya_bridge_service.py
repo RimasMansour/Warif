@@ -20,7 +20,8 @@ import requests
 
 log = logging.getLogger("tuya_bridge")
 
-WARIF_API     = os.getenv("WARIF_API_URL", "http://localhost:8000")
+_port = os.getenv("PORT", "8000")
+WARIF_API = os.getenv("WARIF_API_URL", f"http://localhost:{_port}")
 POLL_INTERVAL = int(os.getenv("TUYA_POLL_INTERVAL", "30"))
 CONFIG_FILE   = Path(__file__).resolve().parents[2] / "tuya_devices.json"
 

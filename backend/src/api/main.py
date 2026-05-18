@@ -24,8 +24,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 from src.core.config import settings
-# DISABLED LOCALLY - Rimas's work on Chatbot
-# from src.chatbot.chatbot_api import router as chatbot_router
+from src.chatbot.chatbot_api import router as chatbot_router
 from src.api.routes import (
     auth,
     sensors,
@@ -70,8 +69,7 @@ app.include_router(commands.router,        prefix="/api/v1/commands",        tag
 app.include_router(ml.router,             prefix="/api/v1/ml",              tags=["ML"])
 app.include_router(config.router,          prefix="/api/v1/config",          tags=["Config"])
 app.include_router(logs.router,            prefix="/api/v1/logs",            tags=["Logs"])
-# DISABLED LOCALLY - Rimas's work on Chatbot
-# app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
+app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
 
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
