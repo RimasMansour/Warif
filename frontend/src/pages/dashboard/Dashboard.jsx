@@ -318,6 +318,15 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const currentFarmId = userFarms[activeFarm]?.id || null;
   const { devices, counts, loading: devicesLoading } = useDevices(currentFarmId);
 
+  const valveDeviceId = useMemo(() => {
+    if (!devices?.length) return null;
+    const valve = devices.find(d =>
+      d.type === 'actuator' &&
+      (d.device_id?.toLowerCase().includes('valve') || d.name?.toLowerCase().includes('valve') || d.name?.includes('محبس'))
+    );
+    return valve?.device_id ?? null;
+  }, [devices]);
+
   useEffect(() => {
     if (devices && devices.length > 0) {
       const mapped = devices.map(d => ({
@@ -354,7 +363,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     if (actionType === 'cool') {
       triggerManualCooling('full', currentFarmId);
     } else if (actionType === 'irrigate') {
-      startManualIrrigation(`valve_farm_${currentFarmId}_01`, 20).catch(e => console.error(e));
+      if (valveDeviceId) startManualIrrigation(valveDeviceId, 20).catch(e => console.error(e));
     }
     // Dismiss after action
     dismissAlert(id);
@@ -1066,8 +1075,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                       onClick={async () => {
                         setIrrigationProcessing(true);
                         try {
-                          const device_id = `valve_farm_${currentFarmId}_01`;
-                          await startManualIrrigation(device_id, manualDuration);
+                          if (!valveDeviceId) throw new Error("No valve device registered for this farm");
+                          await startManualIrrigation(valveDeviceId, manualDuration);
                           setIrrigationProcessing(false);
                           setIrrigationSuccess(true);
                           setTimeout(() => {
@@ -1079,7 +1088,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                           console.error("Manual irrigation failed", e);
                         }
                       }}
-                      disabled={irrigationProcessing}
+                      disabled={irrigationProcessing || !valveDeviceId}
                       className="w-full py-5 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-900/10 hover:shadow-emerald-900/20 transition-all flex items-center justify-center gap-3 group active:scale-95 disabled:opacity-70"
                     >
                       {irrigationProcessing ? (

@@ -81,7 +81,13 @@ async def start_manual_irrigation(
     current_user: dict = Depends(get_current_user),
 ):
     """Trigger manual irrigation for a specific device."""
-    actuator = await _get_or_create_actuator(body.device_id, db)
+    result = await db.execute(select(Actuator).where(Actuator.device_id == body.device_id))
+    actuator = result.scalar_one_or_none()
+    if not actuator:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Device '{body.device_id}' is not registered. Register it first via POST /api/v1/farms/{{farm_id}}/devices.",
+        )
 
     command = IrrigationCommand(
         actuator_id=actuator.id,
