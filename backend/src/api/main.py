@@ -150,8 +150,21 @@ async def startup_monitoring():
                 print(f"[ML Monitor Fatal]: {e}")
             await asyncio.sleep(60)
 
+    async def tuya_bridge():
+        """Run the Tuya polling bridge in a background thread. Auto-restarts on crash."""
+        await asyncio.sleep(5)  # wait for the DB to be ready
+        while True:
+            try:
+                from src.services.tuya_bridge_service import run as bridge_run
+                print("[Tuya Bridge] Starting...")
+                await asyncio.to_thread(bridge_run)
+            except Exception as e:
+                print(f"[Tuya Bridge] Stopped: {e} — restarting in 15s")
+            await asyncio.sleep(15)
+
     asyncio.create_task(connectivity_monitoring())
     asyncio.create_task(ml_monitoring())
+    asyncio.create_task(tuya_bridge())
 
 
 # ── Health ────────────────────────────────────────────────────────────────
