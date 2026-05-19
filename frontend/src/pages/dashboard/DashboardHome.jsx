@@ -174,17 +174,17 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
   const [showAlertThanks, setShowAlertThanks] = useState([]);
 
   const handleAlertFeedback = async (id, type) => {
-    // تحديث الواجهة المحلية فوراً
+    // Update the local UI immediately
     setAlertFeedback(prev => ({ ...prev, [id]: type }));
     setShowAlertThanks(prev => [...prev, id]);
     setTimeout(() => setShowAlertThanks(prev => prev.filter(i => i !== id)), 2000);
 
-    // إرسال الفيدباك إلى الـ Backend - للـ alerts (ليس recommendations)
+    // Send feedback to the Backend for alerts (not recommendations)
     const helpful = type === 'up';
     await submitAlertFeedback(id, helpful);
   };
 
-  // تقسيم الانذارات حسب الشدة
+  // Categorize alerts by severity
   const urgentAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
   const warningAlerts = alerts.filter(a => a.severity === 'warning' || a.severity === 'info');
 
@@ -212,7 +212,7 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
           />
         ) : (
           <>
-            {/* كل الانذارات مرتبة حسب الشدة */}
+            {/* All alerts sorted by severity */}
             {[...urgentAlerts, ...warningAlerts].map((alert, i) => (
               <AlertCard key={alert.id || i} alert={alert} isEn={isEn} globalAutoMode={globalAutoMode} onAccept={onAccept} onFeedback={handleAlertFeedback} feedbackState={alertFeedback} showThanks={showAlertThanks} compact={true} />
             ))}
