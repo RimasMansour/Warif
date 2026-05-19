@@ -58,7 +58,7 @@ export const translations = {
 
     // Farm info
     farmInfo: 'معلومات المحمية',
-    step1of3: 'الخطوة ١ من ٣',
+    step1of3: 'الخطوة ١ من ٤',
     farmName: 'اسم المحمية',
     farmNamePlaceholder: 'مثال: محمية الخضروات',
     farmType: 'نوع المحمية',
@@ -276,7 +276,7 @@ export const translations = {
 
     // Farm info
     farmInfo: 'Farm Information',
-    step1of3: 'Step 1 of 3',
+    step1of3: 'Step 1 of 4',
     farmName: 'Farm Name',
     farmNamePlaceholder: 'e.g. Vegetable Farm',
     farmType: 'Farm Type',

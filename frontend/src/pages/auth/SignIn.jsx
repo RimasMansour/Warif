@@ -1069,7 +1069,7 @@ function DeviceScanPage({ onFinish, T, isRtl, selectedSensors, isLoading, error 
     <div className="flex flex-col gap-4 animate-fade-in-up">
       <div className="text-center mb-2">
         <h1 className="text-2xl font-black text-emerald-900 tracking-tight">{T.pairDevices}</h1>
-        <p className="text-[12px] font-bold text-gray-400 mt-1">{T.step3of3}</p>
+        <p className="text-[12px] font-bold text-gray-400 mt-1">{T.step3of4}</p>
       </div>
 
       <div className="flex flex-col gap-2.5">
