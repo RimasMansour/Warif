@@ -330,23 +330,23 @@ function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, c
         iconColor="text-[#059669]"
       />
 
-      <div className={`mt-4 flex items-start justify-between gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex flex-col gap-3 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
+      <div className="mt-4 flex items-start justify-between gap-2">
+        <div className="flex flex-col gap-3 items-start text-start">
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Temperature' : 'درجة الحرارة'}</div>
-            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+            <div className="text-[22px] font-black text-gray-800 leading-none flex items-baseline">
               {temp.toFixed(1)}<span className="text-[12px] font-bold text-gray-400 mx-1">°C</span>
             </div>
           </div>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Air Humidity' : 'رطوبة الجو'}</div>
-            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+            <div className="text-[22px] font-black text-gray-800 leading-none flex items-baseline">
               {hum.toFixed(0)}<span className="text-[12px] font-bold text-gray-400 mx-1">%</span>
             </div>
           </div>
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Light Intensity' : 'شدة الإضاءة'}</div>
-            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+            <div className="text-[22px] font-black text-gray-800 leading-none flex items-baseline">
               {Math.round(light).toLocaleString()}<span className="text-[12px] font-bold text-gray-400 mx-1">Lux</span>
             </div>
           </div>
@@ -385,19 +385,19 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp 
         iconColor="text-[#059669]"
       />
 
-      <div className={`mt-4 flex items-start justify-between gap-4 ${isEn ? 'flex-row-reverse' : ''}`}>
-        <div className={`flex flex-col gap-3 ${isEn ? 'items-end text-right' : 'items-start text-right'}`}>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <div className="flex flex-col gap-3 items-start text-start">
           <div className="flex flex-col">
             <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">{isEn ? 'Soil Temp' : 'حرارة التربة'}</div>
-            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+            <div className="text-[22px] font-black text-gray-800 leading-none flex items-baseline">
               {soilTemp.toFixed(1)}<span className="text-[12px] font-bold text-gray-400 mx-1">°C</span>
             </div>
           </div>
           <div className="flex flex-col">
-            <div className={`text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight flex items-center gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
+            <div className="text-[12px] text-gray-400 font-bold uppercase mb-0.5 tracking-tight">
               {isEn ? 'Soil Moisture' : 'رطوبة التربة'}
             </div>
-            <div className={`text-[22px] font-black text-gray-800 leading-none ${isEn ? 'flex flex-row-reverse items-baseline justify-end' : ''}`}>
+            <div className="text-[22px] font-black text-gray-800 leading-none flex items-baseline">
               {soilMoist.toFixed(0)}<span className="text-[12px] font-bold text-gray-400 mx-1">%</span>
             </div>
           </div>
