@@ -481,7 +481,7 @@ export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
         <div className={isRtl ? 'text-right' : 'text-left'}>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-lg font-black text-gray-800 leading-none">
-              {T.lightChart || 'شدة الإضاءة'}
+              {T.lightChart || (isRtl ? 'شدة الإضاءة' : 'Light Intensity')}
             </h2>
             <span className="bg-amber-50 text-amber-600 text-xs px-2 py-0.5 rounded-lg border border-amber-100 font-black uppercase tracking-tighter">
               {T.realtimeAnalysis || 'تحليل فوري'}

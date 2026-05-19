@@ -146,9 +146,9 @@ export function AirHumidityIcon(props) {
   );
 }
 
-function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = false, iconBg = "bg-emerald-50", iconColor = "text-[#059669]" }) {
+function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = false, iconBg = "bg-emerald-50", iconColor = "text-[#059669]", rightElement }) {
   return (
-    <div className="flex items-start justify-between gap-3">
+    <div className="flex items-start justify-between gap-3 w-full">
       <div className="flex items-start gap-3">
         {icon && (
           <div className={`shrink-0 w-11 h-11 rounded-2xl ${iconBg} border border-emerald-100/50 flex items-center justify-center ${iconColor} shadow-sm transition-all`}>
@@ -160,7 +160,7 @@ function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = fal
           {subtitle && <div className="text-[12px] text-gray-400 mt-0.5 font-medium leading-tight">{subtitle}</div>}
         </div>
       </div>
-      {detailsLabel && (
+      {rightElement ? rightElement : detailsLabel && (
         <button
           type="button"
           onClick={onDetails}
@@ -791,7 +791,7 @@ export function RecommendationCard({
       className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col shrink-0 ${compact ? 'p-4' : 'p-5 md:p-6'}`}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-2.5">
           <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: severityColor }} />
           <h3 className={`font-bold text-gray-500 uppercase tracking-widest leading-tight ${compact ? 'text-[10px]' : 'text-[11px]'}`}>
@@ -805,7 +805,7 @@ export function RecommendationCard({
         )}
       </div>
 
-      <div className="flex items-start gap-3.5 mb-4">
+      <div className="flex items-start gap-3.5 mb-2">
         <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 mt-0.5 ${theme.iconBg}`}>
           {theme.icon}
         </div>
@@ -821,34 +821,35 @@ export function RecommendationCard({
         </div>
       </div>
 
-      <div className="pt-3 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-3 mt-auto">
+      {/* Unified Footer Area */}
+      <div className="pt-1.5 flex flex-col gap-2 mt-auto w-full">
         {!globalAutoMode ? (
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 flex-1 w-full mt-2 lg:mt-0">
-            <div className="flex items-start xl:items-center gap-2">
-              <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 xl:mt-0 flex items-center justify-center">
+          <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 w-full">
+            <div className="flex items-start gap-2">
+              <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 flex items-center justify-center">
                 <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
               </div>
-              <p className="font-medium text-[12px] text-sky-800 leading-snug flex-1 text-start">
+              <p className="font-medium text-[12px] md:text-[13px] text-sky-800 leading-snug flex-1 text-start">
                 {getActionExplanation(rec.category || rec.type, isEn, false)}
               </p>
             </div>
-            <div className="flex gap-2 ms-auto shrink-0">
+            <div className="flex gap-2 justify-end w-full">
               <button
                 onClick={handleExecute}
                 disabled={isLoading || executionSuccess}
-                className={`px-4 py-1.5 text-white text-[13px] font-bold rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
+                className={`px-3 py-1 text-white text-[12px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
                   ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
               >
                 {isLoading ? (
                   <>
-                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
                     </svg>
                     {isEn ? 'Executing…' : 'جاري التنفيذ…'}
                   </>
                 ) : executionSuccess ? (
                   <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     {isEn ? 'Done' : 'تم'}
@@ -857,25 +858,25 @@ export function RecommendationCard({
               </button>
               <button
                 onClick={() => onIgnore?.(rec.id)}
-                className="px-4 py-1.5 bg-white border border-sky-200 text-sky-700 text-[13px] font-bold rounded-xl hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
+                className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
               >
                 {isEn ? 'Ignore' : 'تجاهل'}
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/80 flex-1 w-full mt-2 lg:mt-0">
+          <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-100 bg-emerald-50/80 w-full">
             <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
             </div>
-            <p className="font-medium text-[12px] text-emerald-800 leading-snug flex-1 text-start">
+            <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
               {getActionExplanation(rec.category || rec.type, isEn, true)}
             </p>
           </div>
         )}
 
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <div className="flex items-center gap-2 relative">
+        <div className="flex items-center justify-end w-full">
+          <div className="flex items-center gap-2">
             <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
               {isEn ? 'Helpful?' : 'مفيدة؟'}
             </span>
@@ -902,7 +903,6 @@ export function RecommendationCard({
               </svg>
             </button>
           </div>
-
         </div>
       </div>
     </div>
@@ -1012,67 +1012,63 @@ export function AlertCard({
         )}
       </div>
 
-      <p className={`font-medium text-gray-600 leading-relaxed mb-3 text-start ${compact ? 'text-[12px]' : 'text-[13.5px] md:text-[14px]'}`} style={{ wordBreak: 'break-word' }}>
+      <p className={`font-medium text-gray-600 leading-relaxed mb-1.5 text-start ${compact ? 'text-[13px]' : 'text-[14.5px] md:text-[15.5px]'}`} style={{ wordBreak: 'break-word' }}>
         {safeMessage}
       </p>
 
-
-
-
-
       {/* Unified Footer Area */}
-      <div className="pt-3 border-t border-gray-100/80 flex flex-wrap items-center justify-between gap-3 mt-auto">
+      <div className="flex flex-col gap-2 mt-auto w-full">
         {!globalAutoMode ? (
-          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 flex-1 w-full mt-2 lg:mt-0">
-            <div className="flex items-start xl:items-center gap-2">
-              <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 xl:mt-0 flex items-center justify-center">
+          <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 w-full">
+            <div className="flex items-start gap-2">
+              <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 flex items-center justify-center">
                 <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
               </div>
-              <p className="font-medium text-[12px] text-sky-800 leading-snug flex-1 text-start">
+              <p className="font-medium text-[12px] md:text-[13px] text-sky-800 leading-snug flex-1 text-start">
                 {getActionExplanation(category, isEn, false)}
               </p>
             </div>
-            <div className="flex gap-2 ms-auto shrink-0">
+            <div className="flex gap-2 justify-end w-full">
               <button
                 onClick={handleConfirm}
                 disabled={isLoading || executionSuccess}
-                className={`px-4 py-1.5 text-white text-[13px] font-bold rounded-xl transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
+                className={`px-3 py-1 text-white text-[12px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
                   ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
               >
                 {isLoading ? (
                   <>
-                    <svg className="animate-spin w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
                     </svg>
                     {isEn ? 'Executing…' : 'جاري التنفيذ…'}
                   </>
                 ) : executionSuccess ? (
                   <>
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                       <polyline points="20 6 9 17 4 12"/>
                     </svg>
                     {isEn ? 'Done' : 'تم'}
                   </>
                 ) : (isEn ? 'Execute' : 'نفذ')}
               </button>
-              <button className="px-4 py-1.5 bg-white border border-sky-200 text-sky-700 text-[13px] font-bold rounded-xl hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap">
+              <button className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap">
                 {isEn ? 'Ignore' : 'تجاهل'}
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-2.5 rounded-xl border border-emerald-100 bg-emerald-50/80 flex-1 w-full mt-2 lg:mt-0">
+          <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-100 bg-emerald-50/80 w-full">
             <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
             </div>
-            <p className="font-medium text-[12px] text-emerald-800 leading-snug flex-1 text-start">
+            <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
               {getActionExplanation(category, isEn, true)}
             </p>
           </div>
         )}
 
-        <div className="flex flex-col gap-1.5 shrink-0">
-          <div className="flex items-center gap-2 relative">
+        <div className="flex items-center justify-end w-full">
+          <div className="flex items-center gap-2">
             <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
               {isEn ? 'Appropriate?' : 'مفيدة؟'}
             </span>
@@ -1099,7 +1095,6 @@ export function AlertCard({
               </svg>
             </button>
           </div>
-
         </div>
       </div>
     </div>

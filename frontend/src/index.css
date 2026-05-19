@@ -784,7 +784,7 @@ select option {
 .sidebar-item::before {
   content: '';
   position: absolute;
-  right: 0;
+  inset-inline-start: 0;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
@@ -799,7 +799,7 @@ select option {
 }
 
 .sidebar-item:hover {
-  padding-right: 4px;
+  padding-inline-start: 16px;
 }
 
 /* =========================================================

@@ -134,15 +134,15 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
           <div className="animate-fade-in-up delay-3">
             <SoilCropHealthGlanceCard onGo={onGo} activeFarm={activeFarm} apiSoilMoist={apiSoilMoist} apiSoilTemp={apiSoilTemp} />
           </div>
-          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 lg:h-[600px] overflow-hidden">
+          <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 lg:h-[610px] rounded-[24px] overflow-hidden">
             <DashboardAlertsCard
-              onGo={onGo}
-              alerts={alerts}
-              onAccept={onAlertAccept}
-              onReject={onAlertReject}
-              onFeedback={onAlertFeedback}
-              isEn={isEn}
-              globalAutoMode={globalAutoMode}
+               onGo={onGo}
+               alerts={alerts}
+               onAccept={onAlertAccept}
+               onReject={onAlertReject}
+               onFeedback={onAlertFeedback}
+               isEn={isEn}
+               globalAutoMode={globalAutoMode}
             />
           </div>
 
@@ -201,7 +201,7 @@ function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isE
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
-      <div className="mt-4 flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 scrollbar-neutral pr-1">
+      <div className="mt-4 flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 scrollbar-neutral pr-1 pb-3">
         {alerts.length === 0 ? (
           <EmptyState
             compact={true}
@@ -590,6 +590,14 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
           isEn={isEn}
           iconBg="bg-emerald-50"
           iconColor="text-[#059669]"
+          rightElement={
+            <div className="flex items-center gap-1.5 self-start mt-1 bg-emerald-50/60 border border-emerald-100/50 px-2.5 py-1 rounded-full shrink-0">
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+               <span className="text-[10.5px] font-bold text-emerald-700 tracking-wide">
+                 <LastUpdatedTimer seconds={0} ar="" en="" />
+               </span>
+            </div>
+          }
         />
       </div>
 
@@ -629,14 +637,6 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
             />
           ))
         )}
-      </div>
-
-      <div className="mt-4 pt-3 flex items-center justify-between border-t border-gray-50">
-        <div className="text-xs font-bold text-gray-400 uppercase tracking-tighter">{isEn ? 'System Ready' : 'النظام جاهز'}</div>
-        <div className="flex items-center gap-1.5">
-           <div className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-           <span className="text-xs font-black text-emerald-600 tracking-wide"><LastUpdatedTimer seconds={0} ar="" en="" isEn={isEn} /></span>
-        </div>
       </div>
     </CardShell>
   );
@@ -697,13 +697,13 @@ function DigitalTwinCommandCenterCard({ onOpenAssets, alertsCount = 0, counts = 
             <>
               <div className="hidden lg:block w-[2px] self-stretch bg-gradient-to-b from-transparent via-gray-100 to-transparent mx-5" />
               <div className="flex flex-col gap-2 flex-1 min-w-0">
-                <div className={`flex items-center gap-1.5 ${isEn ? 'flex-row-reverse' : ''}`}>
+                <div className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
                   <div className="text-[11px] font-black text-gray-400 uppercase tracking-widest">
                     {isEn ? "Greenhouse Crops" : 'محصول هذه المحمية'}
                   </div>
                 </div>
-                <div className={`flex flex-wrap gap-2 ${isEn ? 'flex-row-reverse' : ''}`}>
+                <div className="flex flex-wrap gap-2">
                   {crops.slice(0, 4).map((crop, idx) => (
                     <div key={crop + idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-gray-50/80 rounded-xl border border-gray-100/50">
                       <span className="text-base">{getCropIcon(crop)}</span>
