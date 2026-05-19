@@ -71,6 +71,14 @@ app.include_router(config.router,          prefix="/api/v1/config",          tag
 app.include_router(logs.router,            prefix="/api/v1/logs",            tags=["Logs"])
 app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
 
+async def physics_simulation():
+    """Run physics engine simulator as a background task."""
+    try:
+        from scripts.physics_engine_simulator import engine_loop
+        await engine_loop()
+    except Exception as e:
+        print(f"[Physics Engine] Failed to start: {e}")
+
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_monitoring():
@@ -162,6 +170,7 @@ async def startup_monitoring():
 
     asyncio.create_task(connectivity_monitoring())
     asyncio.create_task(ml_monitoring())
+    asyncio.create_task(physics_simulation())
     asyncio.create_task(tuya_bridge())
 
 
