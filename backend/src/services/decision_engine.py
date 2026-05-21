@@ -12,6 +12,15 @@ from typing import List, Optional, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Module-level singleton — shared by sensors, physics simulator, ml routes, etc.
+_engine_instance: Optional["SmartDecisionEngine"] = None
+
+def get_engine() -> "SmartDecisionEngine":
+    global _engine_instance
+    if _engine_instance is None:
+        _engine_instance = SmartDecisionEngine()
+    return _engine_instance
+
 
 @dataclass
 class SmartRecommendation:
@@ -87,6 +96,11 @@ class SmartDecisionEngine:
     # Key: (farm_id, category) -> Value: (message, severity, timestamp)
     _rec_cache: Dict[Tuple[int, str], Tuple[str, str, datetime]] = {}
 
+    # Weather cache shared across all instances — refreshed every 5 minutes
+    _weather_cache: Dict = {}
+    _weather_fetched_at: Optional[datetime] = None
+    _WEATHER_TTL_SECONDS = 300
+
     def __init__(self):
         """Initialize the decision engine with sub-components"""
         try:
@@ -101,7 +115,14 @@ class SmartDecisionEngine:
             self.risk_engine = None
 
     async def fetch_weather(self) -> dict:
-        """Fetch real weather from open-meteo for Makkah region"""
+        """Fetch real weather from open-meteo — cached for 5 minutes."""
+        now = datetime.now(timezone.utc)
+        if (
+            SmartDecisionEngine._weather_fetched_at is not None
+            and (now - SmartDecisionEngine._weather_fetched_at).total_seconds() < SmartDecisionEngine._WEATHER_TTL_SECONDS
+            and SmartDecisionEngine._weather_cache
+        ):
+            return SmartDecisionEngine._weather_cache
         try:
             import httpx
             url = (
@@ -113,15 +134,17 @@ class SmartDecisionEngine:
             async with httpx.AsyncClient(timeout=4.0) as client:
                 r = await client.get(url)
                 data = r.json()["current"]
-                return {
+                SmartDecisionEngine._weather_cache = {
                     "ext_temp": data["temperature_2m"],
                     "ext_humidity": data["relative_humidity_2m"],
                     "cloudcover": data["cloudcover"],
                     "is_day": data["is_day"],
                 }
+                SmartDecisionEngine._weather_fetched_at = now
+                return SmartDecisionEngine._weather_cache
         except Exception as e:
             logger.warning(f"Weather fetch failed: {e}")
-            return {}
+            return SmartDecisionEngine._weather_cache or {}
 
     def _get_models_directory(self) -> Optional[str]:
         models_dir = os.getenv("WARIF_MODELS_DIR")

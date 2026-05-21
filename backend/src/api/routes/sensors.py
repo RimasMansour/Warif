@@ -32,6 +32,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 RIYADH_TZ = ZoneInfo("Asia/Riyadh")
 
+# Singleton — initialized once on first use, reused for all requests
+def _get_decision_engine():
+    from src.services.decision_engine import get_engine
+    return get_engine()
+
 
 # Public endpoint — used by frontend charts (water_usage, power_usage history)
 @router.get("", response_model=List[SensorReadingOut])
@@ -212,7 +217,6 @@ async def ingest_sensor_reading(
         # 3. Decision Engine Stage
         if device_obj and farm_id:
             try:
-                from src.services.decision_engine import SmartDecisionEngine
                 from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus
 
                 # Fetch latest reading per sensor type for this farm
@@ -237,7 +241,7 @@ async def ingest_sensor_reading(
                 # Include the reading just flushed (may not be visible in the query above yet)
                 full_sensor_data[sensor_type] = value
 
-                engine = SmartDecisionEngine()
+                engine = _get_decision_engine()
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)
                 smart_recs = intelligence_report.get('recommendations', [])
 

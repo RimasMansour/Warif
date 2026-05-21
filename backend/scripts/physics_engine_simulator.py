@@ -625,10 +625,10 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
 
     # Call Decision Engine for recommendations and anomaly detection
     try:
-        from src.services.decision_engine import SmartDecisionEngine
+        from src.services.decision_engine import get_engine
         from sqlalchemy import and_
 
-        engine = SmartDecisionEngine()
+        engine = get_engine()
         intelligence_report = await engine.analyze_with_intelligence(
             full_sensor_data, fid
         )

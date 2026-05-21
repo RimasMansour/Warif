@@ -122,7 +122,8 @@ async def get_irrigation_prediction(
             'air_humidity': humidity,
         }
 
-        engine = SmartDecisionEngine()
+        from src.services.decision_engine import get_engine
+        engine = get_engine()
         recommendations = await engine.analyze(sensor_data)
 
         # Filter for irrigation recommendations only
