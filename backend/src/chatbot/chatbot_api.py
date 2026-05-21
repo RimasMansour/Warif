@@ -13,51 +13,42 @@ Endpoints:
     GET  /chatbot/test-sensor   — test with simulated sensor data
 """
 
-from fastapi import APIRouter, HTTPException, Body
-from pydantic import BaseModel, Field
-from typing import Optional
+import asyncio
 import logging
+import os
+from datetime import datetime, timezone, timedelta
+from typing import Literal
 
-from src.chatbot.rag_pipeline import ask, retrieve
+from fastapi import APIRouter, HTTPException, Body, Depends
+from pydantic import BaseModel, Field
+from sqlalchemy import select, func, desc, case
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.chatbot.rag_pipeline import ask, get_collection, get_groq_client
+from src.core.security import get_current_user
+from src.db.models.models import Alert, AlertSeverity, AlertStatus, Farm, SensorReading
+from src.db.session import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Readings older than this are flagged as stale and the LLM is warned
+SENSOR_MAX_AGE_HOURS = int(os.getenv("SENSOR_MAX_AGE_HOURS", "2"))
+
 
 # ── Request / Response models ──────────────────────────────────────────────────
 
-class SoilData(BaseModel):
-    moisture_percent    : Optional[float] = Field(None, description="Soil moisture % (optimal: 60-80)")
-    temperature_celsius : Optional[float] = Field(None, description="Soil temp °C (optimal: 20-30)")
-    ph                  : Optional[float] = Field(None, description="Soil pH (optimal: 6.0-6.8)")
-    ec                  : Optional[float] = Field(None, description="Electrical conductivity mS/cm (optimal: 1.5-2.5)")
-
-
-class AirData(BaseModel):
-    temperature_celsius : Optional[float] = Field(None, description="Air temp °C (optimal day: 22-28)")
-    humidity_percent    : Optional[float] = Field(None, description="Relative humidity % (optimal: 70-85)")
-    co2_ppm             : Optional[float] = Field(None, description="CO2 concentration ppm (optimal: 800-1200)")
-
-
-class SensorSnapshot(BaseModel):
-    """
-    Live sensor reading from your IoT backend.
-    All fields are optional — pass whatever sensors you have available.
-    """
-    timestamp    : Optional[str]     = None
-    farm_id      : Optional[str]     = None
-    crop         : Optional[str]     = "cucumber"
-    growth_stage : Optional[str]     = None
-    soil         : Optional[SoilData]  = None
-    air          : Optional[AirData]   = None
-    alerts       : Optional[list[str]] = []
+class ConversationMessage(BaseModel):
+    role    : Literal["user", "assistant"]
+    content : str
 
 
 class ChatRequest(BaseModel):
-    question     : str            = Field(..., min_length=2, description="Farmer's question (Arabic or English)")
-    sensor_data  : Optional[SensorSnapshot] = Field(None, description="Live sensor reading (optional)")
-    n_chunks     : int            = Field(4, ge=1, le=8, description="Number of knowledge chunks to retrieve")
-    language     : str            = Field("ar", description="Response language: 'ar' for Arabic, 'en' for English")
+    question : str = Field(..., min_length=2, description="Farmer's question (Arabic or English)")
+    farm_id  : int = Field(..., description="Farm ID — sensor data and alerts are fetched automatically")
+    n_chunks : int = Field(4, ge=1, le=8, description="Number of knowledge chunks to retrieve")
+    language : str = Field("ar", description="Response language: 'ar' for Arabic, 'en' for English")
+    history  : list[ConversationMessage] = Field(default_factory=list, description="Previous turns — append {role, content} pairs to enable follow-up questions")
 
 
 class ChatResponse(BaseModel):
@@ -75,73 +66,152 @@ class HealthResponse(BaseModel):
     vector_count : int
 
 
-# ── Helper: convert Pydantic SensorSnapshot → plain dict for rag_pipeline ─────
-def _sensor_to_dict(sensor: Optional[SensorSnapshot]) -> Optional[dict]:
-    """Convert Pydantic model to the plain dict format rag_pipeline expects."""
-    if sensor is None:
+# ── DB helper: fetch latest sensor readings + active (unfixed) alerts ──────────
+async def fetch_farm_context(farm_id: int, user_id: int, db: AsyncSession) -> dict | None:
+    """
+    Build the sensor context dict for the RAG pipeline:
+    - Verifies the requesting user owns this farm (403 if not)
+    - Fetches the latest reading per sensor type via MAX(timestamp) subquery
+    - Flags readings older than SENSOR_MAX_AGE_HOURS as stale
+    - Fetches only open/acknowledged alerts, ordered by severity then recency
+    Returns None if the farm doesn't exist or isn't owned by this user.
+    """
+    farm_result = await db.execute(
+        select(Farm).where(Farm.id == farm_id, Farm.user_id == user_id)
+    )
+    farm = farm_result.scalar_one_or_none()
+    if farm is None:
         return None
 
-    d = {
-        "timestamp"    : sensor.timestamp,
-        "crop"         : sensor.crop,
-        "growth_stage" : sensor.growth_stage,
-        "alerts"       : sensor.alerts or []
+    # Latest reading per sensor_type — subquery on MAX(timestamp)
+    subq = (
+        select(
+            SensorReading.sensor_type,
+            func.max(SensorReading.timestamp).label("max_ts")
+        )
+        .where(SensorReading.farm_id == farm_id)
+        .group_by(SensorReading.sensor_type)
+        .subquery()
+    )
+    readings_result = await db.execute(
+        select(SensorReading)
+        .join(
+            subq,
+            (SensorReading.sensor_type == subq.c.sensor_type) &
+            (SensorReading.timestamp   == subq.c.max_ts)
+        )
+        .where(SensorReading.farm_id == farm_id)
+    )
+    latest_readings = readings_result.scalars().all()
+
+    # Active alerts only — resolved alerts mean the issue is fixed, skip them
+    # Order: critical first, then warning, then info; newest within each severity
+    severity_order = case(
+        (Alert.severity == AlertSeverity.critical, 0),
+        (Alert.severity == AlertSeverity.warning,  1),
+        else_=2
+    )
+    alerts_result = await db.execute(
+        select(Alert)
+        .where(Alert.farm_id == farm_id)
+        .where(Alert.status.in_([AlertStatus.open, AlertStatus.acknowledged]))
+        .order_by(severity_order, desc(Alert.created_at))
+        .limit(10)
+    )
+    active_alerts = alerts_result.scalars().all()
+
+    # Build soil/air dicts from the sensor map
+    sensor_map = {r.sensor_type: r.value for r in latest_readings}
+
+    soil: dict = {}
+    if "soil_moisture"    in sensor_map: soil["moisture_percent"]    = sensor_map["soil_moisture"]
+    if "soil_temperature" in sensor_map: soil["temperature_celsius"] = sensor_map["soil_temperature"]
+    if "soil_ph"          in sensor_map: soil["ph"]                  = sensor_map["soil_ph"]
+    if "soil_ec"          in sensor_map: soil["ec"]                  = sensor_map["soil_ec"]
+
+    air: dict = {}
+    if "air_temperature" in sensor_map: air["temperature_celsius"] = sensor_map["air_temperature"]
+    if "air_humidity"    in sensor_map: air["humidity_percent"]    = sensor_map["air_humidity"]
+    if "co2_ppm"         in sensor_map: air["co2_ppm"]             = sensor_map["co2_ppm"]
+    elif "co2"           in sensor_map: air["co2_ppm"]             = sensor_map["co2"]
+
+    # Stale data check — find the most recent timestamp across all sensor readings
+    alert_messages = [a.message for a in active_alerts]
+    if latest_readings:
+        newest_ts = max(r.timestamp for r in latest_readings)
+        # Make both datetimes timezone-aware for comparison
+        if newest_ts.tzinfo is None:
+            newest_ts = newest_ts.replace(tzinfo=timezone.utc)
+        age = datetime.now(timezone.utc) - newest_ts
+        if age > timedelta(hours=SENSOR_MAX_AGE_HOURS):
+            hours_old = int(age.total_seconds() // 3600)
+            alert_messages.insert(
+                0,
+                f"⚠ Sensor data is {hours_old}h old — live readings may be unavailable"
+            )
+    else:
+        alert_messages.insert(0, "⚠ No sensor readings found for this farm")
+
+    return {
+        "farm_id" : farm_id,
+        "crop"    : farm.crop_type or "cucumber",
+        "soil"    : soil if soil else None,
+        "air"     : air  if air  else None,
+        "alerts"  : alert_messages,
     }
-    if sensor.soil:
-        d["soil"] = {
-            "moisture_percent"   : sensor.soil.moisture_percent,
-            "temperature_celsius": sensor.soil.temperature_celsius,
-            "ph"                 : sensor.soil.ph,
-            "ec"                 : sensor.soil.ec
-        }
-    if sensor.air:
-        d["air"] = {
-            "temperature_celsius": sensor.air.temperature_celsius,
-            "humidity_percent"   : sensor.air.humidity_percent,
-            "co2_ppm"            : sensor.air.co2_ppm
-        }
-    return d
 
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.post("/ask", response_model=ChatResponse, summary="Ask the farming chatbot")
-async def chat(request: ChatRequest = Body(...)):
+async def chat(
+    request      : ChatRequest   = Body(...),
+    db           : AsyncSession  = Depends(get_db),
+    current_user : dict          = Depends(get_current_user),
+):
     """
-    Main chat endpoint. Accepts a farmer question and optional live sensor data.
-    Returns an answer grounded in the knowledge base and sensor context.
+    Main chat endpoint. Automatically fetches the latest sensor readings and all
+    unresolved alerts for the given farm, then answers the farmer's question.
+    Only the farm's owner can query it.
 
     Example request body:
     ```json
     {
       "question": "My cucumber leaves are turning yellow. What is wrong?",
-      "sensor_data": {
-        "crop": "cucumber",
-        "growth_stage": "fruiting",
-        "soil": { "moisture_percent": 45, "ph": 6.4 },
-        "air":  { "temperature_celsius": 28, "humidity_percent": 78 }
-      }
+      "farm_id": 1
     }
     ```
     """
     try:
-        sensor_dict = _sensor_to_dict(request.sensor_data)
+        sensor_dict = await fetch_farm_context(
+            farm_id  = request.farm_id,
+            user_id  = int(current_user["sub"]),
+            db       = db,
+        )
+        if sensor_dict is None:
+            raise HTTPException(status_code=403, detail="Farm not found or access denied")
 
-        result = ask(
+        # ask() is synchronous (ChromaDB + Groq HTTP) — run in a thread to avoid
+        # blocking the event loop while other requests are waiting
+        result = await asyncio.to_thread(
+            ask,
             question    = request.question,
             sensor_data = sensor_dict,
             n_chunks    = request.n_chunks,
             language    = request.language,
-            verbose     = True
+            history     = [m.model_dump() for m in request.history],
+            verbose     = True,
         )
 
         return ChatResponse(
             answer      = result["answer"],
             sources     = result["sources"],
             distances   = result["distances"],
-            sensor_used = result["sensor_used"]
+            sensor_used = result["sensor_used"],
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Chat endpoint error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -150,11 +220,9 @@ async def chat(request: ChatRequest = Body(...)):
 @router.get("/health", response_model=HealthResponse, summary="Chatbot health check")
 async def health():
     """Check if ChromaDB and Groq are connected and working."""
-    from src.chatbot.rag_pipeline import get_collection, get_groq_client
-
     chroma_col   = get_collection()
     groq_client  = get_groq_client()
-    
+
     chroma_ok    = False
     vector_count = 0
     groq_ok      = groq_client is not None
@@ -178,8 +246,8 @@ async def health():
 @router.get("/test-sensor", response_model=ChatResponse, summary="Test with simulated sensor data")
 async def test_with_sensor():
     """
-    Test endpoint that runs a question with simulated sensor readings.
-    Useful for checking the full pipeline without a real IoT connection.
+    Test endpoint that runs a question with hardcoded sensor readings.
+    Useful for checking the full pipeline without a real farm or IoT connection.
     """
     simulated_sensor = {
         "timestamp"    : "2026-04-13T10:00:00Z",
@@ -202,16 +270,17 @@ async def test_with_sensor():
         ]
     }
 
-    result = ask(
+    result = await asyncio.to_thread(
+        ask,
         question    = "How is my greenhouse doing right now? What should I do?",
         sensor_data = simulated_sensor,
         n_chunks    = 4,
-        verbose     = True
+        verbose     = True,
     )
 
     return ChatResponse(
         answer      = result["answer"],
         sources     = result["sources"],
         distances   = result["distances"],
-        sensor_used = result["sensor_used"]
+        sensor_used = result["sensor_used"],
     )

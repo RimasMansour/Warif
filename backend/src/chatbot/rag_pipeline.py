@@ -11,18 +11,16 @@ Usage:
     answer = ask("Is my greenhouse okay?", sensor_data=sensor_snapshot)
 """
 
-import os
-import re
 import logging
+import os
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
 import chromadb
 from chromadb.utils import embedding_functions
 from dotenv import load_dotenv
 from groq import Groq
-
-from pathlib import Path
 
 _BACKEND_ROOT = Path(__file__).parent.parent.parent
 load_dotenv(_BACKEND_ROOT / ".env")
@@ -101,24 +99,21 @@ _collection = None
 _groq_client = None
 
 def get_collection():
-    """Lazy initialization of ChromaDB collection."""
     global _collection
     if _collection is None:
         try:
             _collection = _init_chroma()
-            logger.info("ChromaDB collection initialized successfully.")
         except Exception as e:
             logger.error(f"ChromaDB init failed: {e}")
             _collection = None
     return _collection
 
+
 def get_groq_client():
-    """Lazy initialization of Groq client."""
     global _groq_client
     if _groq_client is None:
         try:
             _groq_client = _init_groq()
-            logger.info("Groq client initialized successfully.")
         except Exception as e:
             logger.error(f"Groq init failed: {e}")
             _groq_client = None
@@ -148,10 +143,6 @@ def retrieve(query: str, n_results: int = 4) -> tuple[list, list, list]:
 
 # ── Sensor context formatter ───────────────────────────────────────────────────
 def format_sensor_context(sensor_data: Optional[dict]) -> str:
-    """
-    Format a sensor snapshot dict into a readable text block for the LLM prompt.
-    In production this dict comes from your existing Warif IoT backend.
-    """
     if not sensor_data:
         return "No live sensor data available."
 
@@ -186,7 +177,8 @@ def build_prompt_messages(
     question: str,
     retrieved_chunks: list[str],
     sensor_data: Optional[dict],
-    language: str = "ar"
+    language: str = "ar",
+    history: list[dict] | None = None,
 ) -> list[dict]:
     lang_instruction = LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["ar"])
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(language_instruction=lang_instruction)
@@ -194,16 +186,24 @@ def build_prompt_messages(
     sensor_block    = format_sensor_context(sensor_data)
     knowledge_block = "\n\n---\n\n".join(retrieved_chunks)
 
-    user_content = (
+    # Current question always carries fresh sensor context and retrieved knowledge
+    current_user_content = (
         f"=== CURRENT GREENHOUSE CONDITIONS ===\n{sensor_block}\n\n"
         f"=== RELEVANT KNOWLEDGE ===\n{knowledge_block}\n\n"
         f"=== FARMER QUESTION ===\n{question}"
     )
 
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user",   "content": user_content}
-    ]
+    messages: list[dict] = [{"role": "system", "content": system_prompt}]
+
+    # Previous turns: bare text only — sensor context is always injected fresh on
+    # the current question so we don't duplicate it in every historical message.
+    # Cap at 10 messages (5 turns) to keep prompt size reasonable.
+    if history:
+        for msg in history[-10:]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+
+    messages.append({"role": "user", "content": current_user_content})
+    return messages
 
 
 # ── Main ask function ──────────────────────────────────────────────────────────
@@ -213,6 +213,7 @@ def ask(
     n_chunks: int = 4,
     max_tokens: int = 768,
     language: str = "ar",
+    history: list[dict] | None = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -220,9 +221,10 @@ def ask(
 
     Args:
         question    : Farmer's question (Arabic or English)
-        sensor_data : Live sensor snapshot dict from IoT backend (optional)
+        sensor_data : Live sensor snapshot dict fetched from the DB (optional)
         n_chunks    : Number of knowledge chunks to retrieve
         max_tokens  : Max tokens for LLM response
+        history     : Previous conversation turns [{role, content}, ...]
         verbose     : Print debug info (retrieval distances etc.)
 
     Returns:
@@ -253,7 +255,7 @@ def ask(
             logger.info(f"  Retrieved: {src}  (distance: {dist:.4f})")
 
     # Step 2: Build prompt
-    messages = build_prompt_messages(question, chunks_text, sensor_data, language)
+    messages = build_prompt_messages(question, chunks_text, sensor_data, language, history)
 
     # Step 3: Call Groq API
     try:
