@@ -487,20 +487,26 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     };
 
     try {
-      // Use empty string as default fallback to rely on relative paths or proxy
       const API_BASE = import.meta.env.VITE_API_URL || "";
-      
-      // Ensure the URL is valid before fetching
       const fetchUrl = `${API_BASE.replace(/\/$/, "")}/api/v1/chatbot/ask`;
-      
+      const token = sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token');
+      const chatFarmId = farmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
+
       const response = await fetch(fetchUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` }),
+        },
         body: JSON.stringify({
           question: userMessage,
-          sensor_data: sensorPayload,
+          farm_id: chatFarmId,
           n_chunks: 4,
           language: isEn ? "en" : "ar",
+          history: chatMessages
+            .filter(m => m.role === "user" || m.role === "bot")
+            .slice(-10)
+            .map(m => ({ role: m.role === "bot" ? "assistant" : "user", content: m.text })),
         }),
       });
 
