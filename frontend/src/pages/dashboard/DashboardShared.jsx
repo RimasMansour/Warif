@@ -5,10 +5,14 @@ import { formatLastUpdated } from './dashboardUtils';
 // ─── ALERT TRANSLATION TABLES ────────────────────────────────────────────────
 const ALERT_SENSOR_NAMES = {
   air_temperature:  { ar: 'درجة حرارة الهواء', en: 'Air Temperature' },
+  temperature:      { ar: 'درجة حرارة الهواء', en: 'Air Temperature' },
   air_humidity:     { ar: 'رطوبة الهواء',       en: 'Air Humidity' },
+  humidity:         { ar: 'رطوبة الهواء',       en: 'Air Humidity' },
   soil_moisture:    { ar: 'رطوبة التربة',        en: 'Soil Moisture' },
+  irrigation:       { ar: 'رطوبة التربة',        en: 'Soil Moisture' },
   soil_temperature: { ar: 'درجة حرارة التربة',  en: 'Soil Temperature' },
   light_intensity:  { ar: 'شدة الإضاءة',        en: 'Light Intensity' },
+  water_tank:       { ar: 'خزان المياه',         en: 'Water Tank' },
   water_usage:      { ar: 'استهلاك المياه',      en: 'Water Usage' },
   power_usage:      { ar: 'استهلاك الطاقة',     en: 'Power Usage' },
 };
@@ -16,10 +20,14 @@ const ALERT_SENSOR_NAMES = {
 const alertTitleForSensor = (sensorType, lang) => {
   const titles = {
     air_temperature:  { ar: 'تنبيه حرارة',       en: 'Temperature Alert' },
+    temperature:      { ar: 'تنبيه حرارة',       en: 'Temperature Alert' },
     soil_temperature: { ar: 'تنبيه حرارة التربة', en: 'Soil Temperature Alert' },
     air_humidity:     { ar: 'تنبيه رطوبة',       en: 'Humidity Alert' },
+    humidity:         { ar: 'تنبيه رطوبة',       en: 'Humidity Alert' },
     soil_moisture:    { ar: 'تنبيه رطوبة التربة', en: 'Soil Moisture Alert' },
+    irrigation:       { ar: 'تنبيه رطوبة التربة', en: 'Soil Moisture Alert' },
     light_intensity:  { ar: 'تنبيه إضاءة',       en: 'Light Alert' },
+    water_tank:       { ar: 'تنبيه مياه',        en: 'Water Alert' },
     water_usage:      { ar: 'تنبيه مياه',        en: 'Water Alert' },
     power_usage:      { ar: 'تنبيه طاقة',        en: 'Power Alert' },
   };
@@ -992,8 +1000,10 @@ export function AlertCard({
   const msgText = safeMessage.toLowerCase();
   const category =
     (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
+     sensorType === 'temperature' || sensorType === 'humidity' || sensorType === 'air_humidity' ||
      sensorType.includes('ventilation') || msgText.includes('حرار') ||
-     msgText.includes('temperature') || msgText.includes('تهوية') || msgText.includes('مراوح'))
+     msgText.includes('temperature') || msgText.includes('رطوبة الهواء') ||
+     msgText.includes('humidity') || msgText.includes('تهوية') || msgText.includes('مراوح'))
       ? 'climate'
     : (sensorType.includes('soil') || msgText.includes('ترب') || msgText.includes('soil'))
       ? 'soil'

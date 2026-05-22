@@ -9,6 +9,53 @@ const API_BASE = import.meta.env.VITE_API_URL || ''
 const getStoredToken = () => sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token');
 const authHeaders = () => getAuthHeaders()
 
+const KNOWN_ANOMALY_TYPES = new Set([
+  "sensor_stuck",
+  "unrealistic_jump",
+  "pattern_break",
+  "threshold_violation",
+]);
+
+const ALERT_SENSOR_LABELS = {
+  ar: {
+    water_tank: "خزان المياه",
+    air_temperature: "درجة حرارة الهواء",
+    temperature: "درجة حرارة الهواء",
+    air_humidity: "رطوبة الهواء",
+    humidity: "رطوبة الهواء",
+    soil_moisture: "رطوبة التربة",
+    irrigation: "رطوبة التربة",
+    soil_temperature: "درجة حرارة التربة",
+    light_intensity: "شدة الإضاءة",
+    water_usage: "استهلاك المياه",
+    power_usage: "استهلاك الطاقة",
+    soil: "التربة",
+  },
+  en: {
+    water_tank: "Water Tank",
+    air_temperature: "Air Temperature",
+    temperature: "Air Temperature",
+    air_humidity: "Air Humidity",
+    humidity: "Air Humidity",
+    soil_moisture: "Soil Moisture",
+    irrigation: "Soil Moisture",
+    soil_temperature: "Soil Temperature",
+    light_intensity: "Light Intensity",
+    water_usage: "Water Usage",
+    power_usage: "Power Usage",
+    soil: "Soil",
+  },
+};
+
+const fallbackAlertMessage = (backendAlert, isEn) => {
+  const sensorType = backendAlert.sensor_type || "system";
+  const sensorName = ALERT_SENSOR_LABELS[isEn ? "en" : "ar"][sensorType] || (isEn ? "System" : "النظام");
+  const value = backendAlert.actual_value != null ? ` ${Number(backendAlert.actual_value).toFixed(1)}` : "";
+  return isEn
+    ? `Alert for ${sensorName}${value}. Review the current condition and take the appropriate action.`
+    : `تنبيه ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
+};
+
 // Global Persistence Cache to prevent "zeroing" on navigation
 const globalCache = {
   latestSensors: null,
@@ -253,17 +300,12 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         if (backendAlert.severity === "critical") frontendSeverity = "high";
         else if (backendAlert.severity === "info") frontendSeverity = "low";
         
-        const sensorNameAr = backendAlert.sensor_type === "water_tank" ? "خزان المياه" 
-                           : backendAlert.sensor_type === "air_temperature" ? "حرارة الجو"
-                           : backendAlert.sensor_type === "soil_moisture" ? "رطوبة التربة"
-                           : "النظام";
-                           
-        const sensorNameEn = backendAlert.sensor_type === "water_tank" ? "Water Tank"
-                           : backendAlert.sensor_type === "air_temperature" ? "Air Temp"
-                           : backendAlert.sensor_type === "soil_moisture" ? "Soil Moist"
-                           : "System";
-
-        const msg = backendAlert.message || (isEn ? "System Alert" : "تنبيه النظام");
+        const sensorNameAr = ALERT_SENSOR_LABELS.ar[backendAlert.sensor_type] || "النظام";
+        const sensorNameEn = ALERT_SENSOR_LABELS.en[backendAlert.sensor_type] || "System";
+        const backendExplanation = backendAlert.anomaly_type || "";
+        const anomalyType = KNOWN_ANOMALY_TYPES.has(backendExplanation) ? backendExplanation : null;
+        const reasoningText = anomalyType ? "" : backendExplanation;
+        const msg = backendAlert.message || fallbackAlertMessage(backendAlert, isEn);
 
         let shortTitle = msg;
         let fullDetails = msg;
@@ -272,6 +314,10 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           const parts = msg.split('-');
           shortTitle = parts[0].trim();
           fullDetails = msg;
+        }
+
+        if (reasoningText && !fullDetails.includes(reasoningText)) {
+          fullDetails = `${msg} — ${reasoningText}`;
         }
 
         // Extract value from message e.g. (29.8 C)
@@ -298,9 +344,12 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           severity: backendAlert.severity || frontendSeverity,
           created_at: backendAlert.created_at,
           sensor_type: backendAlert.sensor_type,
+          anomaly_type: anomalyType,
+          actual_value: backendAlert.actual_value,
+          threshold: backendAlert.threshold,
           sensor: isEn ? sensorNameEn : sensorNameAr,
           value: extractedValue,
-          reason: reasonMatch,
+          reason: reasoningText || reasonMatch,
           action: getAction(backendAlert.sensor_type, isEn),
           message: fullDetails,
           actionType: backendAlert.sensor_type || "system",
