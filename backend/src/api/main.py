@@ -72,12 +72,15 @@ app.include_router(logs.router,            prefix="/api/v1/logs",            tag
 app.include_router(chatbot_router,         prefix="/api/v1/chatbot",         tags=["Chatbot"])
 
 async def physics_simulation():
-    """Run physics engine simulator as a background task."""
-    try:
-        from scripts.physics_engine_simulator import engine_loop
-        await engine_loop()
-    except Exception as e:
-        print(f"[Physics Engine] Failed to start: {e}")
+    """Run physics engine simulator as a background task. Auto-restarts on crash."""
+    await asyncio.sleep(3)
+    while True:
+        try:
+            from scripts.physics_engine_simulator import engine_loop
+            await engine_loop()
+        except Exception as e:
+            print(f"[Physics Engine] Crashed: {e} — restarting in 15s")
+        await asyncio.sleep(15)
 
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
