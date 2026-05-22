@@ -131,6 +131,8 @@ def _register_actuators(config: dict):
 # ── Poll cycle ────────────────────────────────────────────────────────────────
 
 def poll_once(api, config: dict):
+    farm_id = config.get("farm_id")
+
     for dev in config.get("sensor_devices", []):
         label    = dev["label"]
         tuya_id  = dev["tuya_device_id"]
@@ -152,13 +154,11 @@ def poll_once(api, config: dict):
             if code not in status:
                 continue
             value = round(float(status[code]) * mapping["scale"], 3)
-            _push_reading(warif_id, mapping["sensor_type"], value, mapping["unit"])
+            _push_reading(warif_id, mapping["sensor_type"], value, mapping["unit"], farm_id=farm_id)
             pushed += 1
 
         if pushed:
             log.info(f"{label}: pushed {pushed} reading(s)")
-
-    farm_id = config.get("farm_id")
     tuya_status_cache: dict = {}
 
     for name, act in config.get("actuators", {}).items():
