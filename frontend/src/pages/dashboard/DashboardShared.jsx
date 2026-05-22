@@ -13,22 +13,35 @@ const ALERT_SENSOR_NAMES = {
   power_usage:      { ar: 'استهلاك الطاقة',     en: 'Power Usage' },
 };
 
+const alertTitleForSensor = (sensorType, lang) => {
+  const titles = {
+    air_temperature:  { ar: 'تنبيه حرارة',       en: 'Temperature Alert' },
+    soil_temperature: { ar: 'تنبيه حرارة التربة', en: 'Soil Temperature Alert' },
+    air_humidity:     { ar: 'تنبيه رطوبة',       en: 'Humidity Alert' },
+    soil_moisture:    { ar: 'تنبيه رطوبة التربة', en: 'Soil Moisture Alert' },
+    light_intensity:  { ar: 'تنبيه إضاءة',       en: 'Light Alert' },
+    water_usage:      { ar: 'تنبيه مياه',        en: 'Water Alert' },
+    power_usage:      { ar: 'تنبيه طاقة',        en: 'Power Alert' },
+  };
+  return titles[sensorType]?.[lang] || (lang === 'ar' ? 'تنبيه' : 'Alert');
+};
+
 const ALERT_ANOMALY_TEXT = {
   sensor_stuck: {
-    ar: (s, v) => `حساس ${s} عالق على قيمة ${v} — قراءات متكررة بنفس القيمة. أعد تشغيل الحساس أو معايرته.`,
-    en: (s, v) => `${s} sensor stuck at ${v} — repeated identical readings. Reboot or recalibrate the sensor.`,
+    ar: (s, v, title) => `${title}: ${s} ثابت عند ${v} — قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
+    en: (s, v, title) => `${title}: ${s} is fixed at ${v} — the sensor may be stuck. Reboot or recalibrate it.`,
   },
   unrealistic_jump: {
-    ar: (s, v) => `قفزة غير طبيعية في حساس ${s} — القيمة الحالية: ${v}. افحص الحساس وتحقق من قناة الإرسال.`,
-    en: (s, v) => `Unrealistic jump in ${s} — current value: ${v}. Inspect the sensor and telemetry channel.`,
+    ar: (s, v, title) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ — افحص الحساس وقناة الإرسال.`,
+    en: (s, v, title) => `${title}: ${s} jumped suddenly to ${v} — inspect the sensor and telemetry channel.`,
   },
   pattern_break: {
-    ar: (s, v) => `انحراف ملحوظ عن النمط الطبيعي في حساس ${s} — القيمة الحالية: ${v}. تحقق من الأوضاع الفعلية في البيئة.`,
-    en: (s, v) => `Significant deviation from normal pattern in ${s} — current value: ${v}. Verify greenhouse conditions.`,
+    ar: (s, v, title) => `${title}: ${s} ${v} — انحراف ملحوظ عن النمط الطبيعي للقراءات.`,
+    en: (s, v, title) => `${title}: ${s} ${v} — significant deviation from the normal reading pattern.`,
   },
   threshold_violation: {
-    ar: (s, v) => `تجاوز حد التحذير في حساس ${s} — القيمة الحالية: ${v}. مطلوب تدخل فوري.`,
-    en: (s, v) => `Warning threshold exceeded in ${s} — current value: ${v}. Immediate corrective action required.`,
+    ar: (s, v, title) => `${title}: ${s} وصلت إلى ${v} — تجاوزت الحد المسموح ومطلوب تدخل فوري.`,
+    en: (s, v, title) => `${title}: ${s} reached ${v} — allowed threshold exceeded and immediate action is required.`,
   },
 };
 
@@ -974,7 +987,7 @@ export function AlertCard({
     if (!fn) return safeMessage;
     const sensorName = ALERT_SENSOR_NAMES[sensorType]?.[lang] || sensorType;
     const val = alert.actual_value != null ? Number(alert.actual_value).toFixed(1) : '—';
-    return fn(sensorName, val);
+    return fn(sensorName, val, alertTitleForSensor(sensorType, lang));
   })();
   const msgText = safeMessage.toLowerCase();
   const category =

@@ -695,12 +695,21 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
                         'water_usage':      'استهلاك المياه',
                         'power_usage':      'استهلاك الطاقة',
                     }.get(_s, _s)
+                    _alert_title = {
+                        'air_temperature':  'تنبيه حرارة',
+                        'soil_temperature': 'تنبيه حرارة التربة',
+                        'air_humidity':     'تنبيه رطوبة',
+                        'soil_moisture':    'تنبيه رطوبة التربة',
+                        'light_intensity':  'تنبيه إضاءة',
+                        'water_usage':      'تنبيه مياه',
+                        'power_usage':      'تنبيه طاقة',
+                    }.get(_s, 'تنبيه')
                     _v = f"{_val:.1f}{_unit}" if _val is not None else '—'
                     _msg = {
-                        'sensor_stuck':        f"تنبيه حساس عالق: {_sensor_ar} عالق عند {_v} — تحقق من الحساس أو أعد تشغيله",
-                        'unrealistic_jump':    f"تنبيه قراءة مفاجئة: {_sensor_ar} وصلت إلى {_v} بشكل مفاجئ — افحص الحساس وقناة الإرسال",
-                        'pattern_break':       f"تنبيه شذوذ: {_sensor_ar} {_v} — انحراف ملحوظ عن النمط الطبيعي للقراءات",
-                        'threshold_violation': f"تنبيه تجاوز الحد: {_sensor_ar} وصلت إلى {_v} — مطلوب تدخل فوري",
+                        'sensor_stuck':        f"{_alert_title}: {_sensor_ar} ثابت عند {_v} — قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله",
+                        'unrealistic_jump':    f"{_alert_title}: {_sensor_ar} وصلت إلى {_v} بشكل مفاجئ — افحص الحساس وقناة الإرسال",
+                        'pattern_break':       f"{_alert_title}: {_sensor_ar} {_v} — انحراف ملحوظ عن النمط الطبيعي للقراءات",
+                        'threshold_violation': f"{_alert_title}: {_sensor_ar} وصلت إلى {_v} — تجاوزت الحد المسموح ومطلوب تدخل فوري",
                     }.get(_t, f"تنبيه: {_sensor_ar} {_v}")
                     db.add(Alert(
                         farm_id=fid,
