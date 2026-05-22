@@ -31,10 +31,13 @@ class AnomalyReport:
 class AnomalyDetector:
     """Digital Twin Engine - Anomaly Detector Core"""
 
+    ANOMALY_COOLDOWN_SECONDS = 1800  # suppress repeated alerts for same sensor/type for 30 min
+
     def __init__(self):
         self.history_window = 100  # Keep last 100 readings for pattern analysis
         self.sensor_history: Dict[str, List[float]] = {}
         self.sensor_timestamps: Dict[str, List[datetime]] = {}
+        self._last_reported: Dict[str, datetime] = {}
 
         # Realistic bounds for each sensor
         self.sensor_bounds = {
@@ -236,6 +239,10 @@ class AnomalyDetector:
         Main Anomaly Detection Interface.
         Runs all configured verification checks sequentially and returns the first detected anomaly.
         """
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
 
         # Update history first
         self.update_history(sensor_type, value, timestamp)
@@ -249,9 +256,15 @@ class AnomalyDetector:
             self.check_threshold_violation(sensor_type, value),
         ]
 
-        # Return first anomaly found
+        # Return first anomaly found, suppressing repeated alerts within cooldown window
+        now = datetime.now()
         for anomaly in checks:
             if anomaly:
+                cache_key = f"{sensor_type}:{anomaly.anomaly_type}"
+                last = self._last_reported.get(cache_key)
+                if last and (now - last).total_seconds() < self.ANOMALY_COOLDOWN_SECONDS:
+                    return None
+                self._last_reported[cache_key] = now
                 logger.warning(f"[ANOMALY] {anomaly.anomaly_type} detected in {sensor_type}: {anomaly.probable_cause}")
                 return anomaly
 

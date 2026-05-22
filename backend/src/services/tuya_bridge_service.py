@@ -53,8 +53,16 @@ def _get_tuya_api():
 def _is_device_online(api, tuya_id: str) -> bool:
     try:
         resp = api.get(f"/v1.0/devices/{tuya_id}")
-        return bool(resp.get("result", {}).get("online", False))
-    except Exception:
+        online = resp.get("result", {}).get("online", False)
+        if not online:
+            log.warning(
+                f"Device {tuya_id} reported offline — "
+                f"success={resp.get('success')}, code={resp.get('code')}, "
+                f"msg={resp.get('msg', '')} | full_result={resp.get('result')}"
+            )
+        return bool(online)
+    except Exception as e:
+        log.error(f"Error checking online status for {tuya_id}: {e}")
         return False
 
 
