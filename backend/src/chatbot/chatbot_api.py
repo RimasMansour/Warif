@@ -135,8 +135,18 @@ async def fetch_farm_context(farm_id: int, user_id: int, db: AsyncSession) -> di
     if "co2_ppm"         in sensor_map: air["co2_ppm"]             = sensor_map["co2_ppm"]
     elif "co2"           in sensor_map: air["co2_ppm"]             = sensor_map["co2"]
 
+    # Only pass agricultural/environmental alerts to the LLM.
+    # Sensor hardware anomalies (stuck sensor, unrealistic jump, etc.) have
+    # explanation set to the anomaly_type — they are irrelevant to crop advice
+    # and confuse the LLM into giving nonsensical recommendations.
+    alert_messages = [
+        a.message for a in active_alerts
+        if not a.explanation or a.explanation not in (
+            "sensor_stuck", "unrealistic_jump", "pattern_break", "threshold_violation"
+        )
+    ]
+
     # Stale data check — find the most recent timestamp across all sensor readings
-    alert_messages = [a.message for a in active_alerts]
     if latest_readings:
         newest_ts = max(r.timestamp for r in latest_readings)
         # Make both datetimes timezone-aware for comparison

@@ -147,27 +147,26 @@ def format_sensor_context(sensor_data: Optional[dict]) -> str:
         return "No live sensor data available."
 
     lines = []
-    ts    = sensor_data.get("timestamp", datetime.now().isoformat())
-    lines.append(f"Reading time  : {ts}")
-    lines.append(f"Crop          : {sensor_data.get('crop', 'cucumber')} | "
-                 f"Stage: {sensor_data.get('growth_stage', 'unknown')}")
+    lines.append(f"Crop: {sensor_data.get('crop', 'cucumber')}")
 
     soil = sensor_data.get("soil", {})
     if soil:
-        lines.append(f"Soil moisture : {soil.get('moisture_percent')}%   (optimal: 60-80%)")
-        lines.append(f"Soil temp     : {soil.get('temperature_celsius')}°C (optimal: 20-30°C)")
-        lines.append(f"Soil pH       : {soil.get('ph')}            (optimal: 6.0-6.8)")
-        lines.append(f"Soil EC       : {soil.get('ec')} mS/cm      (optimal: 1.5-2.5)")
+        if soil.get("moisture_percent")    is not None: lines.append(f"Soil moisture    : {soil['moisture_percent']}%  (optimal: 60-80%)")
+        if soil.get("temperature_celsius") is not None: lines.append(f"Soil temperature : {soil['temperature_celsius']}°C (optimal: 20-30°C)")
+        if soil.get("ph")                  is not None: lines.append(f"Soil pH          : {soil['ph']}  (optimal: 6.0-6.8)")
+        if soil.get("ec")                  is not None: lines.append(f"Soil EC          : {soil['ec']} mS/cm (optimal: 1.5-2.5)")
 
     air = sensor_data.get("air", {})
     if air:
-        lines.append(f"Air temp      : {air.get('temperature_celsius')}°C (optimal day: 22-28°C)")
-        lines.append(f"Humidity      : {air.get('humidity_percent')}%   (optimal: 70-85%)")
-        lines.append(f"CO2           : {air.get('co2_ppm')} ppm      (optimal: 800-1200 ppm)")
+        if air.get("temperature_celsius") is not None: lines.append(f"Air temperature  : {air['temperature_celsius']}°C (optimal: 22-28°C)")
+        if air.get("humidity_percent")    is not None: lines.append(f"Air humidity     : {air['humidity_percent']}%  (optimal: 70-85%)")
+        if air.get("co2_ppm")             is not None: lines.append(f"CO2              : {air['co2_ppm']} ppm (optimal: 800-1200)")
 
     alerts = sensor_data.get("alerts", [])
     if alerts:
-        lines.append("⚠ Active alerts: " + " | ".join(alerts))
+        lines.append("\nActive agricultural alerts:")
+        for a in alerts:
+            lines.append(f"  • {a}")
 
     return "\n".join(lines)
 
