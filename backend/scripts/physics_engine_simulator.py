@@ -672,10 +672,36 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
                     )
                 )
                 if not existing_alert.scalar_one_or_none():
+                    _s = anomaly['sensor']
+                    _t = anomaly['type']
+                    _val = full_sensor_data.get(_s)
+                    _unit = {
+                        'air_temperature': '°م', 'soil_temperature': '°م',
+                        'air_humidity': '٪', 'soil_moisture': '٪',
+                        'light_intensity': ' lux', 'water_usage': ' لتر',
+                        'power_usage': ' واط',
+                    }.get(_s, '')
+                    _sensor_ar = {
+                        'air_temperature':  'درجة حرارة الهواء',
+                        'air_humidity':     'رطوبة الهواء',
+                        'soil_moisture':    'رطوبة التربة',
+                        'soil_temperature': 'درجة حرارة التربة',
+                        'light_intensity':  'شدة الإضاءة',
+                        'water_usage':      'استهلاك المياه',
+                        'power_usage':      'استهلاك الطاقة',
+                    }.get(_s, _s)
+                    _v = f"{_val:.1f}{_unit}" if _val is not None else '—'
+                    _msg = {
+                        'sensor_stuck':        f"تنبيه حساس عالق: {_sensor_ar} عالق عند {_v} — تحقق من الحساس أو أعد تشغيله",
+                        'unrealistic_jump':    f"تنبيه قراءة مفاجئة: {_sensor_ar} وصلت إلى {_v} بشكل مفاجئ — افحص الحساس وقناة الإرسال",
+                        'pattern_break':       f"تنبيه شذوذ: {_sensor_ar} {_v} — انحراف ملحوظ عن النمط الطبيعي للقراءات",
+                        'threshold_violation': f"تنبيه تجاوز الحد: {_sensor_ar} وصلت إلى {_v} — مطلوب تدخل فوري",
+                    }.get(_t, f"تنبيه: {_sensor_ar} {_v}")
                     db.add(Alert(
                         farm_id=fid,
-                        sensor_type=anomaly['sensor'],
-                        message=f"[ANOMALY] {anomaly['description']}",
+                        sensor_type=_s,
+                        explanation=_t,
+                        message=_msg,
                         severity=AlertSeverity.critical if anomaly['severity'] == 'critical'
                                  else AlertSeverity.warning,
                         status=AlertStatus.open,
