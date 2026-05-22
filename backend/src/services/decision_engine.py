@@ -114,6 +114,9 @@ class SmartDecisionEngine:
             self.anomaly_detector = None
             self.risk_engine = None
 
+        # Load ML ensemble once at startup; None means rule-based fallback is used
+        self._ensemble = self._load_ensemble()
+
     async def fetch_weather(self) -> dict:
         """Fetch real weather from open-meteo — cached for 5 minutes."""
         now = datetime.now(timezone.utc)
@@ -146,31 +149,34 @@ class SmartDecisionEngine:
             logger.warning(f"Weather fetch failed: {e}")
             return SmartDecisionEngine._weather_cache or {}
 
-    def _get_models_directory(self) -> Optional[str]:
-        models_dir = os.getenv("WARIF_MODELS_DIR")
-        if models_dir and os.path.isdir(models_dir):
-            return models_dir
-
-        default_models_dir = os.path.join(os.getcwd(), "src", "ml", "saved_models")
-        if os.path.isdir(default_models_dir):
-            return default_models_dir
-
-        logger.warning(f"Models directory not found. Checked: {default_models_dir}")
-        return None
-
-    def run_ml_prediction(self, sensor_data: dict) -> Optional[dict]:
-        """Run the Warif ensemble ML model (Random Forest + XGBoost + LSTM)"""
+    def _load_ensemble(self):
+        """Load ML ensemble once at startup. Returns None if models are not available."""
+        candidates = [
+            os.getenv("WARIF_MODELS_DIR", ""),
+            os.path.join(os.getcwd(), "src", "ml", "saved_models"),
+            os.path.join(os.getcwd(), "src", "ml", "models"),
+        ]
+        models_dir = next((d for d in candidates if d and os.path.isdir(d)), None)
+        if not models_dir:
+            logger.info("ML ensemble models not found — using rule-based fallback")
+            return None
         try:
-            models_dir = self._get_models_directory()
-            if not models_dir:
-                logger.warning("ML models directory not available")
-                return None
-
             import sys
             if "." not in sys.path:
                 sys.path.insert(0, ".")
             from src.ml.continual_learning import WarifEnsemble
             ensemble = WarifEnsemble(models_dir)
+            logger.info(f"ML ensemble loaded from {models_dir}")
+            return ensemble
+        except Exception as e:
+            logger.info(f"ML ensemble unavailable ({e}) — using rule-based fallback")
+            return None
+
+    def run_ml_prediction(self, sensor_data: dict) -> Optional[dict]:
+        """Run the Warif ensemble ML model (Random Forest + XGBoost + LSTM)"""
+        if self._ensemble is None:
+            return None
+        try:
             soil_moisture = sensor_data.get("soil_moisture", 50.0)
             features = {
                 "soil_moisture":         soil_moisture,
@@ -184,12 +190,7 @@ class SmartDecisionEngine:
                 "growth_stage_encoded":  3,
                 "days_since_transplant": 30,
             }
-            result = ensemble.predict(features)
-
-            return result
-        except ImportError as e:
-            logger.error(f"Failed to import WarifEnsemble: {e}")
-            return None
+            return self._ensemble.predict(features)
         except Exception as e:
             logger.warning(f"ML prediction failed: {e}")
             return None

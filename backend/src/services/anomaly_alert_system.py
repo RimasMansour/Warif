@@ -106,6 +106,7 @@ class AnomalyAlertSystem:
                 severity=alert_severity,
                 status=AlertStatus.open,
                 message=alert_message,
+                explanation=anomaly_report.anomaly_type,
                 threshold=None,
                 actual_value=value,
             )

@@ -22,7 +22,7 @@ log = logging.getLogger("tuya_bridge")
 
 _port = os.getenv("PORT", "8000")
 WARIF_API = os.getenv("WARIF_API_URL", f"http://localhost:{_port}")
-POLL_INTERVAL = int(os.getenv("TUYA_POLL_INTERVAL", "30"))
+POLL_INTERVAL = int(os.getenv("TUYA_POLL_INTERVAL", "120"))
 CONFIG_FILE   = Path(__file__).resolve().parents[2] / "tuya_devices.json"
 
 
@@ -48,22 +48,6 @@ def _get_tuya_api():
 
     log.info(f"Connected to Tuya API: {endpoint}")
     return api
-
-
-def _is_device_online(api, tuya_id: str) -> bool:
-    try:
-        resp = api.get(f"/v1.0/devices/{tuya_id}")
-        online = resp.get("result", {}).get("online", False)
-        if not online:
-            log.warning(
-                f"Device {tuya_id} reported offline — "
-                f"success={resp.get('success')}, code={resp.get('code')}, "
-                f"msg={resp.get('msg', '')} | full_result={resp.get('result')}"
-            )
-        return bool(online)
-    except Exception as e:
-        log.error(f"Error checking online status for {tuya_id}: {e}")
-        return False
 
 
 def _fetch_device_status(api, tuya_id: str, poll_api: str) -> dict:
@@ -147,14 +131,10 @@ def poll_once(api, config: dict):
         warif_id = dev["warif_device_id"]
         poll_api = dev.get("poll_api", "v1.0")
 
-        if not _is_device_online(api, tuya_id):
-            log.warning(f"{label} ({tuya_id}): offline")
-            _mark_offline(warif_id)
-            continue
-
         status = _fetch_device_status(api, tuya_id, poll_api)
         if not status:
-            log.warning(f"{label} ({tuya_id}): no data returned from Tuya")
+            log.warning(f"{label} ({tuya_id}): offline or no data")
+            _mark_offline(warif_id)
             continue
 
         pushed = 0
@@ -176,14 +156,10 @@ def poll_once(api, config: dict):
             continue
 
         if tuya_id not in tuya_status_cache:
-            if not _is_device_online(api, tuya_id):
-                log.warning(f"actuator/{name} ({tuya_id}): offline")
-                tuya_status_cache[tuya_id] = None
-            else:
-                st = _fetch_device_status(api, tuya_id, act.get("command_api", "v1.0"))
-                tuya_status_cache[tuya_id] = st or None
-                if not st:
-                    log.warning(f"actuator/{name} ({tuya_id}): no status data")
+            st = _fetch_device_status(api, tuya_id, act.get("command_api", "v1.0"))
+            tuya_status_cache[tuya_id] = st or None
+            if not st:
+                log.warning(f"actuator/{name} ({tuya_id}): offline or no data")
 
         status = tuya_status_cache.get(tuya_id)
         if status is None:

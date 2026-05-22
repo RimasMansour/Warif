@@ -89,8 +89,8 @@ class AnomalyDetector:
                 anomaly_type="unrealistic_jump",
                 confidence=0.99,
                 affected_sensor=sensor_type,
-                probable_cause=f"Value {value} is out of realistic physical bounds ({min_val}-{max_val})",
-                recommended_action="Inspect the sensor immediately; potential physical malfunction detected",
+                probable_cause=f"القيمة {value} خارج الحدود الفيزيائية المتوقعة ({min_val} - {max_val})",
+                recommended_action="افحص الحساس فوراً — يُحتمل وجود عطل مادي",
                 timestamp=datetime.now()
             )
         return None
@@ -112,8 +112,8 @@ class AnomalyDetector:
                 anomaly_type="unrealistic_jump",
                 confidence=min(0.99, 0.6 + (change / (max_change * 5))),
                 affected_sensor=sensor_type,
-                probable_cause=f"Unrealistic step change: from {previous_value} to {current_value}",
-                recommended_action="Inspect the sensor and check the telemetry channel for noise",
+                probable_cause=f"تغيير مفاجئ غير طبيعي: من {previous_value} إلى {current_value}",
+                recommended_action="افحص الحساس وتحقق من قناة الإرسال للكشف عن تشويش",
                 timestamp=datetime.now()
             )
         return None
@@ -134,8 +134,8 @@ class AnomalyDetector:
                 anomaly_type="sensor_stuck",
                 confidence=0.95,
                 affected_sensor=sensor_type,
-                probable_cause=f"Sensor stuck on value {current_value} for consecutive historical readings",
-                recommended_action="Reboot, recalibrate, or replace the sensor",
+                probable_cause=f"الحساس عالق على قيمة {current_value} لعدة قراءات متتالية",
+                recommended_action="أعد تشغيل الحساس أو معايرته أو استبداله",
                 timestamp=datetime.now()
             )
         return None
@@ -168,8 +168,8 @@ class AnomalyDetector:
                 anomaly_type="pattern_break",
                 confidence=confidence,
                 affected_sensor=sensor_type,
-                probable_cause=f"Value {current_value} deviated significantly from normal pattern (mean: {mean:.1f}, std: {std:.1f})",
-                recommended_action="Verify physical greenhouse conditions; a real environmental issue might be occurring",
+                probable_cause=f"القيمة {current_value} انحرفت بشكل ملحوظ عن النمط الطبيعي (المتوسط: {mean:.1f}، الانحراف: {std:.1f})",
+                recommended_action="تحقق من الأوضاع الفعلية في البيئة المحيطة — قد تكون هناك مشكلة بيئية حقيقية",
                 timestamp=datetime.now()
             )
         return None
@@ -202,8 +202,8 @@ class AnomalyDetector:
                 anomaly_type="threshold_violation",
                 confidence=0.95,
                 affected_sensor=sensor_type,
-                probable_cause=f"Critical upper limit violated: {value} > {critical_max}",
-                recommended_action="Immediate corrective action required!",
+                probable_cause=f"تجاوز الحد الحرج الأعلى: {value} > {critical_max}",
+                recommended_action="مطلوب تدخل فوري!",
                 timestamp=datetime.now()
             )
 
@@ -214,8 +214,8 @@ class AnomalyDetector:
                 anomaly_type="threshold_violation",
                 confidence=0.95,
                 affected_sensor=sensor_type,
-                probable_cause=f"Critical lower limit violated: {value} < {critical_min}",
-                recommended_action="Immediate corrective action required!",
+                probable_cause=f"انتهاك الحد الحرج الأدنى: {value} < {critical_min}",
+                recommended_action="مطلوب تدخل فوري!",
                 timestamp=datetime.now()
             )
 
@@ -226,8 +226,8 @@ class AnomalyDetector:
                 anomaly_type="threshold_violation",
                 confidence=0.85,
                 affected_sensor=sensor_type,
-                probable_cause=f"Warning threshold exceeded: {value} > {warning_max}",
-                recommended_action="Monitor telemetry trend closely and prepare for preventative intervention",
+                probable_cause=f"تجاوز حد التحذير: {value} > {warning_max}",
+                recommended_action="راقب الاتجاه عن كثب واستعد للتدخل الوقائي",
                 timestamp=datetime.now()
             )
 

@@ -74,6 +74,7 @@ async def list_alerts(
             alert_list.append({
                 "id": alert.id,
                 "message": alert.message,
+                "anomaly_type": alert.explanation,
                 "severity": severity_value,
                 "status": status_value,
                 "sensor_type": alert.sensor_type,

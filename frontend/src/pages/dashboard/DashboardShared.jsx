@@ -2,6 +2,36 @@ import * as React from 'react';
 import { useMemo, useState, useEffect } from 'react';
 import { formatLastUpdated } from './dashboardUtils';
 
+// ─── ALERT TRANSLATION TABLES ────────────────────────────────────────────────
+const ALERT_SENSOR_NAMES = {
+  air_temperature:  { ar: 'درجة حرارة الهواء', en: 'Air Temperature' },
+  air_humidity:     { ar: 'رطوبة الهواء',       en: 'Air Humidity' },
+  soil_moisture:    { ar: 'رطوبة التربة',        en: 'Soil Moisture' },
+  soil_temperature: { ar: 'درجة حرارة التربة',  en: 'Soil Temperature' },
+  light_intensity:  { ar: 'شدة الإضاءة',        en: 'Light Intensity' },
+  water_usage:      { ar: 'استهلاك المياه',      en: 'Water Usage' },
+  power_usage:      { ar: 'استهلاك الطاقة',     en: 'Power Usage' },
+};
+
+const ALERT_ANOMALY_TEXT = {
+  sensor_stuck: {
+    ar: (s, v) => `حساس ${s} عالق على قيمة ${v} — قراءات متكررة بنفس القيمة. أعد تشغيل الحساس أو معايرته.`,
+    en: (s, v) => `${s} sensor stuck at ${v} — repeated identical readings. Reboot or recalibrate the sensor.`,
+  },
+  unrealistic_jump: {
+    ar: (s, v) => `قفزة غير طبيعية في حساس ${s} — القيمة الحالية: ${v}. افحص الحساس وتحقق من قناة الإرسال.`,
+    en: (s, v) => `Unrealistic jump in ${s} — current value: ${v}. Inspect the sensor and telemetry channel.`,
+  },
+  pattern_break: {
+    ar: (s, v) => `انحراف ملحوظ عن النمط الطبيعي في حساس ${s} — القيمة الحالية: ${v}. تحقق من الأوضاع الفعلية في البيئة.`,
+    en: (s, v) => `Significant deviation from normal pattern in ${s} — current value: ${v}. Verify greenhouse conditions.`,
+  },
+  threshold_violation: {
+    ar: (s, v) => `تجاوز حد التحذير في حساس ${s} — القيمة الحالية: ${v}. مطلوب تدخل فوري.`,
+    en: (s, v) => `Warning threshold exceeded in ${s} — current value: ${v}. Immediate corrective action required.`,
+  },
+};
+
 export function LastUpdatedTimer({ seconds, ar, en }) {
   const [localSec, setLocalSec] = useState(seconds);
   useEffect(() => {
@@ -937,6 +967,15 @@ export function AlertCard({
   const safeAction = extractSafeText(alert.action, '');
 
   const sensorType = alert.sensor_type || '';
+  const anomalyType = alert.anomaly_type || null;
+  const lang = isEn ? 'en' : 'ar';
+  const displayMessage = (() => {
+    const fn = ALERT_ANOMALY_TEXT[anomalyType]?.[lang];
+    if (!fn) return safeMessage;
+    const sensorName = ALERT_SENSOR_NAMES[sensorType]?.[lang] || sensorType;
+    const val = alert.actual_value != null ? Number(alert.actual_value).toFixed(1) : '—';
+    return fn(sensorName, val);
+  })();
   const msgText = safeMessage.toLowerCase();
   const category =
     (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
@@ -1013,7 +1052,7 @@ export function AlertCard({
       </div>
 
       <p className={`font-medium text-gray-600 leading-relaxed mb-1.5 text-start ${compact ? 'text-[13px]' : 'text-[14.5px] md:text-[15.5px]'}`} style={{ wordBreak: 'break-word' }}>
-        {safeMessage}
+        {displayMessage}
       </p>
 
       {/* Unified Footer Area */}
