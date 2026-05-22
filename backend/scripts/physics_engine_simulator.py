@@ -599,7 +599,9 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
         (DEVICE_MAP["fan"],      "power_usage",       round((1.1 / 3600.0 * INTERVAL if state["fan_on"] else 0) * 1000, 3), "Wh"),
     ]
 
-    # 4. Save to Database
+    # 4. Save to Database and mark devices as online
+    from src.services.connectivity_monitor import ConnectivityMonitor
+    seen_devices = set()
     for d_id, stype, val, unit in readings_to_save:
         db.add(SensorReading(
             device_id=d_id,
@@ -609,6 +611,9 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
             unit=unit,
             timestamp=datetime.now(timezone.utc)
         ))
+        if d_id not in seen_devices:
+            await ConnectivityMonitor.update_device_seen(d_id, db)
+            seen_devices.add(d_id)
 
     # ─── DECISION ENGINE INTEGRATION ───
     # Build sensor data dict for Decision Engine
