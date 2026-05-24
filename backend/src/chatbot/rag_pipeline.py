@@ -156,16 +156,16 @@ def format_sensor_context(sensor_data: Optional[dict]) -> str:
 
     soil = sensor_data.get("soil", {})
     if soil:
-        if soil.get("moisture_percent")    is not None: lines.append(f"Soil moisture    : {soil['moisture_percent']}%  (optimal: 60-80%)")
-        if soil.get("temperature_celsius") is not None: lines.append(f"Soil temperature : {soil['temperature_celsius']}°C (optimal: 20-30°C)")
-        if soil.get("ph")                  is not None: lines.append(f"Soil pH          : {soil['ph']}  (optimal: 6.0-6.8)")
-        if soil.get("ec")                  is not None: lines.append(f"Soil EC          : {soil['ec']} mS/cm (optimal: 1.5-2.5)")
+        if soil.get("moisture_percent")    is not None: lines.append(f"Soil moisture    : {soil['moisture_percent']}%")
+        if soil.get("temperature_celsius") is not None: lines.append(f"Soil temperature : {soil['temperature_celsius']}°C")
+        if soil.get("ph")                  is not None: lines.append(f"Soil pH          : {soil['ph']}")
+        if soil.get("ec")                  is not None: lines.append(f"Soil EC          : {soil['ec']} mS/cm")
 
     air = sensor_data.get("air", {})
     if air:
-        if air.get("temperature_celsius") is not None: lines.append(f"Air temperature  : {air['temperature_celsius']}°C (optimal: 22-28°C)")
-        if air.get("humidity_percent")    is not None: lines.append(f"Air humidity     : {air['humidity_percent']}%  (optimal: 70-85%)")
-        if air.get("co2_ppm")             is not None: lines.append(f"CO2              : {air['co2_ppm']} ppm (optimal: 800-1200)")
+        if air.get("temperature_celsius") is not None: lines.append(f"Air temperature  : {air['temperature_celsius']}°C")
+        if air.get("humidity_percent")    is not None: lines.append(f"Air humidity     : {air['humidity_percent']}%")
+        if air.get("co2_ppm")             is not None: lines.append(f"CO2              : {air['co2_ppm']} ppm")
 
     alerts = sensor_data.get("alerts", [])
     if alerts:
@@ -225,7 +225,7 @@ def ask(
 
     Args:
         question    : Farmer's question (Arabic or English)
-        sensor_data : Live sensor snapshot dict fetched from the DB (optional)
+        sensor_data : Live sensor snapshot dict fetched from the DB 
         n_chunks    : Number of knowledge chunks to retrieve
         max_tokens  : Max tokens for LLM response
         history     : Previous conversation turns [{role, content}, ...]
@@ -249,8 +249,15 @@ def ask(
             "sensor_used" : False
         }
 
-    # Step 1: Retrieve relevant chunks
-    chunks_text, metas, distances = retrieve(question, n_results=n_chunks)
+    # Step 1: Retrieve relevant chunks — augment the query with crop/sensor
+    # keywords when sensor data is present so optimal-condition documents are
+    # pulled in the same single call instead of a separate round trip.
+    crop = sensor_data.get("crop", "cucumber") if sensor_data else ""
+    search_query = (
+        f"{question} {crop} optimal conditions soil moisture temperature pH EC humidity CO2"
+        if crop else question
+    )
+    chunks_text, metas, distances = retrieve(search_query, n_results=n_chunks + (2 if crop else 0))
     sources = [m.get("source", "unknown") for m in metas]
 
     if verbose:
