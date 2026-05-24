@@ -1,76 +1,29 @@
 """
-Tuya Bridge Service
-===================
-Polls real Tuya sensors every TUYA_POLL_INTERVAL seconds and pushes readings
-to the Warif sensor ingestion endpoint so they appear on the dashboard.
+Device Bridge Service
+=====================
+Polls sensor and actuator data from the external devices API every
+TUYA_POLL_INTERVAL seconds and pushes readings to the Warif ingestion endpoint.
 
 Runs automatically as a background thread when the backend starts.
 Can also be run standalone via scripts/tuya_bridge.py.
 
 Requires in .env:
-    TUYA_ACCESS_ID, TUYA_ACCESS_SECRET, TUYA_API_ENDPOINT (optional)
+    EXTERNAL_DEVICES_API_URL   (default: https://backend.aihajjservices.com)
+    EXTERNAL_DEVICES_API_KEY
 """
 import os
-import json
 import time
 import logging
-from pathlib import Path
 
 import requests
+from . import external_api_client as ext_api
+from .tuya_client import get_device_config
 
 log = logging.getLogger("tuya_bridge")
 
 _port = os.getenv("PORT", "8000")
-WARIF_API = os.getenv("WARIF_API_URL", f"http://localhost:{_port}")
+WARIF_API     = os.getenv("WARIF_API_URL", f"http://localhost:{_port}")
 POLL_INTERVAL = int(os.getenv("TUYA_POLL_INTERVAL", "120"))
-CONFIG_FILE   = Path(__file__).resolve().parents[2] / "tuya_devices.json"
-
-
-# ── Tuya helpers ──────────────────────────────────────────────────────────────
-
-def _get_tuya_api():
-    try:
-        from tuya_connector import TuyaOpenAPI
-    except ImportError:
-        raise RuntimeError("tuya-connector-python not installed. Run: pip install tuya-connector-python")
-
-    access_id     = os.getenv("TUYA_ACCESS_ID", "")
-    access_secret = os.getenv("TUYA_ACCESS_SECRET", "")
-    endpoint      = os.getenv("TUYA_API_ENDPOINT", "https://openapi.tuyaeu.com")
-
-    if not access_id or not access_secret:
-        raise RuntimeError("TUYA_ACCESS_ID and TUYA_ACCESS_SECRET must be set in .env")
-
-    api = TuyaOpenAPI(endpoint, access_id, access_secret)
-    result = api.connect()
-    if not result.get("success"):
-        raise RuntimeError(f"Tuya connection failed: {result}")
-
-    log.info(f"Connected to Tuya API: {endpoint}")
-    return api
-
-
-def _fetch_device_status(api, tuya_id: str, poll_api: str) -> dict:
-    if poll_api == "v2.0":
-        resp = api.get(f"/v2.0/cloud/thing/{tuya_id}/shadow/properties")
-    else:
-        resp = api.get(f"/v1.0/devices/{tuya_id}/status")
-
-    if not resp.get("success"):
-        log.warning(f"Tuya API failed for {tuya_id}: {resp.get('msg', resp.get('code', 'unknown'))}")
-        return {}
-
-    raw = resp.get("result", [])
-    if isinstance(raw, list):
-        return {item["code"]: item["value"] for item in raw if isinstance(item, dict)}
-    if isinstance(raw, dict):
-        props = raw.get("properties", raw)
-        if isinstance(props, list):
-            return {item["code"]: item["value"] for item in props if isinstance(item, dict)}
-        if isinstance(props, dict):
-            return props
-    log.warning(f"Unexpected Tuya response format for {tuya_id}: {raw}")
-    return {}
 
 
 # ── Warif API helpers ─────────────────────────────────────────────────────────
@@ -122,16 +75,17 @@ def _register_actuators(config: dict):
 
 # ── Poll cycle ────────────────────────────────────────────────────────────────
 
-def poll_once(api, config: dict):
-    farm_id = config.get("farm_id")
+def poll_once(config: dict):
+    farm_id      = config.get("farm_id")
+    status_cache = ext_api.get_all_statuses()  # single HTTP call for all devices
 
+    # Sensors
     for dev in config.get("sensor_devices", []):
         label    = dev["label"]
         tuya_id  = dev["tuya_device_id"]
         warif_id = dev["warif_device_id"]
-        poll_api = dev.get("poll_api", "v1.0")
 
-        status = _fetch_device_status(api, tuya_id, poll_api)
+        status = status_cache.get(tuya_id, {})
         if not status:
             log.warning(f"{label} ({tuya_id}): offline or no data")
             _mark_offline(warif_id)
@@ -147,22 +101,17 @@ def poll_once(api, config: dict):
 
         if pushed:
             log.info(f"{label}: pushed {pushed} reading(s)")
-    tuya_status_cache: dict = {}
 
+    # Actuators
     for name, act in config.get("actuators", {}).items():
         tuya_id  = act.get("tuya_device_id", "")
         warif_id = act.get("warif_device_id", "")
         if not tuya_id or not warif_id:
             continue
 
-        if tuya_id not in tuya_status_cache:
-            st = _fetch_device_status(api, tuya_id, act.get("command_api", "v1.0"))
-            tuya_status_cache[tuya_id] = st or None
-            if not st:
-                log.warning(f"actuator/{name} ({tuya_id}): offline or no data")
-
-        status = tuya_status_cache.get(tuya_id)
-        if status is None:
+        status = status_cache.get(tuya_id, {})
+        if not status:
+            log.warning(f"actuator/{name} ({tuya_id}): offline or no data")
             _mark_offline(warif_id)
             continue
 
@@ -177,19 +126,17 @@ def poll_once(api, config: dict):
 
 def run():
     """Blocking poll loop. Run in a thread via asyncio.to_thread() or standalone."""
-    if not CONFIG_FILE.exists():
-        log.warning(f"[Tuya Bridge] Config not found at {CONFIG_FILE} — bridge disabled")
+    config = get_device_config()
+    if not config:
+        log.warning("[Bridge] Device config missing or empty — bridge disabled")
         return
-
-    config = json.loads(CONFIG_FILE.read_text())
-    api    = _get_tuya_api()
 
     log.info(f"Bridge running — polling every {POLL_INTERVAL}s → {WARIF_API}")
     _register_actuators(config)
 
     while True:
         try:
-            poll_once(api, config)
+            poll_once(config)
         except Exception as e:
             log.error(f"Poll cycle error: {e}")
         time.sleep(POLL_INTERVAL)
