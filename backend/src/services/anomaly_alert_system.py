@@ -69,7 +69,6 @@ class AnomalyAlertSystem:
             # Map string severity definitions to SQLAlchemy AlertSeverity schema
             severity_map = {
                 "critical": AlertSeverity.critical,
-                "high": AlertSeverity.high,
                 "medium": AlertSeverity.warning,
                 "low": AlertSeverity.info,
             }
