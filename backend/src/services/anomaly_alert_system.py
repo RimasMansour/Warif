@@ -8,7 +8,7 @@ Overview:
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from src.db.models.models import Alert, AlertSeverity, AlertStatus, Device
@@ -125,6 +125,79 @@ class AnomalyAlertSystem:
 
         except Exception as e:
             logger.error(f"[AnomalyAlertSystem Error] {device_id}: {e}")
+            return None
+
+    async def check_ml_anomalies(
+        self,
+        sensor_data: dict,
+        farm_id: int,
+        db: AsyncSession,
+    ) -> Alert | None:
+        """
+        Runs KNN and Isolation Forest on a full multi-sensor snapshot.
+        Creates a DB alert if either model flags an anomaly.
+        Silently skips when any of the 6 required features are missing.
+        """
+        try:
+            from src.ml.anomaly_knn import predict as knn_predict, FEATURES as ML_FEATURES
+            from src.ml.anomaly_svm import predict as svm_predict
+
+            if not set(ML_FEATURES).issubset(sensor_data.keys()):
+                logger.debug(f"[ML] Skipping — missing features: {set(ML_FEATURES) - sensor_data.keys()}")
+                return None
+
+            features = {f: sensor_data[f] for f in ML_FEATURES}
+            knn_result = knn_predict(features)
+            svm_result = svm_predict(features)
+
+            knn_anomaly = knn_result.get("is_anomaly", False)
+            svm_anomaly = svm_result.get("is_anomaly", False)
+            if not knn_anomaly and not svm_anomaly:
+                return None
+
+            knn_conf = knn_result.get("confidence", 0.0) if knn_anomaly else 0.0
+            svm_conf = svm_result.get("confidence", 0.0) if svm_anomaly else 0.0
+            confidence = max(knn_conf, svm_conf)
+            severity = AlertSeverity.critical if confidence >= 0.85 else AlertSeverity.warning
+
+            # Suppress if an open ML alert already exists for this farm within the last 30 minutes
+            cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
+            existing = await db.execute(
+                select(Alert).where(
+                    and_(
+                        Alert.farm_id == farm_id,
+                        Alert.explanation == "ml_anomaly",
+                        Alert.status == AlertStatus.open,
+                        Alert.created_at >= cooldown,
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                logger.info(f"[ML] Duplicate alert suppressed for farm {farm_id}")
+                return None
+
+            rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
+            models = [m for m, flag in [("KNN", knn_anomaly), ("IsolationForest", svm_anomaly)] if flag]
+            message = (
+                f"ML Anomaly ({', '.join(models)}) — confidence {confidence:.0%}. "
+                + (f"Rule violated: {rule_violated}." if rule_violated else "Abnormal multi-sensor pattern detected.")
+            )
+
+            alert = Alert(
+                farm_id=farm_id,
+                sensor_type=rule_violated.split("=")[0].strip() if rule_violated else "multi_sensor",
+                severity=severity,
+                status=AlertStatus.open,
+                message=message,
+                explanation="ml_anomaly",
+            )
+            db.add(alert)
+            await db.flush()
+            logger.warning(f"[ML Alert] Farm {farm_id} — {message}")
+            return alert
+
+        except Exception as e:
+            logger.error(f"[ML Anomaly Check] Failed for farm {farm_id}: {e}")
             return None
 
 

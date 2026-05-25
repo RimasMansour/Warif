@@ -32,20 +32,16 @@ SCALER_PATH = MODELS_DIR / "anomaly_svm_scaler.pkl"
 FEATURES = [
     "air_temperature",
     "air_humidity",
-    "co2",
     "soil_moisture",
     "soil_temperature",
-    "cum_irr",
 ]
 
 # Hard rules - readings outside these are definite anomalies
 NORMAL_RANGES = {
     "air_temperature" : (-5,  50),
     "air_humidity"    : (0,  100),
-    "co2"             : (300, 1800),
     "soil_moisture"   : (0,  100),
     "soil_temperature": (-5,  50),
-    "cum_irr"         : (0,  50),
 }
 
 
@@ -117,10 +113,8 @@ def predict(features: dict) -> dict:
             {
                 "air_temperature" : 24.5,
                 "air_humidity"    : 68.0,
-                "co2"             : 850.0,
                 "soil_moisture"   : 35.0,
                 "soil_temperature": 21.0,
-                "cum_irr"         : 1.2,
             }
 
     Returns:
@@ -177,10 +171,8 @@ if __name__ == "__main__":
     normal = {
         "air_temperature" : 22.9,
         "air_humidity"    : 85.6,
-        "co2"             : 634.0,
         "soil_moisture"   : 84.2,
         "soil_temperature": 23.1,
-        "cum_irr"         : 2.1,
     }
     print(predict(normal))
 
@@ -188,9 +180,7 @@ if __name__ == "__main__":
     anomaly = {
         "air_temperature" : 22.9,
         "air_humidity"    : 85.6,
-        "co2"             : 634.0,
-        "soil_moisture"   : 71.0,  # far below normal min
+        "soil_moisture"   : 5.0,
         "soil_temperature": 23.1,
-        "cum_irr"         : 2.1,
     }
     print(predict(anomaly))

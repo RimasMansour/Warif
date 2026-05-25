@@ -204,17 +204,7 @@ async def ingest_sensor_reading(
         except Exception as e:
             logger.error(f"[Ingestion] Anomaly detection failed: {e}")
 
-        # 2. Run ML predictions
-        try:
-            from src.ml.anomaly_knn import predict as knn_predict
-            from src.ml.anomaly_svm import predict as svm_predict
-            features = {"air_temperature": 25.0, "air_humidity": 50.0, "soil_moisture": 50.0, "soil_temperature": 25.0, "co2": 650.0, "cum_irr": 2.0}
-            knn_predict(features)
-            svm_predict(features)
-        except Exception as e:
-            logger.warning(f"[Ingestion] ML Prediction skipped: {e}")
-
-        # 3. Decision Engine Stage
+        # 2. Decision Engine Stage
         if device_obj and farm_id:
             try:
                 from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus
@@ -240,6 +230,10 @@ async def ingest_sensor_reading(
                 full_sensor_data = {r.sensor_type: r.value for r in latest_rows.scalars().all()}
                 # Include the reading just flushed (may not be visible in the query above yet)
                 full_sensor_data[sensor_type] = value
+
+                # ML anomaly detection — reuses the already-fetched sensor snapshot
+                from src.services.anomaly_alert_system import get_anomaly_alert_system
+                await get_anomaly_alert_system().check_ml_anomalies(full_sensor_data, farm_id, db)
 
                 engine = _get_decision_engine()
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)

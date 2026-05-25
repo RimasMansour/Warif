@@ -34,20 +34,15 @@ THRESHOLD_PATH = MODELS_DIR / "anomaly_knn_threshold.pkl"
 FEATURES = [
     "air_temperature",
     "air_humidity",
-    "co2",
     "soil_moisture",
     "soil_temperature",
-    "cum_irr",
 ]
 
-# Hard rules - same as anomaly_svm for consistency
 NORMAL_RANGES = {
     "air_temperature" : (-5,  50),
     "air_humidity"    : (0,  100),
-    "co2"             : (300, 1800),
     "soil_moisture"   : (0,  100),
     "soil_temperature": (-5,  50),
-    "cum_irr"         : (0,  50),
 }
 
 K_NEIGHBORS = 5   # number of neighbors to compare against
@@ -203,10 +198,8 @@ if __name__ == "__main__":
     normal = {
         "air_temperature" : 22.9,
         "air_humidity"    : 85.6,
-        "co2"             : 634.0,
         "soil_moisture"   : 84.2,
         "soil_temperature": 23.1,
-        "cum_irr"         : 2.1,
     }
     print(predict(normal))
 
@@ -214,9 +207,7 @@ if __name__ == "__main__":
     anomaly = {
         "air_temperature" : 22.9,
         "air_humidity"    : 31.5,
-        "co2"             : 1200.0,
         "soil_moisture"   : 71.1,
         "soil_temperature": 23.1,
-        "cum_irr"         : 2.1,
     }
     print(predict(anomaly))
