@@ -146,11 +146,23 @@ class AnomalyAlertSystem:
                 return None
 
             features = {f: sensor_data[f] for f in ML_FEATURES}
-            knn_result = knn_predict(features)
-            isolation_forest_result = isolation_forest_predict(features)
 
-            knn_anomaly = knn_result.get("is_anomaly", False)
-            isolation_forest_anomaly = isolation_forest_result.get("is_anomaly", False)
+            knn_result = None
+            isolation_forest_result = None
+            try:
+                knn_result = knn_predict(features)
+            except Exception as e:
+                logger.debug(f"[ML] KNN skipped: {e}")
+            try:
+                isolation_forest_result = isolation_forest_predict(features)
+            except Exception as e:
+                logger.debug(f"[ML] IsolationForest skipped: {e}")
+
+            if knn_result is None and isolation_forest_result is None:
+                return None
+
+            knn_anomaly = knn_result.get("is_anomaly", False) if knn_result else False
+            isolation_forest_anomaly = isolation_forest_result.get("is_anomaly", False) if isolation_forest_result else False
             if not knn_anomaly and not isolation_forest_anomaly:
                 return None
 
