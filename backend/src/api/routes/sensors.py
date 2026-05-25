@@ -240,7 +240,6 @@ async def ingest_sensor_reading(
                 smart_recs = intelligence_report.get('recommendations', [])
 
                 cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
-                sev_map = {"normal": RecommendationSeverity.normal, "warning": RecommendationSeverity.warning, "urgent": RecommendationSeverity.urgent}
 
                 for sr in smart_recs:
                     if sr.category not in ("irrigation", "temperature", "humidity", "soil"):

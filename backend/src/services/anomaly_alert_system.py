@@ -187,7 +187,10 @@ class AnomalyAlertSystem:
                 logger.info(f"[ML] Duplicate alert suppressed for farm {farm_id}")
                 return None
 
-            rule_violated = knn_result.get("rule_violated") or isolation_forest_result.get("rule_violated")
+            rule_violated = (
+                (knn_result.get("rule_violated") if knn_result else None)
+                or (isolation_forest_result.get("rule_violated") if isolation_forest_result else None)
+            )
             models = [m for m, flag in [("KNN", knn_anomaly), ("Isolation Forest", isolation_forest_anomaly)] if flag]
             message = (
                 f"ML Anomaly ({', '.join(models)}) — confidence {confidence:.0%}. "
