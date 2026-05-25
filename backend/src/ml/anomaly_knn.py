@@ -4,7 +4,7 @@ anomaly_knn.py
 KNN-based anomaly detection for Warif system.
 Designed for fast edge-level detection of abnormal sensor readings.
 
-Unlike anomaly_svm which does deep analysis,
+Unlike anomaly_isolation_forest which does deeper pattern analysis,
 this model is optimized for speed at the edge layer.
 
 Logic:
@@ -129,10 +129,8 @@ def predict(features: dict) -> dict:
             {
                 "air_temperature" : 22.9,
                 "air_humidity"    : 85.6,
-                "co2"             : 634.0,
                 "soil_moisture"   : 84.2,
                 "soil_temperature": 23.1,
-                "cum_irr"         : 2.1,
             }
 
     Returns:

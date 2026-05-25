@@ -11,7 +11,7 @@ Handles all alert management endpoints:
 Alerts are generated automatically by:
   - The Simulator (water tank level, anomalies)
   - The Decision Engine (sensor threshold violations)
-  - The Anomaly Alert System (kNN + SVM detection)
+  - The Anomaly Alert System (kNN + Isolation Forest detection)
 
 All endpoints require JWT authentication.
 """

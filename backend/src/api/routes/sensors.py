@@ -10,7 +10,7 @@ Handles all sensor-related endpoints:
 On each ingestion, the pipeline:
   1. Saves the raw reading to the DB
   2. Updates device connectivity status
-  3. Runs kNN + SVM anomaly detection
+  3. Runs kNN + Isolation Forest anomaly detection
   4. Triggers the Decision Engine for recommendations and alerts
 """
 import logging

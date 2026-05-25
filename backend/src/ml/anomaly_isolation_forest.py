@@ -1,15 +1,14 @@
 """
-anomaly_svm.py
---------------
+anomaly_isolation_forest.py
+---------------------------
 Anomaly detection for Warif system using Isolation Forest.
 Detects abnormal sensor readings that may indicate:
     - Sensor malfunction
     - Environmental stress conditions
     - Irrigation system faults
 
-Note: Isolation Forest is used instead of One-Class SVM
-because greenhouse data has high natural variability
-that makes SVM boundaries unreliable.
+This module uses Isolation Forest because greenhouse data
+has high natural variability.
 """
 
 import numpy as np
@@ -25,8 +24,8 @@ BASE_DIR   = Path(__file__).parent
 MODELS_DIR = BASE_DIR / "models"
 DATA_PATH  = Path(__file__).parent.parent.parent.parent / "data" / "datasets" / "irrigation_data.csv"
 
-MODEL_PATH  = MODELS_DIR / "anomaly_svm.pkl"
-SCALER_PATH = MODELS_DIR / "anomaly_svm_scaler.pkl"
+MODEL_PATH  = MODELS_DIR / "anomaly_isolation_forest.pkl"
+SCALER_PATH = MODELS_DIR / "anomaly_isolation_forest_scaler.pkl"
 
 # Features to monitor for anomalies
 FEATURES = [

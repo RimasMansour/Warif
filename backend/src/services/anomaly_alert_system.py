@@ -136,11 +136,11 @@ class AnomalyAlertSystem:
         """
         Runs KNN and Isolation Forest on a full multi-sensor snapshot.
         Creates a DB alert if either model flags an anomaly.
-        Silently skips when any of the 6 required features are missing.
+        Silently skips when any required feature is missing.
         """
         try:
             from src.ml.anomaly_knn import predict as knn_predict, FEATURES as ML_FEATURES
-            from src.ml.anomaly_svm import predict as svm_predict
+            from src.ml.anomaly_isolation_forest import predict as isolation_forest_predict
 
             if not set(ML_FEATURES).issubset(sensor_data.keys()):
                 logger.debug(f"[ML] Skipping — missing features: {set(ML_FEATURES) - sensor_data.keys()}")
@@ -148,16 +148,16 @@ class AnomalyAlertSystem:
 
             features = {f: sensor_data[f] for f in ML_FEATURES}
             knn_result = knn_predict(features)
-            svm_result = svm_predict(features)
+            isolation_forest_result = isolation_forest_predict(features)
 
             knn_anomaly = knn_result.get("is_anomaly", False)
-            svm_anomaly = svm_result.get("is_anomaly", False)
-            if not knn_anomaly and not svm_anomaly:
+            isolation_forest_anomaly = isolation_forest_result.get("is_anomaly", False)
+            if not knn_anomaly and not isolation_forest_anomaly:
                 return None
 
             knn_conf = knn_result.get("confidence", 0.0) if knn_anomaly else 0.0
-            svm_conf = svm_result.get("confidence", 0.0) if svm_anomaly else 0.0
-            confidence = max(knn_conf, svm_conf)
+            isolation_forest_conf = isolation_forest_result.get("confidence", 0.0) if isolation_forest_anomaly else 0.0
+            confidence = max(knn_conf, isolation_forest_conf)
             severity = AlertSeverity.critical if confidence >= 0.85 else AlertSeverity.warning
 
             # Suppress if an open ML alert already exists for this farm within the last 30 minutes
@@ -176,8 +176,8 @@ class AnomalyAlertSystem:
                 logger.info(f"[ML] Duplicate alert suppressed for farm {farm_id}")
                 return None
 
-            rule_violated = knn_result.get("rule_violated") or svm_result.get("rule_violated")
-            models = [m for m, flag in [("KNN", knn_anomaly), ("IsolationForest", svm_anomaly)] if flag]
+            rule_violated = knn_result.get("rule_violated") or isolation_forest_result.get("rule_violated")
+            models = [m for m, flag in [("KNN", knn_anomaly), ("Isolation Forest", isolation_forest_anomaly)] if flag]
             message = (
                 f"ML Anomaly ({', '.join(models)}) — confidence {confidence:.0%}. "
                 + (f"Rule violated: {rule_violated}." if rule_violated else "Abnormal multi-sensor pattern detected.")
