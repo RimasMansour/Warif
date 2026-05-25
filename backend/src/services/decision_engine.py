@@ -177,16 +177,21 @@ class SmartDecisionEngine:
         if self._ensemble is None:
             return None
         try:
-            soil_moisture = sensor_data.get("soil_moisture", 50.0)
+            import math
+            air_temp = sensor_data.get("air_temperature", 28.0)
+            humidity = sensor_data.get("air_humidity", 60.0)
+            svp = 0.6108 * math.exp(17.27 * air_temp / (air_temp + 237.3))
+            vpd_kpa = round(svp * (1 - humidity / 100), 3)
+
             features = {
-                "soil_moisture":         soil_moisture,
+                "soil_moisture":         sensor_data.get("soil_moisture", 50.0),
                 "soil_temp":             sensor_data.get("soil_temperature", 25.0),
                 "soil_ph":               6.4,
                 "soil_ec":               1.8,
-                "air_temp":              sensor_data.get("air_temperature", 28.0),
-                "humidity":              sensor_data.get("air_humidity", 60.0),
+                "air_temp":              air_temp,
+                "humidity":              humidity,
                 "co2_ppm":               700.0,
-                "vpd_kpa":               1.0,
+                "vpd_kpa":               vpd_kpa,
                 "growth_stage_encoded":  3,
                 "days_since_transplant": 30,
             }
