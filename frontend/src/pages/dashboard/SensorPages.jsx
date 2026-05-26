@@ -86,10 +86,18 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const light = livesensors?.light_intensity ?? 0;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
-  const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit, 1800000);
-  const { data: rawHum } = useSensorHistory('air_humidity', historyLimit, 1800000);
-  const { data: rawLight } = useSensorHistory('light_intensity', historyLimit, 1800000);
+  const historySince = (() => {
+    const now = new Date();
+    if (range === 'D') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (range === 'W') { const d = new Date(now); d.setDate(now.getDate() - now.getDay()); d.setHours(0,0,0,0); return d; }
+    if (range === 'M') return new Date(now.getFullYear(), now.getMonth(), 1);
+    if (range === 'Y') return new Date(now.getFullYear(), 0, 1);
+    return null;
+  })();
+  const historyLimit = range === 'Y' ? 15000 : 50000;
+  const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit, 1800000, historySince);
+  const { data: rawHum } = useSensorHistory('air_humidity', historyLimit, 1800000, historySince);
+  const { data: rawLight } = useSensorHistory('light_intensity', historyLimit, 1800000, historySince);
 
   const formatPoints = (rawData) => {
     const now = new Date();
@@ -462,9 +470,17 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilMoist = livesensors2?.soil_moisture    ?? 0;
   const lastUpdateLabel = formatLastUpdated(seconds, T.lastUpdateAr, T.lastUpdateEn);
 
-  const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
-  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit, 1800000);
-  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit, 1800000);
+  const historySince2 = (() => {
+    const now = new Date();
+    if (range === 'D') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (range === 'W') { const d = new Date(now); d.setDate(now.getDate() - now.getDay()); d.setHours(0,0,0,0); return d; }
+    if (range === 'M') return new Date(now.getFullYear(), now.getMonth(), 1);
+    if (range === 'Y') return new Date(now.getFullYear(), 0, 1);
+    return null;
+  })();
+  const historyLimit2 = range === 'Y' ? 15000 : 50000;
+  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit2, 1800000, historySince2);
+  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit2, 1800000, historySince2);
 
   const formatPoints = (rawData) => {
     const now = new Date();

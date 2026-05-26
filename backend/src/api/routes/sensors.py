@@ -41,18 +41,23 @@ def _get_decision_engine():
 # Public endpoint — used by frontend charts (water_usage, power_usage history)
 @router.get("", response_model=List[SensorReadingOut])
 async def list_sensor_readings(
-    farm_id:     int           = Query(..., description="Farm ID"),
-    device_id:   Optional[str] = Query(None),
-    sensor_type: Optional[str] = Query(None),
-    limit:       int           = Query(100, le=50000),
+    farm_id:     int                      = Query(..., description="Farm ID"),
+    device_id:   Optional[str]            = Query(None),
+    sensor_type: Optional[str]            = Query(None),
+    limit:       int                      = Query(100, le=50000),
+    since:       Optional[datetime]       = Query(None, description="Return only readings at or after this UTC timestamp (ISO 8601)"),
     db: AsyncSession = Depends(get_db),
 ):
     """Return historical sensor readings, most recent first, filtered by farm."""
-    q = select(SensorReading).where(SensorReading.farm_id == farm_id).order_by(desc(SensorReading.timestamp)).limit(limit)
+    q = select(SensorReading).where(SensorReading.farm_id == farm_id)
     if device_id:
         q = q.where(SensorReading.device_id == device_id)
     if sensor_type:
         q = q.where(SensorReading.sensor_type == sensor_type)
+    if since:
+        since_utc = since.replace(tzinfo=timezone.utc) if since.tzinfo is None else since
+        q = q.where(SensorReading.timestamp >= since_utc)
+    q = q.order_by(desc(SensorReading.timestamp)).limit(limit)
     result = await db.execute(q)
     return result.scalars().all()
 

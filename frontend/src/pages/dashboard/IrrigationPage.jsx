@@ -87,9 +87,17 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
   const waterUsage  = resourceData?.water_usage_liters ?? 0;
   const powerUsage  = resourceData?.power_usage_kwh ?? 0;
 
-  const historyLimit = range === 'D' ? 1500 : range === 'W' ? 3000 : range === 'M' ? 8000 : 15000;
-  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', historyLimit, 0);
-  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', historyLimit, 0);
+  const irrigationSince = (() => {
+    const now = new Date();
+    if (range === 'D') return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (range === 'W') { const d = new Date(now); d.setDate(now.getDate() - now.getDay()); d.setHours(0,0,0,0); return d; }
+    if (range === 'M') return new Date(now.getFullYear(), now.getMonth(), 1);
+    if (range === 'Y') return new Date(now.getFullYear(), 0, 1);
+    return null;
+  })();
+  const historyLimit = range === 'Y' ? 15000 : 50000;
+  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', historyLimit, 0, irrigationSince);
+  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', historyLimit, 0, irrigationSince);
 
   // Refresh at noon (12:00) and midnight (00:00) every day
   useEffect(() => {

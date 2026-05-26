@@ -231,8 +231,9 @@ export function useAutoMode(farmId) {
   return { autoMode, toggleAutoMode, loading };
 }
 
-export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000) {
-  const cacheKey = `${sensor_type}_${limit}`;
+export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, since = null) {
+  const sinceStr = since ? since.toISOString() : null;
+  const cacheKey = `${sensor_type}_${limit}_${sinceStr || ''}`;
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(!globalCache.history[cacheKey])
 
@@ -246,9 +247,9 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000) {
         : (userData.farmId || null);
       if (!farmId) return;
 
-      const res = await fetch(`${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`, {
-        headers: authHeaders()
-      })
+      let url = `${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`;
+      if (sinceStr) url += `&since=${encodeURIComponent(sinceStr)}`;
+      const res = await fetch(url, { headers: authHeaders() })
       if (res.ok) {
         const json = await res.json()
         const reversed = json.reverse();
@@ -261,7 +262,7 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000) {
     } finally {
       setLoading(false)
     }
-  }, [sensor_type, limit, cacheKey])
+  }, [sensor_type, limit, cacheKey, sinceStr])
 
   useEffect(() => {
     fetch_data()
