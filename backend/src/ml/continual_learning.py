@@ -540,8 +540,10 @@ class ContinualLearner:
             - Historical synthetic baseline data.
             - Newly-accumulated verified field telemetry.
 
-        Implements progressive continual learning by warm-starting estimators
-        and avoiding cold-start parameter initialization.
+        Implements progressive continual learning with champion/challenger gating:
+        the retrained (challenger) ensemble is evaluated against the current
+        (incumbent) ensemble on the same held-out test split. The challenger
+        is promoted to production only if it outperforms the incumbent.
         """
         from sklearn.ensemble import RandomForestClassifier
         from xgboost import XGBClassifier
@@ -572,12 +574,27 @@ class ContinualLearner:
             X, y, test_size=0.2, random_state=42, stratify=y
         )
 
-        # 2. Recompute scaling transformations
+        # 2. Recompute scaling transformations for the challenger
         scaler = StandardScaler()
         X_train_sc = scaler.fit_transform(X_train)
         X_test_sc  = scaler.transform(X_test)
 
-        # 3. Retrain Random Forest and XGBoost estimators
+        # 3. Measure incumbent accuracy on the same test split (before training challenger)
+        #    self.ensemble.predict() applies the incumbent scaler internally, so we pass
+        #    raw (unscaled) X_test values to get a fair apples-to-apples comparison.
+        print("   Evaluating incumbent model on held-out test split...")
+        try:
+            incumbent_preds = [
+                self.ensemble.predict(dict(zip(FEATURE_COLS, X_test[i])))['ensemble_pred']
+                for i in range(len(X_test))
+            ]
+            incumbent_acc = accuracy_score(y_test, incumbent_preds)
+        except Exception as exc:
+            print(f"   [WARN] Incumbent evaluation failed ({exc}). Treating baseline as 0.0.")
+            incumbent_acc = 0.0
+        print(f"   Incumbent ensemble accuracy: {incumbent_acc*100:.1f}%")
+
+        # 4. Train challenger Random Forest and XGBoost
         rf = RandomForestClassifier(
             n_estimators=200, max_depth=15,
             min_samples_split=5, random_state=42, n_jobs=-1
@@ -593,9 +610,12 @@ class ContinualLearner:
         xgb.fit(X_train_sc, y_train)
         xgb_acc = accuracy_score(y_test, xgb.predict(X_test_sc))
 
-        # LSTM Warm Start (continues training on existing weights)
+        # 5. LSTM warm start — back up weights first so we can roll back on rejection
         lstm_acc = 0.0
+        lstm_weights_backup = None
         if self.ensemble.has_lstm:
+            lstm_weights_backup = self.ensemble.lstm.get_weights()
+
             X_train_3d = X_train_sc.reshape(
                 X_train_sc.shape[0], 1, X_train_sc.shape[1])
             X_test_3d  = X_test_sc.reshape(
@@ -606,7 +626,6 @@ class ContinualLearner:
                 monitor='val_loss', patience=3,
                 restore_best_weights=True
             )
-            # Increment training epochs on existing weights
             self.ensemble.lstm.fit(
                 X_train_3d, y_train,
                 epochs=20, batch_size=32,
@@ -618,14 +637,48 @@ class ContinualLearner:
             ).astype(int).flatten()
             lstm_acc = accuracy_score(y_test, lstm_pred)
 
-        # 4. Increment versioning schema
+        # 6. Compute challenger ensemble accuracy using weighted vote of the new models
+        rf_scores  = rf.predict(X_test_sc).astype(float)
+        xgb_scores = xgb.predict(X_test_sc).astype(float)
+        eff_lstm_acc = lstm_acc if (self.ensemble.has_lstm and lstm_acc > 0) else rf_acc
+
+        if self.ensemble.has_lstm and lstm_acc > 0:
+            X_test_3d = X_test_sc.reshape(X_test_sc.shape[0], 1, X_test_sc.shape[1])
+            lstm_scores = (
+                self.ensemble.lstm.predict(X_test_3d, verbose=0) > 0.5
+            ).astype(float).flatten()
+            total_w = rf_acc + xgb_acc + lstm_acc
+            challenger_votes = (
+                rf_acc * rf_scores + xgb_acc * xgb_scores + lstm_acc * lstm_scores
+            ) / total_w
+        else:
+            total_w = rf_acc + xgb_acc
+            challenger_votes = (rf_acc * rf_scores + xgb_acc * xgb_scores) / total_w
+
+        challenger_acc = accuracy_score(y_test, (challenger_votes >= 0.5).astype(int))
+
+        print(f"   Challenger ensemble accuracy: {challenger_acc*100:.1f}%")
+        print(f"   Champion/Challenger — Incumbent: {incumbent_acc*100:.1f}%  "
+              f"Challenger: {challenger_acc*100:.1f}%")
+
+        # 7. Reject challenger if it does not strictly outperform the incumbent
+        if challenger_acc <= incumbent_acc:
+            if lstm_weights_backup is not None:
+                self.ensemble.lstm.set_weights(lstm_weights_backup)
+            print(f"\n   Challenger rejected — did not outperform incumbent "
+                  f"({challenger_acc*100:.1f}% ≤ {incumbent_acc*100:.1f}%). "
+                  f"Current models remain active.")
+            return
+
+        improvement = (challenger_acc - incumbent_acc) * 100
+        print(f"\n   Challenger promoted — outperforms incumbent by {improvement:.2f}pp.")
+
+        # 8. Increment versioning schema
         self.version_num += 1
         new_version = f"v{self.version_num}.0"
 
-        # 5. Persist updated base estimators
+        # 9. Persist promoted challenger models (archive incumbents first)
         models_dir = os.path.join(self.base_dir, "saved_models")
-
-        # Archive old estimators as backup copies
         old_version = f"v{self.version_num - 1}.0"
         for fname in ['rf_model.pkl', 'xgb_model.pkl', 'scaler.pkl']:
             old_path = os.path.join(models_dir, fname)
@@ -645,7 +698,7 @@ class ContinualLearner:
                 os.path.join(models_dir, "lstm_model.keras")
             )
 
-        # 6. Update references in the active Ensemble
+        # 10. Update references in the active Ensemble
         self.ensemble.rf     = rf
         self.ensemble.xgb    = xgb
         self.ensemble.scaler = scaler
@@ -653,30 +706,25 @@ class ContinualLearner:
         self.ensemble.update_weights(rf_acc, xgb_acc,
                                      lstm_acc if lstm_acc > 0 else rf_acc)
 
-        # 7. Log new estimator version into PostgreSQL history
-        ensemble_acc = accuracy_score(
-            y_test,
-            [self.ensemble.predict(
-                dict(zip(FEATURE_COLS, X_test_sc[i]))
-            )['ensemble_pred'] for i in range(min(100, len(X_test_sc)))]
-        )
-
+        # 11. Log promoted version into PostgreSQL history
         self.db.save_model_version({
             'version'      : new_version,
             'n_rows'       : len(df_combined),
             'rf_acc'       : rf_acc,
             'xgb_acc'      : xgb_acc,
             'lstm_acc'     : lstm_acc,
-            'ensemble_acc' : ensemble_acc,
+            'ensemble_acc' : challenger_acc,
             'data_source'  : data_source,
-            'notes'        : f'Continual learning retrain -- '
-                             f'{len(df_real)} real records added',
+            'notes'        : (
+                f'Continual learning retrain — promoted after beating incumbent '
+                f'({incumbent_acc*100:.1f}% → {challenger_acc*100:.1f}%); '
+                f'{len(df_real)} real records added'
+            ),
         })
 
-        print(f"\n   Model Retraining Complete -- Version: {new_version}")
-        print(f"   Random Forest Accuracy: {rf_acc*100:.1f}%  "
-              f"XGBoost Accuracy: {xgb_acc*100:.1f}%  "
-              f"Ensemble Accuracy: {ensemble_acc*100:.1f}%")
+        print(f"\n   Model Promoted — Version: {new_version}")
+        print(f"   RF: {rf_acc*100:.1f}%  XGB: {xgb_acc*100:.1f}%  "
+              f"Ensemble: {challenger_acc*100:.1f}%")
         print(f"   Legacy estimators backed up successfully.")
 
 
