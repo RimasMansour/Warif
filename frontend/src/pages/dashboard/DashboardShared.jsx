@@ -36,25 +36,64 @@ const alertTitleForSensor = (sensorType, lang) => {
 
 const ALERT_ANOMALY_TEXT = {
   sensor_stuck: {
-    ar: (s, v, title) => `${title}: ${s} ثابت عند ${v} — قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
-    en: (s, v, title) => `${title}: ${s} is fixed at ${v} — the sensor may be stuck. Reboot or recalibrate it.`,
+    ar: (s, v, title, alert) => `${title}: ${s} ثابت عند ${v} - قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
+    en: (s, v, title, alert) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
   },
   unrealistic_jump: {
-    ar: (s, v, title) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ — افحص الحساس وقناة الإرسال.`,
-    en: (s, v, title) => `${title}: ${s} jumped suddenly to ${v} — inspect the sensor and telemetry channel.`,
+    ar: (s, v, title, alert) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ - افحص الحساس وقناة الإرسال.`,
+    en: (s, v, title, alert) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
   },
   pattern_break: {
-    ar: (s, v, title) => `${title}: ${s} ${v} — انحراف ملحوظ عن النمط الطبيعي للقراءات.`,
-    en: (s, v, title) => `${title}: ${s} ${v} — significant deviation from the normal reading pattern.`,
+    ar: (s, v, title, alert) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
+    en: (s, v, title, alert) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
   },
   threshold_violation: {
-    ar: (s, v, title) => `${title}: ${s} وصلت إلى ${v} — تجاوزت الحد المسموح ومطلوب تدخل فوري.`,
-    en: (s, v, title) => `${title}: ${s} reached ${v} — allowed threshold exceeded and immediate action is required.`,
+    ar: (s, v, title, alert) => {
+      const threshold = formatAlertValue(alert.sensor_type, alert.threshold, 'ar');
+      const value = formatAlertValue(alert.sensor_type, alert.actual_value ?? alert.value, 'ar') || v;
+      if (threshold) {
+        return `${s} (${value}) بدأت تتجه نحو الحد الحرج (${threshold}). التوصية: زيادة تكرار الري تدريجياً أو اتخاذ الإجراء المناسب للحفاظ على الإنتاجية.`;
+      }
+      return `${title}: ${s} وصلت إلى ${value} - تجاوزت الحد المسموح ومطلوب تدخل فوري.`;
+    },
+    en: (s, v, title, alert) => {
+      const threshold = formatAlertValue(alert.sensor_type, alert.threshold, 'en');
+      const value = formatAlertValue(alert.sensor_type, alert.actual_value ?? alert.value, 'en') || v;
+      if (threshold) {
+        return `${s} (${value}) is moving toward the critical threshold (${threshold}). Recommendation: increase irrigation frequency gradually or take the appropriate corrective action.`;
+      }
+      return `${title}: ${s} reached ${value} - allowed threshold exceeded and immediate action is required.`;
+    },
   },
 };
 
 const hasArabicText = (text = '') => /[\u0600-\u06FF]/.test(String(text));
-const hasEnglishText = (text = '') => /[A-Za-z]/.test(String(text));
+
+const formatAlertNumber = (value, decimals = 1) => {
+  const num = Number(value);
+  return Number.isFinite(num) ? num.toFixed(decimals) : null;
+};
+
+const ALERT_SENSOR_UNITS = {
+  air_temperature: { ar: '°م', en: '°C' },
+  temperature: { ar: '°م', en: '°C' },
+  soil_temperature: { ar: '°م', en: '°C' },
+  air_humidity: { ar: '%', en: '%' },
+  humidity: { ar: '%', en: '%' },
+  soil_moisture: { ar: '%', en: '%' },
+  irrigation: { ar: '%', en: '%' },
+  water_tank: { ar: '%', en: '%' },
+  light_intensity: { ar: 'لوكس', en: 'lux' },
+  water_usage: { ar: 'لتر', en: 'L' },
+  power_usage: { ar: 'واط', en: 'W' },
+};
+
+const formatAlertValue = (sensorType, value, lang) => {
+  const num = formatAlertNumber(value, sensorType === 'light_intensity' ? 0 : 1);
+  if (num === null) return null;
+  const unit = ALERT_SENSOR_UNITS[sensorType]?.[lang] || '';
+  return unit ? `${num}${unit}` : num;
+};
 
 const matchesAlertLanguage = (text, lang) => {
   if (!text) return false;
@@ -983,8 +1022,8 @@ export function AlertCard({
         ? safeMessage
         : localizedGenericAlertMessage(alert, isEn, sensorName || (isEn ? 'System' : 'النظام'));
     }
-    const val = alert.actual_value != null ? Number(alert.actual_value).toFixed(1) : '—';
-    return fn(sensorName, val, alertTitleForSensor(sensorType, lang));
+    const val = formatAlertValue(sensorType, alert.actual_value ?? alert.value, lang) || '0';
+    return fn(sensorName, val, alertTitleForSensor(sensorType, lang), alert);
   })();
   const msgText = safeMessage.toLowerCase();
   const category =
