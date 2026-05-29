@@ -25,6 +25,8 @@ import time
 import requests
 import math
 from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
+MAKKAH_TZ = ZoneInfo("Asia/Riyadh")
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -139,7 +141,7 @@ def fetch_makkah_weather():
 def calculate_lux(is_day, cloudcover):
     if not is_day:
         return 0.0
-    hour = datetime.now().hour
+    hour = datetime.now(MAKKAH_TZ).hour
     if hour < 6 or hour > 18:
         return 0.0
     intensity = 1.0 - ((hour - 12) / 6.0) ** 2
@@ -791,7 +793,7 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
 
     mode_str = "AUTO" if farm_auto_mode else "MANUAL"
     print(
-        f"[{datetime.now().strftime('%H:%M:%S')}] "
+        f"[{datetime.now(MAKKAH_TZ).strftime('%H:%M:%S')}] "
         f"Farm {fid} | MODE:{mode_str} | "
         f"EXT:{ext_temp:.0f}C | INT:{state['internal_temp']:.0f}C | "
         f"HUM:{state['internal_hum']:.0f}% | "
