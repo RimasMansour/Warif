@@ -506,8 +506,17 @@ export function EmptyState({ title, subtitle, icon, compact = false, variant = "
   );
 }
 
-export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, onFeedback }) {
+export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onFeedback }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
+  const [feedbackState, setFeedbackState] = React.useState({});
+  const [showThanks, setShowThanks] = React.useState([]);
+
+  const handleFeedback = (id, type) => {
+    setFeedbackState(prev => ({ ...prev, [id]: type }));
+    setShowThanks(prev => [...prev, id]);
+    setTimeout(() => setShowThanks(prev => prev.filter(item => item !== id)), 2000);
+    onFeedback?.(id, type === 'up');
+  };
   
   if (!isOpen) return null;
 
@@ -534,60 +543,17 @@ export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onReject, 
           />
         ) : (
           alerts.map((alert, i) => (
-            <div key={alert.id || i} className={`p-3 rounded-xl border ${alert.severity === 'high' ? 'bg-red-50/50 border-red-100' : alert.severity === 'medium' ? 'bg-amber-50/50 border-amber-100' : 'bg-blue-50/50 border-blue-100'}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex flex-col gap-1 w-full">
-                  <div className={`text-[13px] font-black ${alert.severity === 'high' ? 'text-red-700' : alert.severity === 'medium' ? 'text-amber-700' : 'text-blue-700'}`}>
-                    {alert.title}
-                  </div>
-                  <div className="text-xs text-gray-500 font-bold">{alert.sensor}: <span className="text-gray-800">{alert.value}</span></div>
-                  <div className="text-[10.5px] text-gray-600 mt-1 flex items-start gap-1 font-medium leading-relaxed">
-                    <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-gray-400 shrink-0"></div>
-                    {alert.action}
-                  </div>
-
-                  {/* Interactive Footer */}
-                  <div className="mt-3 pt-2 border-t border-gray-200/60 flex items-center justify-end gap-2">
-                    {alert.autoMode ? (
-                      // Auto Mode: Feedback buttons
-                      <>
-                        <span className="text-xs text-gray-400 font-bold me-auto">{isEn ? 'Was this helpful?' : 'هل كان هذا مفيداً؟'}</span>
-                        <button 
-                          onClick={() => onFeedback && onFeedback(alert.id, true)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-all"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
-                        </button>
-                        <button 
-                          onClick={() => onFeedback && onFeedback(alert.id, false)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-200 text-gray-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
-                        </button>
-                      </>
-                    ) : (
-                      // Manual Mode: Accept/Reject buttons
-                      <>
-                        <button 
-                          onClick={() => onReject && onReject(alert.id)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-500 bg-white border border-gray-200 hover:bg-gray-50 hover:text-gray-700 transition-all"
-                        >
-                          {isEn ? 'Reject' : 'تجاهل'}
-                        </button>
-                        <button 
-                          onClick={() => onAccept && onAccept(alert.id, alert.actionType)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-all shadow-sm shadow-emerald-600/20"
-                        >
-                          {isEn ? 'Accept' : 'تأكيد الإجراء'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                </div>
-                <div className="text-xs font-bold text-gray-400 shrink-0">{alert.timestamp}</div>
-              </div>
-            </div>
+            <AlertCard
+              key={alert.id || i}
+              alert={alert}
+              globalAutoMode={alert.autoMode}
+              isEn={isEn}
+              onAccept={onAccept}
+              onFeedback={handleFeedback}
+              feedbackState={feedbackState}
+              showThanks={showThanks}
+              compact={true}
+            />
           ))
         )}
       </div>
