@@ -5,6 +5,60 @@ import { IrrigationActionButton, SustainabilityLineChart } from './DashboardChar
 import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
 import { stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
 
+const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+
+const formatReportTimestamp = (timestamp, isEn) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleString(isEn ? 'en-US' : 'ar-SA', { timeZone: 'Asia/Riyadh' });
+};
+
+const getReportMinuteKey = (timestamp) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const makkahTime = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  makkahTime.setUTCSeconds(0, 0);
+  return makkahTime.toISOString();
+};
+
+const downloadCsvReport = ({ title, fileName, rows }) => {
+  const csv = `\ufeff${title}\n${rows.map(row => row.map(csvValue).join(',')).join('\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const sectionRows = (title, headers, rows) => [
+  [],
+  [title],
+  headers,
+  ...rows
+];
+
+const buildHistoryRows = (series, isEn) => {
+  const rowsByTime = new Map();
+  series.forEach(({ label, data }) => {
+    data?.forEach(item => {
+      const key = getReportMinuteKey(item.timestamp);
+      if (!rowsByTime.has(key)) rowsByTime.set(key, { timestamp: item.timestamp });
+      rowsByTime.get(key)[label] = item.value ?? '';
+    });
+  });
+
+  return Array.from(rowsByTime.values())
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .map(row => [
+      formatReportTimestamp(row.timestamp, isEn),
+      ...series.map(({ label }) => row[label] ?? '')
+    ]);
+};
+
 
 export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onOpenManual, sharedSensors }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -95,9 +149,15 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     if (range === 'Y') return new Date(now.getFullYear(), 0, 1);
     return null;
   })();
-  const historyLimit = range === 'Y' ? 15000 : 50000;
-  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', historyLimit, 0, irrigationSince);
-  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', historyLimit, 0, irrigationSince);
+  const chartBucket = range === 'D' ? 'minute' : range === 'Y' ? 'month' : 'day';
+  const reportSince = (() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), 0, 1);
+  })();
+  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', 0, 0, irrigationSince, { bucket: chartBucket });
+  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', 0, 0, irrigationSince, { bucket: chartBucket });
+  const { data: allRawWater } = useSensorHistory('water_usage', 0, 0, reportSince, { bucket: 'minute' });
+  const { data: allRawPower } = useSensorHistory('power_usage', 0, 0, reportSince, { bucket: 'minute' });
 
   // Refresh at noon (12:00) and midnight (00:00) every day
   useEffect(() => {
@@ -218,15 +278,49 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
           icon={<IrrigationSmartIcon />}
           onBack={onBack}
           onExport={() => {
-            const dateStr = new Date().toLocaleDateString(isEn ? 'en-US' : 'ar-SA');
-            const csvPrefix = isEn ? "Resource Consumption Report\nPower,Water,Date\n" : "\ufeffتقرير استهلاك الموارد\nطاقة,مياه,التاريخ\n";
-            const csv = csvPrefix + "100,200," + dateStr;
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.setAttribute("download", isEn ? `irrigation_report_${dateStr}.csv` : `تقرير_الري_${dateStr}.csv`);
-            link.click();
+            const today = new Date();
+            const displayDate = today.toLocaleDateString(isEn ? 'en-US' : 'ar-SA');
+            const fileDate = today.toISOString().slice(0, 10);
+            const title = isEn ? "Resource Consumption Report" : "تقرير استهلاك الموارد";
+            const rows = [
+              ...sectionRows(
+                isEn ? 'Current Irrigation Status' : 'حالة الري الحالية',
+                isEn ? ['Metric', 'Value', 'Unit', 'Export Date'] : ['المؤشر', 'القيمة', 'الوحدة', 'تاريخ التصدير'],
+                [
+                  [T.flowRate, currentFlow, '%', displayDate],
+                  [isEn ? 'Irrigation Status' : 'حالة الري', irrigationData?.status || (isEn ? 'Unknown' : 'غير معروف'), '', displayDate],
+                  [T.totalDailyWater, waterUsage, T.liters, displayDate],
+                  [T.totalDailyPower, powerUsage, T.kwh, displayDate],
+                  [isEn ? 'Automation Mode' : 'وضع الأتمتة', globalAutoMode ? T.autoActiveTitle : T.manualControlTitle, '', displayDate],
+                  [isEn ? 'ML Prediction' : 'توقع النموذج', mlPrediction?.irrigation_needed ? (isEn ? 'Irrigation needed' : 'الري مطلوب') : (isEn ? 'No irrigation needed' : 'لا حاجة للري'), '', displayDate]
+                ]
+              ),
+              ...sectionRows(
+                isEn ? 'Recommendations' : 'التوصيات',
+                isEn ? ['Title', 'Message', 'Reasoning', 'Suggestion', 'Benefit'] : ['العنوان', 'التوصية', 'السبب', 'الإجراء المقترح', 'الفائدة'],
+                recommendations.map(rec => [
+                  rec.title || '',
+                  rec.text || '',
+                  rec.reasoning || '',
+                  rec.suggestion || '',
+                  rec.benefit || ''
+                ])
+              ),
+              ...sectionRows(
+                isEn ? 'Complete Historical Chart Data' : 'بيانات الرسم التاريخية الكاملة',
+                isEn ? ['Timestamp', 'Water Usage', 'Power Usage'] : ['الوقت', 'استهلاك المياه', 'استهلاك الكهرباء'],
+                buildHistoryRows([
+                  { label: 'water', data: allRawWater },
+                  { label: 'power', data: allRawPower }
+                ], isEn)
+              )
+            ];
+
+            downloadCsvReport({
+              title,
+              fileName: isEn ? `irrigation_report_${fileDate}.csv` : `تقرير_الري_${fileDate}.csv`,
+              rows
+            });
           }}
           T={translations[lang]}
           isRtl={isRtl}

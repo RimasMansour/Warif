@@ -453,7 +453,9 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
             </div>
             <div className="flex flex-col">
               <span className="text-base font-black text-gray-800">{isEn ? 'Irrigation Control' : 'إدارة الري'}</span>
-              <span className="text-[11px] text-gray-400">{isEn ? 'Last update: now' : 'آخر تحديث: الآن'}</span>
+              <span className="text-[12px] text-gray-400 mt-0.5 font-medium leading-tight">
+                <LastUpdatedTimer seconds={0} ar="آخر تحديث" en="Last Update" />
+              </span>
             </div>
           </div>
         </div>

@@ -13,6 +13,60 @@ import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './D
 import { formatLastUpdated } from './dashboardUtils';
 import { useLatestSensors, triggerManualCooling, triggerManualIrrigation, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
 
+const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+
+const downloadCsvReport = ({ title, fileName, headers, rows }) => {
+  const csv = `\ufeff${title}\n${headers.map(csvValue).join(',')}\n${rows.map(row => row.map(csvValue).join(',')).join('\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+const formatReportTimestamp = (timestamp, isEn) => {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleString(isEn ? 'en-US' : 'ar-SA', { timeZone: 'Asia/Riyadh' });
+};
+
+const getReportMinuteKey = (timestamp) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const makkahTime = new Date(date.getTime() + 3 * 60 * 60 * 1000);
+  makkahTime.setUTCSeconds(0, 0);
+  return makkahTime.toISOString();
+};
+
+const buildHistoryRows = (series, isEn) => {
+  const rowsByTime = new Map();
+  series.forEach(({ label, data }) => {
+    data?.forEach(item => {
+      const key = getReportMinuteKey(item.timestamp);
+      if (!rowsByTime.has(key)) rowsByTime.set(key, { timestamp: item.timestamp });
+      rowsByTime.get(key)[label] = item.value ?? '';
+    });
+  });
+
+  return Array.from(rowsByTime.values())
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .map(row => [
+      formatReportTimestamp(row.timestamp, isEn),
+      ...series.map(({ label }) => row[label] ?? '')
+    ]);
+};
+
+const sectionRows = (title, headers, rows) => [
+  [],
+  [title],
+  headers,
+  ...rows
+];
+
 /* =========================================================
    1. Microclimate Module (المناخ والتهوية)
 ========================================================= */
@@ -67,7 +121,51 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   };
 
   const handleExport = () => {
-    alert(isEn ? "Exporting Microclimate Report..." : "جاري تصدير تقرير المناخ والتهوية...");
+    const today = new Date();
+    const displayDate = today.toLocaleDateString(isEn ? 'en-US' : 'ar-SA');
+    const fileDate = today.toISOString().slice(0, 10);
+    const reportRows = [
+      ...sectionRows(
+        isEn ? 'Current Readings' : 'القراءات الحالية',
+        isEn ? ['Metric', 'Value', 'Unit', 'Export Date'] : ['المؤشر', 'القيمة', 'الوحدة', 'تاريخ التصدير'],
+        [
+          [T.temp, temp.toFixed(1), '°C', displayDate],
+          [T.hum, hum.toFixed(0), '%', displayDate],
+          [isEn ? 'Light Intensity' : 'شدة الإضاءة', Math.round(light), 'Lux', displayDate],
+          [isEn ? 'Automation Mode' : 'وضع الأتمتة', globalAutoMode ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي'), '', displayDate],
+          [isEn ? 'Cooling State' : 'حالة التبريد', coolerRunning ? (isEn ? 'Running' : 'يعمل') : (isEn ? 'Idle' : 'متوقف'), '', displayDate],
+          [isEn ? 'Fan State' : 'حالة المراوح', fanRunning ? (isEn ? 'Running' : 'تعمل') : (isEn ? 'Idle' : 'متوقفة'), '', displayDate]
+        ]
+      ),
+      ...sectionRows(
+        isEn ? 'Recommendations' : 'التوصيات',
+        isEn ? ['Message', 'Reasoning', 'Severity', 'Created At'] : ['التوصية', 'السبب', 'الأولوية', 'تاريخ الإنشاء'],
+        recommendations.map(rec => [
+          rec.text || '',
+          rec.reasoning || '',
+          rec.severity || '',
+          formatReportTimestamp(rec.created_at, isEn)
+        ])
+      ),
+      ...sectionRows(
+        isEn ? 'Complete Historical Chart Data' : 'بيانات الرسم التاريخية الكاملة',
+        isEn
+          ? ['Timestamp', 'Air Temperature', 'Air Humidity', 'Light Intensity']
+          : ['الوقت', 'حرارة الهواء', 'رطوبة الهواء', 'شدة الإضاءة'],
+        buildHistoryRows([
+          { label: 'temperature', data: allRawTemp },
+          { label: 'humidity', data: allRawHum },
+          { label: 'light', data: allRawLight }
+        ], isEn)
+      )
+    ];
+
+    downloadCsvReport({
+      title: isEn ? 'Microclimate Report' : 'تقرير المناخ والتهوية',
+      fileName: isEn ? `microclimate_report_${fileDate}.csv` : `تقرير_المناخ_${fileDate}.csv`,
+      headers: [],
+      rows: reportRows
+    });
   };
 
   useEffect(() => {
@@ -94,10 +192,17 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (range === 'Y') return new Date(now.getFullYear(), 0, 1);
     return null;
   })();
-  const historyLimit = range === 'Y' ? 15000 : 50000;
-  const { data: rawTemp } = useSensorHistory('air_temperature', historyLimit, 1800000, historySince);
-  const { data: rawHum } = useSensorHistory('air_humidity', historyLimit, 1800000, historySince);
-  const { data: rawLight } = useSensorHistory('light_intensity', historyLimit, 1800000, historySince);
+  const chartBucket = range === 'D' ? 'minute' : range === 'Y' ? 'month' : 'day';
+  const reportSince = (() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), 0, 1);
+  })();
+  const { data: rawTemp } = useSensorHistory('air_temperature', 0, 1800000, historySince, { bucket: chartBucket });
+  const { data: rawHum } = useSensorHistory('air_humidity', 0, 1800000, historySince, { bucket: chartBucket });
+  const { data: rawLight } = useSensorHistory('light_intensity', 0, 1800000, historySince, { bucket: chartBucket });
+  const { data: allRawTemp } = useSensorHistory('air_temperature', 0, 0, reportSince, { bucket: 'minute' });
+  const { data: allRawHum } = useSensorHistory('air_humidity', 0, 0, reportSince, { bucket: 'minute' });
+  const { data: allRawLight } = useSensorHistory('light_intensity', 0, 0, reportSince, { bucket: 'minute' });
 
   const formatPoints = (rawData) => {
     const now = new Date();
@@ -452,7 +557,49 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   };
 
   const handleExport = () => {
-    alert(isEn ? "Exporting Soil Vitality Report..." : "جاري تصدير تقرير حيوية التربة...");
+    const today = new Date();
+    const displayDate = today.toLocaleDateString(isEn ? 'en-US' : 'ar-SA');
+    const fileDate = today.toISOString().slice(0, 10);
+    const reportRows = [
+      ...sectionRows(
+        isEn ? 'Current Readings' : 'القراءات الحالية',
+        isEn ? ['Metric', 'Value', 'Unit', 'Export Date'] : ['المؤشر', 'القيمة', 'الوحدة', 'تاريخ التصدير'],
+        [
+          [T.soilTemp, soilTemp.toFixed(1), '°C', displayDate],
+          [T.soilMoist, soilMoist.toFixed(0), '%', displayDate],
+          [isEn ? 'Automation Mode' : 'وضع الأتمتة', globalAutoMode ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي'), '', displayDate],
+          [isEn ? 'Pump State' : 'حالة المضخة', pumpRunning ? (isEn ? 'Running' : 'تعمل') : (isEn ? 'Idle' : 'متوقفة'), '', displayDate],
+          [isEn ? 'Irrigation Feedback' : 'ملاحظة الري', irrigationFeedback || '', '', displayDate]
+        ]
+      ),
+      ...sectionRows(
+        isEn ? 'Recommendations' : 'التوصيات',
+        isEn ? ['Message', 'Reasoning', 'Severity', 'Created At'] : ['التوصية', 'السبب', 'الأولوية', 'تاريخ الإنشاء'],
+        soilRecs.map(rec => [
+          rec.text || '',
+          rec.reasoning || '',
+          rec.severity || '',
+          formatReportTimestamp(rec.created_at, isEn)
+        ])
+      ),
+      ...sectionRows(
+        isEn ? 'Complete Historical Chart Data' : 'بيانات الرسم التاريخية الكاملة',
+        isEn
+          ? ['Timestamp', 'Soil Temperature', 'Soil Moisture']
+          : ['الوقت', 'حرارة التربة', 'رطوبة التربة'],
+        buildHistoryRows([
+          { label: 'soil_temperature', data: allRawSoilTemp },
+          { label: 'soil_moisture', data: allRawSoilMoist }
+        ], isEn)
+      )
+    ];
+
+    downloadCsvReport({
+      title: isEn ? 'Soil Vitality Report' : 'تقرير حيوية التربة',
+      fileName: isEn ? `soil_vitality_report_${fileDate}.csv` : `تقرير_التربة_${fileDate}.csv`,
+      headers: [],
+      rows: reportRows
+    });
   };
 
   useEffect(() => {
@@ -478,9 +625,15 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     if (range === 'Y') return new Date(now.getFullYear(), 0, 1);
     return null;
   })();
-  const historyLimit2 = range === 'Y' ? 15000 : 50000;
-  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', historyLimit2, 1800000, historySince2);
-  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', historyLimit2, 1800000, historySince2);
+  const chartBucket2 = range === 'D' ? 'minute' : range === 'Y' ? 'month' : 'day';
+  const reportSince2 = (() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), 0, 1);
+  })();
+  const { data: rawSoilTemp } = useSensorHistory('soil_temperature', 0, 1800000, historySince2, { bucket: chartBucket2 });
+  const { data: rawSoilMoist } = useSensorHistory('soil_moisture', 0, 1800000, historySince2, { bucket: chartBucket2 });
+  const { data: allRawSoilTemp } = useSensorHistory('soil_temperature', 0, 0, reportSince2, { bucket: 'minute' });
+  const { data: allRawSoilMoist } = useSensorHistory('soil_moisture', 0, 0, reportSince2, { bucket: 'minute' });
 
   const formatPoints = (rawData) => {
     const now = new Date();

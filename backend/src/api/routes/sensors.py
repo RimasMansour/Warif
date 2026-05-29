@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.db.session import get_db
@@ -60,6 +60,52 @@ async def list_sensor_readings(
     q = q.order_by(desc(SensorReading.timestamp)).limit(limit)
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.get("/aggregate")
+async def aggregate_sensor_readings(
+    farm_id:     int                      = Query(..., description="Farm ID"),
+    sensor_type: str                      = Query(...),
+    bucket:      str                      = Query("day", pattern="^(minute|hour|day|month)$"),
+    since:       Optional[datetime]       = Query(None, description="Return only readings at or after this UTC timestamp (ISO 8601)"),
+    until:       Optional[datetime]       = Query(None, description="Return only readings before this UTC timestamp (ISO 8601)"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return compact chart-ready averages instead of raw high-frequency readings."""
+    bucket_ts = func.date_trunc(bucket, SensorReading.timestamp).label("timestamp")
+    q = (
+        select(
+            bucket_ts,
+            func.avg(SensorReading.value).label("value"),
+            func.min(SensorReading.device_id).label("device_id"),
+            func.min(SensorReading.unit).label("unit"),
+        )
+        .where(
+            SensorReading.farm_id == farm_id,
+            SensorReading.sensor_type == sensor_type,
+        )
+    )
+    if since:
+        since_utc = since.replace(tzinfo=timezone.utc) if since.tzinfo is None else since
+        q = q.where(SensorReading.timestamp >= since_utc)
+    if until:
+        until_utc = until.replace(tzinfo=timezone.utc) if until.tzinfo is None else until
+        q = q.where(SensorReading.timestamp < until_utc)
+
+    q = q.group_by(bucket_ts).order_by(bucket_ts)
+    result = await db.execute(q)
+    return [
+        {
+            "id": index + 1,
+            "device_id": row.device_id or "",
+            "sensor_type": sensor_type,
+            "value": float(row.value or 0),
+            "unit": row.unit,
+            "timestamp": row.timestamp,
+            "count": 0,
+        }
+        for index, row in enumerate(result.all())
+    ]
 
 
 # Protected endpoint — requires valid JWT token

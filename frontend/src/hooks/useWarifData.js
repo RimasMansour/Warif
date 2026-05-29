@@ -231,9 +231,11 @@ export function useAutoMode(farmId) {
   return { autoMode, toggleAutoMode, loading };
 }
 
-export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, since = null) {
+export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, since = null, options = {}) {
   const sinceStr = since ? since.toISOString() : null;
-  const cacheKey = `${sensor_type}_${limit}_${sinceStr || ''}`;
+  const bucket = options.bucket || null;
+  const untilStr = options.until ? options.until.toISOString() : null;
+  const cacheKey = `${sensor_type}_${limit}_${sinceStr || ''}_${untilStr || ''}_${bucket || 'raw'}`;
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(!globalCache.history[cacheKey])
 
@@ -247,12 +249,15 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, s
         : (userData.farmId || null);
       if (!farmId) return;
 
-      let url = `${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`;
+      let url = bucket
+        ? `${API_BASE}/api/v1/sensors/aggregate?sensor_type=${sensor_type}&farm_id=${farmId}&bucket=${bucket}`
+        : `${API_BASE}/api/v1/sensors?sensor_type=${sensor_type}&farm_id=${farmId}&limit=${limit}`;
       if (sinceStr) url += `&since=${encodeURIComponent(sinceStr)}`;
+      if (untilStr) url += `&until=${encodeURIComponent(untilStr)}`;
       const res = await fetch(url, { headers: authHeaders() })
       if (res.ok) {
         const json = await res.json()
-        const reversed = json.reverse();
+        const reversed = bucket ? json : json.reverse();
         globalCache.history[cacheKey] = null;
         globalCache.history[cacheKey] = reversed;
         setData(reversed)
@@ -262,7 +267,7 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, s
     } finally {
       setLoading(false)
     }
-  }, [sensor_type, limit, cacheKey, sinceStr])
+  }, [sensor_type, limit, cacheKey, sinceStr, untilStr, bucket])
 
   useEffect(() => {
     fetch_data()
