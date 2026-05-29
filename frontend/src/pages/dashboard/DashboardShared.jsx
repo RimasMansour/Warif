@@ -53,6 +53,25 @@ const ALERT_ANOMALY_TEXT = {
   },
 };
 
+const hasArabicText = (text = '') => /[\u0600-\u06FF]/.test(String(text));
+const hasEnglishText = (text = '') => /[A-Za-z]/.test(String(text));
+
+const matchesAlertLanguage = (text, lang) => {
+  if (!text) return false;
+  return lang === 'ar' ? hasArabicText(text) : !hasArabicText(text);
+};
+
+const localizedGenericAlertMessage = (alert, isEn, sensorName) => {
+  const rawValue = alert.actual_value ?? alert.value;
+  const value = rawValue !== undefined && rawValue !== null && rawValue !== ''
+    ? ` ${Number.isFinite(Number(rawValue)) ? Number(rawValue).toFixed(1) : rawValue}`
+    : '';
+
+  return isEn
+    ? `Alert for ${sensorName}${value}. Review the current condition and take the appropriate action.`
+    : `تنبيه ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
+};
+
 export function LastUpdatedTimer({ seconds, ar, en }) {
   const [localSec, setLocalSec] = useState(seconds);
   useEffect(() => {
@@ -957,9 +976,13 @@ export function AlertCard({
   const anomalyType = alert.anomaly_type || null;
   const lang = isEn ? 'en' : 'ar';
   const displayMessage = (() => {
-    const fn = ALERT_ANOMALY_TEXT[anomalyType]?.[lang];
-    if (!fn) return safeMessage;
     const sensorName = ALERT_SENSOR_NAMES[sensorType]?.[lang] || sensorType;
+    const fn = ALERT_ANOMALY_TEXT[anomalyType]?.[lang];
+    if (!fn) {
+      return matchesAlertLanguage(safeMessage, lang)
+        ? safeMessage
+        : localizedGenericAlertMessage(alert, isEn, sensorName || (isEn ? 'System' : 'النظام'));
+    }
     const val = alert.actual_value != null ? Number(alert.actual_value).toFixed(1) : '—';
     return fn(sensorName, val, alertTitleForSensor(sensorType, lang));
   })();
