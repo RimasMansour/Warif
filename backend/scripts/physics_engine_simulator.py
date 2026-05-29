@@ -718,6 +718,8 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
                         sensor_type=_s,
                         explanation=_t,
                         message=_msg,
+                        actual_value=_val,
+                        threshold=70 if _s == 'soil_moisture' and _t == 'threshold_violation' else None,
                         severity=AlertSeverity.critical if anomaly['severity'] == 'critical'
                                  else AlertSeverity.warning,
                         status=AlertStatus.open,

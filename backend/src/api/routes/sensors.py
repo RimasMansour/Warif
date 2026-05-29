@@ -334,6 +334,7 @@ async def ingest_sensor_reading(
                             )
                         )
                         if existing.scalar_one_or_none() is None:
+                            category_value = full_sensor_data.get(sr.category)
                             db.add(Alert(
                                 sensor_type=sr.category,
                                 message=sr.message,
@@ -341,6 +342,7 @@ async def ingest_sensor_reading(
                                 severity=alert_sev,
                                 status=AlertStatus.open,
                                 farm_id=farm_id,
+                                actual_value=category_value,
                             ))
 
             except Exception as rec_err:
