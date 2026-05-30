@@ -234,3 +234,68 @@ async def startup_monitoring():
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok", "service": "warif-api", "version": "1.0.0"}
+
+
+# ── Irrigation Diagnostic (temporary) ─────────────────────────────────────
+@app.post("/api/v1/debug/irrigation/{action}", tags=["Debug"])
+async def debug_irrigation(action: str):
+    """
+    Diagnostic endpoint — tests each layer independently.
+    action: 'on' | 'off' | 'status'
+    Returns a step-by-step report so you can see exactly where the failure is.
+    """
+    import os
+    import json
+    from src.services import tuya_client
+
+    report = {}
+
+    # Step 1: check config file
+    config_path = Path(__file__).resolve().parents[2] / "tuya_devices.json"
+    report["config_file_exists"] = config_path.exists()
+    if config_path.exists():
+        cfg = json.loads(config_path.read_text())
+        irr = cfg.get("actuators", {}).get("irrigation", {})
+        report["tuya_device_id"] = irr.get("tuya_device_id", "MISSING")
+        report["switch_code"]    = irr.get("switch_code", "MISSING")
+        report["farm_id"]        = cfg.get("farm_id", "MISSING")
+
+    # Step 2: check env credentials
+    report["TUYA_ACCESS_ID_set"]     = bool(os.getenv("TUYA_ACCESS_ID", ""))
+    report["TUYA_ACCESS_SECRET_set"] = bool(os.getenv("TUYA_ACCESS_SECRET", ""))
+    report["TUYA_API_ENDPOINT"]      = os.getenv("TUYA_API_ENDPOINT", "https://openapi.tuyaeu.com")
+
+    # Step 3: try to connect
+    try:
+        api = await asyncio.to_thread(tuya_client._get_api)
+        report["tuya_connect"] = "ok" if api is not None else "FAILED — check credentials or endpoint"
+    except Exception as e:
+        report["tuya_connect"] = f"EXCEPTION: {e}"
+
+    # Step 4: send the command and capture the raw Tuya response
+    if action in ("on", "off"):
+        turn_on = action == "on"
+        report["valve_command_sent"] = turn_on
+        try:
+            def _raw_command():
+                api = tuya_client._get_api()
+                if api is None:
+                    return None, "API not connected"
+                device_id   = irr.get("tuya_device_id", "")
+                switch_code = irr.get("switch_code", "switch")
+                resp = api.post(
+                    f"/v1.0/devices/{device_id}/commands",
+                    {"commands": [{"code": switch_code, "value": turn_on}]},
+                )
+                return resp, None
+
+            resp, err = await asyncio.to_thread(_raw_command)
+            if err:
+                report["valve_command_result"] = f"FAILED: {err}"
+            else:
+                report["tuya_raw_response"] = resp
+                report["valve_command_result"] = "SUCCESS" if resp.get("success") else "FAILED"
+        except Exception as e:
+            report["valve_command_result"] = f"EXCEPTION: {e}"
+
+    return report
