@@ -493,15 +493,22 @@ export function useDashboard(farm_id) {
   return { data, loading, error, refetch: fetch_data }
 }
 
-export function useRecommendations(farm_id) {
-  const [data, setData] = useState(globalCache.recommendations[farm_id] || [])
-  const [loading, setLoading] = useState(!globalCache.recommendations[farm_id])
+export function useRecommendations(farm_id, options = {}) {
+  const includeAlerts = Boolean(options.includeAlerts);
+  const limit = options.limit || 50;
+  const since = options.since || null;
+  const sinceStr = since instanceof Date ? since.toISOString() : since;
+  const cacheKey = `${farm_id || 'none'}_${includeAlerts ? 'all' : 'recommendations'}_${limit}_${sinceStr || 'all'}`;
+  const [data, setData] = useState(globalCache.recommendations[cacheKey] || [])
+  const [loading, setLoading] = useState(!globalCache.recommendations[cacheKey])
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
     if (!farm_id) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/recommendations/${farm_id}`, {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (sinceStr) params.set('since', sinceStr);
+      const res = await fetch(`${API_BASE}/api/v1/recommendations/${farm_id}?${params.toString()}`, {
         headers: authHeaders()
       })
       if (!res.ok) throw new Error('Failed to fetch recommendations')
@@ -511,10 +518,10 @@ export function useRecommendations(farm_id) {
       json = json.filter(rec => {
         const text = (rec.title || '') + ' ' + (rec.message || '') + ' ' + (rec.reasoning || '');
         const isPerfect = text.includes('النظام يعمل بشكل مثالي') || text.includes('ضمن النطاق المثالي');
-        return !isPerfect && rec.is_alert === false;
+        return !isPerfect && (includeAlerts || rec.is_alert === false);
       });
 
-      globalCache.recommendations[farm_id] = json;
+      globalCache.recommendations[cacheKey] = json;
       setData(json)
       setError(null)
     } catch (err) {
@@ -522,7 +529,7 @@ export function useRecommendations(farm_id) {
     } finally {
       setLoading(false)
     }
-  }, [farm_id])
+  }, [farm_id, includeAlerts, limit, sinceStr, cacheKey])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -724,6 +731,12 @@ export async function submitRecommendationFeedback(farmId, recId, helpful) {
     });
     if (!res.ok) throw new Error('Feedback submission failed');
     const data = await res.json();
+    Object.keys(globalCache.recommendations).forEach(key => {
+      if (String(key) !== String(farmId) && !key.startsWith(`${farmId}_`)) return;
+      globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
+        String(rec.id) === String(recId) ? { ...rec, helpful, feedback_at: data.feedback_at } : rec
+      );
+    });
     console.log('[Warif] Feedback submitted:', data);
     return data;
   } catch (err) {
@@ -746,7 +759,7 @@ export async function submitRecommendationAction(farmId, recId, status) {
     if (!res.ok) throw new Error('Recommendation action submission failed');
     const data = await res.json();
     Object.keys(globalCache.recommendations).forEach(key => {
-      if (!key.startsWith(`${farmId}_`)) return;
+      if (String(key) !== String(farmId) && !key.startsWith(`${farmId}_`)) return;
       globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
         String(rec.id) === String(recId) ? { ...rec, action_status: status, is_read: true } : rec
       );
@@ -762,9 +775,10 @@ export async function submitRecommendationAction(farmId, recId, status) {
 export async function executeRecommendation(category, farmId, durationMin = 15) {
   const _token = getStoredToken();
   try {
-    if (category === 'irrigation') {
+    const cat = String(category || '').toLowerCase().trim();
+    if (cat === 'irrigation' || cat === 'water' || cat === 'soil_moisture') {
       return await triggerManualIrrigation('start', farmId, durationMin);
-    } else if (category === 'temperature' || category === 'humidity') {
+    } else if (cat === 'temperature' || cat === 'humidity' || cat === 'climate' || cat === 'air_temperature' || cat === 'air_humidity') {
       return await triggerManualCooling('full', farmId);
     } else {
       console.warn('[Warif] Unsupported recommendation category:', category);

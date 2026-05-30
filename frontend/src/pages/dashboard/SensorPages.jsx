@@ -11,7 +11,7 @@ import {
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
@@ -79,6 +79,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
+  const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
@@ -286,14 +287,25 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
-    return apiRecs.map(r => ({
-      id: r.id,
-      text: r.message,
-      reasoning: r.data_insight || r.reasoning || r.message,
-      severity: r.severity,
-      created_at: r.created_at
-    }));
-  }, [apiRecs]);
+    return apiRecs
+      .filter(r => ['temperature', 'humidity', 'climate', 'air_temperature', 'air_humidity'].includes(String(r.category || r.type || '').toLowerCase()))
+      .filter(r => {
+        const itemId = `${r.source || 'recommendation'}-${r.id}`;
+        return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);
+      })
+      .map(r => ({
+        id: `${r.source || 'recommendation'}-${r.id}`,
+        rawId: r.id,
+        source: r.source || 'recommendation',
+        text: r.message,
+        reasoning: r.data_insight || r.reasoning || r.message,
+        category: r.category || r.type || 'temperature',
+        action_status: r.action_status,
+        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
+        severity: r.severity,
+        created_at: r.created_at
+      }));
+  }, [apiRecs, handledRecommendationIds]);
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -348,15 +360,16 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
               </div>
               <div className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
                 {recommendations.length > 0 ? (
-                  recommendations.map((rec, i) => (
+                  recommendations.map((rec) => (
                     <RecommendationCard
-                      key={rec.id || i}
+                      key={rec.id}
                       rec={{
-                        id: rec.id || i,
+                        id: rec.id,
+                        rawId: rec.rawId,
                         title: rec.text,
                         message: rec.text,
                         reasoning: rec.reasoning,
-                        category: 'temperature',
+                        category: rec.category,
                         severity: rec.severity || 'normal',
                         created_at: rec.created_at
                       }}
@@ -364,6 +377,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                       globalAutoMode={globalAutoMode}
                       isEn={isEn}
                       onExecute={executeRecommendation}
+                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+                      onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
                       feedbackState={feedback}
@@ -523,6 +538,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
+  const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
@@ -718,14 +734,25 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];
-    return apiRecs.map(r => ({
-      id: r.id,
-      text: r.message,
-      reasoning: r.data_insight || r.reasoning || r.message,
-      severity: r.severity,
-      created_at: r.created_at
-    }));
-  }, [apiRecs]);
+    return apiRecs
+      .filter(r => ['soil', 'soil_moisture'].includes(String(r.category || r.type || '').toLowerCase()))
+      .filter(r => {
+        const itemId = `${r.source || 'recommendation'}-${r.id}`;
+        return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);
+      })
+      .map(r => ({
+        id: `${r.source || 'recommendation'}-${r.id}`,
+        rawId: r.id,
+        source: r.source || 'recommendation',
+        text: r.message,
+        reasoning: r.data_insight || r.reasoning || r.message,
+        category: r.category || r.type || 'soil',
+        action_status: r.action_status,
+        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
+        severity: r.severity,
+        created_at: r.created_at
+      }));
+  }, [apiRecs, handledRecommendationIds]);
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -772,15 +799,16 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
               </div>
               <div className={`flex flex-col gap-3 flex-1 max-h-[400px] overflow-y-auto scrollbar-neutral ${isRtl ? 'pl-2' : 'pr-2'}`}>
                 {soilRecs.length > 0 ? (
-                  soilRecs.map((rec, i) => (
+                  soilRecs.map((rec) => (
                     <RecommendationCard
-                      key={rec.id || i}
+                      key={rec.id}
                       rec={{
-                        id: rec.id || i,
+                        id: rec.id,
+                        rawId: rec.rawId,
                         title: rec.text,
                         message: rec.text,
                         reasoning: rec.reasoning,
-                        category: 'soil',
+                        category: rec.category,
                         severity: rec.severity || 'normal',
                         created_at: rec.created_at
                       }}
@@ -788,6 +816,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                       globalAutoMode={globalAutoMode}
                       isEn={isEn}
                       onExecute={executeRecommendation}
+                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+                      onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
                       feedbackState={feedback}

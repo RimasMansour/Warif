@@ -558,6 +558,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
   const isRtl = !isEn;
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
+  const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
@@ -567,21 +568,24 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
   };
   const { data: apiRecs } = useRecommendations(farmId);
 
-  const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs.slice(0, 2).map((r, idx) => ({
-    id: r.id || idx,
-    title: r.title || r.message || 'توصية',
-    data_insight: r.data_insight || r.reasoning || '',
-    suggestion: r.suggestion || '',
-    benefit: r.benefit || '',
-    priority: r.priority === 'high' ? 'high' : 'normal',
-    severity: r.severity || 'normal',
-    type: r.category || 'general',
-    category: r.category || 'general',
-    is_read: r.is_read,
-    action_status: r.action_status,
-    feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
-    created_at: r.created_at,
-  })) : [];
+  const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs
+    .filter(r => !handledRecommendationIds.includes(r.id) && !handledRecommendationIds.includes(`recommendation-${r.id}`))
+    .slice(0, 2).map((r, idx) => ({
+      id: r.id || idx,
+      rawId: r.id,
+      title: r.title || r.message || 'توصية',
+      data_insight: r.data_insight || r.reasoning || '',
+      suggestion: r.suggestion || '',
+      benefit: r.benefit || '',
+      priority: r.priority === 'high' ? 'high' : 'normal',
+      severity: r.severity || 'normal',
+      type: r.category || 'general',
+      category: r.category || 'general',
+      is_read: r.is_read,
+      action_status: r.action_status,
+      feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
+      created_at: r.created_at,
+    })) : [];
 
   const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات مدروسة لتحسين أداء المزرعة";
 
@@ -623,6 +627,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
               key={rec.id}
               rec={{
                 id: rec.id,
+                rawId: rec.rawId,
                 title: rec.title,
                 message: rec.suggestion || rec.title,
                 reasoning: rec.data_insight,
@@ -636,6 +641,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
               isEn={isEn}
               onExecute={(category, farmId, recId) => executeRecommendation(category, farmId, recId)}
               onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+              onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
               onIgnore={() => {}}
               onFeedback={handleFeedback}
               feedbackState={{ ...(rec.feedback ? { [rec.id]: rec.feedback } : {}), ...feedback }}

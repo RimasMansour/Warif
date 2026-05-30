@@ -24,7 +24,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
 
   const weekStart = useMemo(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 7);
+    d.setDate(d.getDate() - 3);
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
