@@ -258,7 +258,7 @@ export const saveNewPassword = async (newPassword) => {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, new_password: newPassword })
         });
-      } catch (err) {
+      } catch {
         // Fallback or ignore
       }
     }
@@ -290,6 +290,15 @@ export const markRecommendationRead = async (farm_id, rec_id) => {
     `${apiConfig.baseURL}/api/v1/recommendations/${farm_id}/mark-read/${rec_id}`,
     { method: "POST", headers: getAuthHeaders() }
   )
+}
+
+// Auth — reset password (sends reset link to email)
+export async function resetPassword(email) {
+  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
 }
 
 // Chatbot

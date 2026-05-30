@@ -166,8 +166,8 @@ class FeedbackLearningBridge:
                 'ready_for_training': False
             }
 
-        positive = len(feedback_df[feedback_df['helpful'] == True])
-        negative = len(feedback_df[feedback_df['helpful'] == False])
+        positive = len(feedback_df[feedback_df['helpful']])
+        negative = len(feedback_df[~feedback_df['helpful']])
         total = len(feedback_df)
 
         return {

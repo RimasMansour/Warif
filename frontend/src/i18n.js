@@ -422,7 +422,6 @@ export const translations = {
     statusActive: 'Active',
     statusIdle: 'Idle',
     liveValueLabel: 'Live Value',
-    forgotPassword: 'Forgot password?',
     resetPassword: 'Reset Password',
     enterEmail: 'Enter your registered email address',
     sendCode: 'Send Code',

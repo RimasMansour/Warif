@@ -10,7 +10,7 @@ import {
 import { useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 import { markRecommendationRead } from '../../services/api';
 
-export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode, sharedSensors }) {
+export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
   const [showThanksIds, setShowThanksIds] = useState([]);
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -66,6 +66,7 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     let filtered = allRecommendations;
     // In manual mode, show API recommendations as actionable items for user review
     // In auto mode, show all recommendations (both auto and manual)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalRecs(filtered);
   }, [allRecommendations, globalAutoMode]);
 
@@ -79,7 +80,7 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     await submitRecommendationFeedback(farmId, rawId, val === 'up');
   };
 
-  const handleDecision = async (id, val) => {
+  const _handleDecision = async (id, val) => {
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, status: val } : rec));
     if (val === 'accepted') {
       const item = localRecs.find(rec => rec.id === id);
@@ -132,7 +133,7 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                 </div>
     
                 <div className="flex flex-col gap-4">
-                  {weekRecs.map((item, idx) => (
+                  {weekRecs.map((item) => (
                     <RecommendationCard
                       key={item.id}
                       rec={{

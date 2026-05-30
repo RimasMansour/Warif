@@ -23,9 +23,9 @@ from dotenv import load_dotenv
 # pydantic-settings reads .env into the Settings model but does NOT populate os.environ
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-from src.core.config import settings
-from src.chatbot.chatbot_api import router as chatbot_router
-from src.api.routes import (
+from src.core.config import settings  # noqa: E402
+from src.chatbot.chatbot_api import router as chatbot_router  # noqa: E402
+from src.api.routes import (  # noqa: E402
     auth,
     sensors,
     alerts,

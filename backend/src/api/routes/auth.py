@@ -33,7 +33,7 @@ from src.core.security import (
     get_current_user,
 )
 from src.api.schemas.schemas import (
-    LoginIn, TokenOut,
+    TokenOut,
     UserRegisterIn, UserOut, UserUpdateIn
 )
 

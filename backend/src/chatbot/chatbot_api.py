@@ -124,16 +124,24 @@ async def fetch_farm_context(farm_id: int, user_id: int, db: AsyncSession) -> di
     sensor_map = {r.sensor_type: r.value for r in latest_readings}
 
     soil: dict = {}
-    if "soil_moisture"    in sensor_map: soil["moisture_percent"]    = sensor_map["soil_moisture"]
-    if "soil_temperature" in sensor_map: soil["temperature_celsius"] = sensor_map["soil_temperature"]
-    if "soil_ph"          in sensor_map: soil["ph"]                  = sensor_map["soil_ph"]
-    if "soil_ec"          in sensor_map: soil["ec"]                  = sensor_map["soil_ec"]
+    if "soil_moisture" in sensor_map:
+        soil["moisture_percent"] = sensor_map["soil_moisture"]
+    if "soil_temperature" in sensor_map:
+        soil["temperature_celsius"] = sensor_map["soil_temperature"]
+    if "soil_ph" in sensor_map:
+        soil["ph"] = sensor_map["soil_ph"]
+    if "soil_ec" in sensor_map:
+        soil["ec"] = sensor_map["soil_ec"]
 
     air: dict = {}
-    if "air_temperature" in sensor_map: air["temperature_celsius"] = sensor_map["air_temperature"]
-    if "air_humidity"    in sensor_map: air["humidity_percent"]    = sensor_map["air_humidity"]
-    if "co2_ppm"         in sensor_map: air["co2_ppm"]             = sensor_map["co2_ppm"]
-    elif "co2"           in sensor_map: air["co2_ppm"]             = sensor_map["co2"]
+    if "air_temperature" in sensor_map:
+        air["temperature_celsius"] = sensor_map["air_temperature"]
+    if "air_humidity" in sensor_map:
+        air["humidity_percent"] = sensor_map["air_humidity"]
+    if "co2_ppm" in sensor_map:
+        air["co2_ppm"] = sensor_map["co2_ppm"]
+    elif "co2" in sensor_map:
+        air["co2_ppm"] = sensor_map["co2"]
 
     # Only pass agricultural/environmental alerts to the LLM.
     # Sensor hardware anomalies (stuck sensor, unrealistic jump, etc.) have

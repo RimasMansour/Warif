@@ -101,11 +101,12 @@ const DeviceRow = ({ s, T, isEn, isRtl }) => (
 
 export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const mainScrollRef = useRef(null);
-  const [userFullName, setUserFullName] = useState('');
-  const [userFullNameEn, setUserFullNameEn] = useState('');
+  const [_userFullName, setUserFullName] = useState('');
+  const [_userFullNameEn, setUserFullNameEn] = useState('');
   const [language, setLanguage] = useState(propLang || 'ar');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (propLang) setLanguage(propLang);
   }, [propLang]);
 
@@ -192,6 +193,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   // Initialize chat greeting with user name
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setChatMessages([{ role: "bot", text: `مرحباً ${firstName}! أنا مساعدك الذكي. كيف أساعدك اليوم؟` }]);
   }, [firstName]);
 
@@ -277,10 +279,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     }
   }, [page]);
   const [activeFarm, setActiveFarm] = useState(0); 
-  const savedFarmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || null;
-  const currentFarm = userFarms[activeFarm] || userFarms[0] || null;
-  const currentFarmId = currentFarm?.id || currentFarm?.farm_id || savedFarmId;
-  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(currentFarmId);
+  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
+  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(farmId);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSensorsPopup, setShowSensorsPopup] = useState(false);
   const [showManualIrrigation, setShowManualIrrigation] = useState(false);
@@ -318,7 +318,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   const [connectedSensors, setConnectedSensors] = useState([]);
 
-  const { devices, counts, loading: devicesLoading } = useDevices(currentFarmId);
+  const currentFarmId = userFarms[activeFarm]?.id || null;
+  const { devices, counts: _counts, loading: devicesLoading } = useDevices(currentFarmId);
 
   const valveDeviceId = useMemo(() => {
     if (!devices?.length) return null;
@@ -330,11 +331,12 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   }, [devices]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (devices && devices.length > 0) {
       const mapped = devices.map(d => ({
         id: d.device_id || d.id,
         name: d.name || d.device_id,
-        type: d.type === 'sensor' ? 
+        type: d.type === 'sensor' ?
           (d.name?.includes('Soil') || d.name?.includes('تربة') ? 'رطوبة التربة' :
            d.name?.includes('Temp') || d.name?.includes('حرارة') ? 'درجة الحرارة' :
            d.name?.includes('Humid') || d.name?.includes('رطوبة') ? 'رطوبة الهواء' : 'حساس')
@@ -343,8 +345,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
            d.name?.includes('Fan') || d.name?.includes('مروح') ? 'مروحة' :
            d.name?.includes('Valve') || d.name?.includes('محبس') ? 'محبس' : 'محرك')
           : d.type,
-        value: d.status === 'active' ? 
-          (d.type === 'actuator' ? (d.name?.includes('Pump') ? 'تعمل' : 'نشط') : '--') 
+        value: d.status === 'active' ?
+          (d.type === 'actuator' ? (d.name?.includes('Pump') ? 'تعمل' : 'نشط') : '--')
           : 'غير نشط',
         status: d.status === 'active' ? 'normal' : 'offline',
         device_id: d.device_id,
@@ -354,12 +356,13 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     } else {
       setConnectedSensors([]);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [devices]);
 
   // ── Real sensor data from API ──────────────────────────────
   const { data: liveSensors } = useLatestSensors(10000);
   const { alerts: activeAlerts, dismissAlert } = useAutoAlerts(liveSensors, globalAutoMode);
-  const [showAlertsPanel, setShowAlertsPanel] = useState(false);
+  const [_showAlertsPanel, _setShowAlertsPanel] = useState(false);
 
   const handleAlertAccept = (id, actionType) => {
     if (actionType === 'cool') {
@@ -375,13 +378,14 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     dismissAlert(id);
   };
 
-  const handleAlertFeedback = (id, isPositive) => {
+  const handleAlertFeedback = (id) => {
     // Collect feedback for AI training later
     dismissAlert(id);
   };
 
   useEffect(() => {
     if (!liveSensors) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConnectedSensors(prev => prev.map(sensor => {
       const typeMap = {
         'رطوبة التربة':       liveSensors['soil_moisture'],
@@ -470,7 +474,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       .map(a => a.message || (a.sensor && a.value ? `${a.sensor}: ${a.value}` : null))
       .filter(Boolean);
 
-    const sensorPayload = {
+    const _sensorPayload = {
       timestamp: new Date().toISOString(),
       crop: "cucumber",
       growth_stage: "fruiting",
@@ -492,7 +496,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       const API_BASE = import.meta.env.VITE_API_URL || "";
       const fetchUrl = `${API_BASE.replace(/\/$/, "")}/api/v1/chatbot/ask`;
       const token = sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token');
-      const chatFarmId = currentFarmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
+      const chatFarmId = farmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
 
       const response = await fetch(fetchUrl, {
         method: "POST",
@@ -528,7 +532,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
         };
         return updated;
       });
-    } catch (error) {
+    } catch {
       setChatMessages(prev => {
         const updated = [...prev];
         updated[updated.length - 1] = { role: "bot", text: "حدث خطأ في الاتصال بالمساعد. تأكد من تشغيل الخادم." };
@@ -930,7 +934,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                           {devices.filter(d => d.type === 'actuator').map(device => {
                             const nameLower = device.name?.toLowerCase() || '';
                             const isPump = nameLower.includes('pump') || nameLower.includes('مضخ') || nameLower.includes('valve');
-                            const isFanActuator = nameLower.includes('fan') || nameLower.includes('مروح');
+                            const _isFanActuator = nameLower.includes('fan') || nameLower.includes('مروح');
                             const isCoolerActuator = nameLower.includes('cool') || nameLower.includes('تبريد') || nameLower.includes('مكيف');
                             
                             const isActive = device.is_online !== false;

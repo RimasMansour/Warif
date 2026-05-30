@@ -156,16 +156,23 @@ def format_sensor_context(sensor_data: Optional[dict]) -> str:
 
     soil = sensor_data.get("soil", {})
     if soil:
-        if soil.get("moisture_percent")    is not None: lines.append(f"Soil moisture    : {soil['moisture_percent']}%")
-        if soil.get("temperature_celsius") is not None: lines.append(f"Soil temperature : {soil['temperature_celsius']}°C")
-        if soil.get("ph")                  is not None: lines.append(f"Soil pH          : {soil['ph']}")
-        if soil.get("ec")                  is not None: lines.append(f"Soil EC          : {soil['ec']} mS/cm")
+        if soil.get("moisture_percent") is not None:
+            lines.append(f"Soil moisture    : {soil['moisture_percent']}%")
+        if soil.get("temperature_celsius") is not None:
+            lines.append(f"Soil temperature : {soil['temperature_celsius']}°C")
+        if soil.get("ph") is not None:
+            lines.append(f"Soil pH          : {soil['ph']}")
+        if soil.get("ec") is not None:
+            lines.append(f"Soil EC          : {soil['ec']} mS/cm")
 
     air = sensor_data.get("air", {})
     if air:
-        if air.get("temperature_celsius") is not None: lines.append(f"Air temperature  : {air['temperature_celsius']}°C")
-        if air.get("humidity_percent")    is not None: lines.append(f"Air humidity     : {air['humidity_percent']}%")
-        if air.get("co2_ppm")             is not None: lines.append(f"CO2              : {air['co2_ppm']} ppm")
+        if air.get("temperature_celsius") is not None:
+            lines.append(f"Air temperature  : {air['temperature_celsius']}°C")
+        if air.get("humidity_percent") is not None:
+            lines.append(f"Air humidity     : {air['humidity_percent']}%")
+        if air.get("co2_ppm") is not None:
+            lines.append(f"CO2              : {air['co2_ppm']} ppm")
 
     alerts = sensor_data.get("alerts", [])
     if alerts:

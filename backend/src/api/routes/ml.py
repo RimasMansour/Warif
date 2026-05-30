@@ -113,8 +113,6 @@ async def get_irrigation_prediction(
     ⚠️ Users see ONE unified decision only, not ML model opinions!
     """
     try:
-        from src.services.decision_engine import SmartDecisionEngine
-
         sensor_data = {
             'soil_moisture': soil_moisture,
             'soil_temperature': soil_temp,

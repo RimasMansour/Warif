@@ -1,6 +1,7 @@
 import React, { useState } from "react";
+import { resetPassword } from "../../services/api";
 
-export default function ResetPassword({ onBack, isRtl, T }) {
+export default function ResetPassword({ onBack, isRtl }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -17,7 +18,7 @@ export default function ResetPassword({ onBack, isRtl, T }) {
     try {
       await resetPassword(email);
       setDone(true);
-    } catch (err) {
+    } catch {
       setError(isRtl ? "حدث خطأ أثناء الطلب" : "An error occurred during request");
     } finally {
       setLoading(false);

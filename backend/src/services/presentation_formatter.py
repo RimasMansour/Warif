@@ -6,7 +6,7 @@ Translates complex metrics and model outputs into actionable advice.
 
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict, List
+from typing import Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -252,9 +252,6 @@ class PresentationFormatter:
 
     def format_soil_moisture_alert(self, current: float, optimal_min: float, optimal_max: float) -> AlertPresentation:
         """Generates customized UI presentation card for soil moisture anomalies"""
-        diff_from_min = current - optimal_min
-        diff_from_max = optimal_max - current
-
         if current < optimal_min:
             difference = f"أقل من الحد بـ {optimal_min - current:.0f}%"
             alert_type = 'drought'

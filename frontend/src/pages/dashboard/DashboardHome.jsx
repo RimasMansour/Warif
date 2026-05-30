@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   CardShell,
   CardTopRow,
@@ -43,10 +43,10 @@ const getCropName = (key, isEn) => {
   return isEn ? crop.en : crop.ar;
 };
 
-export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, activeFarm, farmId, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback, farmObj }) {
+export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, farmId, sharedSensors, alerts = [], onAlertAccept, onAlertReject, onAlertFeedback, farmObj }) {
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
-  const isRtl = !isEn;
+  const _isRtl = !isEn;
 
   const crops = useMemo(() => {
     if (!farmObj?.crop_type) return [];
@@ -56,7 +56,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   // ── Live data from Backend API ─────────────────────────────
   const { data: localSensors } = useLatestSensors(10000);
   const { data: dashboardData } = useDashboard(farmId);
-  const { devices, counts, loading: devicesLoading } = useDevices(farmId);
+  const { devices: _devices, counts, loading: _devicesLoading } = useDevices(farmId);
   const { data: irrigationResources } = useIrrigationResources(farmId, 15000);
 
   const livesensors = sharedSensors || localSensors;
@@ -68,12 +68,12 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   const apiSoilMoist = livesensors?.soil_moisture    ?? null;
   const apiSoilTemp  = livesensors?.soil_temperature ?? null;
 
-  const [resourceRange, setResourceRange] = useState("D");
+  const [resourceRange, _setResourceRange] = useState("D");
 
   const { data: rawWater } = useSensorHistory('water_usage', 12);
   const { data: rawPower } = useSensorHistory('power_usage', 12);
 
-  const resourceData = useMemo(() => {
+  const _resourceData = useMemo(() => {
     const points = [];
     const maxLen = Math.max(rawWater?.length || 0, rawPower?.length || 0);
     const len = Math.max(12, maxLen);
@@ -169,7 +169,7 @@ export function DashboardHome({ onGo, onSendAI, globalAutoMode, onOpenAssets, ac
   );
 }
 
-function DashboardAlertsCard({ onGo, alerts, onAccept, onReject, onFeedback, isEn, globalAutoMode }) {
+function DashboardAlertsCard({ alerts, onAccept, isEn, globalAutoMode }) {
   const [alertFeedback, setAlertFeedback] = useState({});
   const [showAlertThanks, setShowAlertThanks] = useState([]);
 
@@ -311,7 +311,7 @@ function SoilSparkline({ color = "#10b981", gradientId = "soilGradient" }) {
   );
 }
 
-function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, coolingActive }) {
+function MicroclimateGlanceCard({ onGo, apiTemp, apiHum, apiLight, coolingActive }) {
   const temp = apiTemp ?? 0;
   const hum  = apiHum  ?? 0;
   const light = apiLight ?? 0;
@@ -367,7 +367,7 @@ function MicroclimateGlanceCard({ onGo, activeFarm, apiTemp, apiHum, apiLight, c
   );
 }
 
-function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp }) {
+function SoilCropHealthGlanceCard({ onGo, apiSoilMoist, apiSoilTemp }) {
   const soilMoist = apiSoilMoist ?? 0;
   const soilTemp  = apiSoilTemp  ?? 0;
   const isHealthy = soilMoist >= 35 && soilMoist <= 80 && soilTemp >= 18 && soilTemp <= 35;
@@ -419,7 +419,7 @@ function SoilCropHealthGlanceCard({ onGo, activeFarm, apiSoilMoist, apiSoilTemp 
   );
 }
 
-function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData, water, power }) {
+function IrrigationGlanceCard({ onGo, dashboardData, water, power }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const [flowPos, setFlowPos] = React.useState(0);
 
@@ -430,6 +430,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
   const flowRate = isActive ? 20 : 0;
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!isActive) { setFlowPos(0); return; }
     const timer = setInterval(() => setFlowPos(p => p >= 100 ? 0 : p + 4), 60);
     return () => clearInterval(timer);
@@ -552,7 +553,7 @@ function IrrigationGlanceCard({ onGo, globalAutoMode, activeFarm, dashboardData,
   );
 }
 
-function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
+function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const isRtl = !isEn;
   const [feedback, setFeedback] = useState({});

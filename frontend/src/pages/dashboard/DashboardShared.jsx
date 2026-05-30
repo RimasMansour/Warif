@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useMemo, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { formatLastUpdated } from './dashboardUtils';
 
 // ─── ALERT TRANSLATION TABLES ────────────────────────────────────────────────
@@ -39,16 +39,16 @@ const alertTitleForSensor = (sensorType, lang) => {
 
 const ALERT_ANOMALY_TEXT = {
   sensor_stuck: {
-    ar: (s, v, title, alert) => `${title}: ${s} ثابت عند ${v} - قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
-    en: (s, v, title, alert) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
+    ar: (s, v, title) => `${title}: ${s} ثابت عند ${v} - قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
+    en: (s, v, title) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
   },
   unrealistic_jump: {
-    ar: (s, v, title, alert) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ - افحص الحساس وقناة الإرسال.`,
-    en: (s, v, title, alert) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
+    ar: (s, v, title) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ - افحص الحساس وقناة الإرسال.`,
+    en: (s, v, title) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
   },
   pattern_break: {
-    ar: (s, v, title, alert) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
-    en: (s, v, title, alert) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
+    ar: (s, v, title) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
+    en: (s, v, title) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
   },
   threshold_violation: {
     ar: (s, v, title, alert) => {
@@ -245,6 +245,7 @@ export function LastUpdatedTimer({ seconds, ar, en }) {
 
 // ─── PARSING UTILITY ─────────────────────────────────────────────────
 // Splits reasoning text into Issue + Solution based on keywords
+// eslint-disable-next-line react-refresh/only-export-components
 export function parseReasoningText(reasoningText) {
   if (!reasoningText) return { issue: '', solution: '' };
 
@@ -285,7 +286,7 @@ class DashboardErrorBoundary extends React.Component {
     this.state = { hasError: false };
   }
 
-  static getDerivedStateFromError(error) {
+  static getDerivedStateFromError() {
     return { hasError: true };
   }
 
@@ -378,7 +379,7 @@ export function AirHumidityIcon(props) {
   );
 }
 
-function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, isEn = false, iconBg = "bg-emerald-50", iconColor = "text-[#059669]", rightElement }) {
+function CardTopRow({ title, subtitle, onDetails, detailsLabel, icon, iconBg = "bg-emerald-50", iconColor = "text-[#059669]", rightElement }) {
   return (
     <div className="flex items-start justify-between gap-3 w-full">
       <div className="flex items-start gap-3">
@@ -687,7 +688,7 @@ export function EmptyState({ title, subtitle, icon, compact = false, variant = "
   );
 }
 
-export function AlertsPanel({ alerts = [], isOpen, onClose, onAccept, onFeedback }) {
+export function AlertsPanel({ alerts = [], isOpen, onAccept, onFeedback }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const [feedbackState, setFeedbackState] = React.useState({});
   const [showThanks, setShowThanks] = React.useState([]);
@@ -750,7 +751,7 @@ const extractSafeText = (data, fallback = '') => {
     try {
       const parsed = JSON.parse(data);
       return parsed.message || parsed.reasoning || parsed.action || data;
-    } catch (e) {
+    } catch {
       return data;
     }
   }
@@ -761,54 +762,7 @@ const extractSafeText = (data, fallback = '') => {
 };
 
 // ─── DESCRIPTIVE AUTONOMOUS TEXT UTILITY ────────────────────────────────────
-function getMlAnomalyActionExplanation(sensorType, isEn, isAuto) {
-  const s = (sensorType || '').toLowerCase();
-
-  if (s.includes('water') || s.includes('irrigation')) {
-    if (isAuto) return isEn
-      ? "The system logged this irrigation anomaly automatically. Review the irrigation valve, pump status, water flow reading, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في الري تلقائياً. راجع صمام الري، حالة المضخة، قراءة تدفق المياه، واتصال الجهاز.";
-    return isEn
-      ? "Do you want to review the irrigation valve, pump status, water flow reading, and device connection?"
-      : "هل تود مراجعة صمام الري، حالة المضخة، قراءة تدفق المياه، واتصال الجهاز؟";
-  }
-
-  if (s.includes('power') || s.includes('energy')) {
-    if (isAuto) return isEn
-      ? "The system logged this energy anomaly automatically. Review the energy meter reading, connected equipment, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في الطاقة تلقائياً. راجع قراءة عداد الطاقة، الأجهزة المرتبطة، واتصال الجهاز.";
-    return isEn
-      ? "Do you want to review the energy meter reading, connected equipment, and device connection?"
-      : "هل تود مراجعة قراءة عداد الطاقة، الأجهزة المرتبطة، واتصال الجهاز؟";
-  }
-
-  if (s.includes('soil')) {
-    if (isAuto) return isEn
-      ? "The system logged this soil sensor anomaly automatically. Review soil moisture, soil temperature, the soil sensor, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في حساسات التربة تلقائياً. راجع رطوبة التربة، حرارة التربة، حساس التربة، واتصال الجهاز.";
-    return isEn
-      ? "Do you want to review soil moisture, soil temperature, the soil sensor, and device connection?"
-      : "هل تود مراجعة رطوبة التربة، حرارة التربة، حساس التربة، واتصال الجهاز؟";
-  }
-
-  if (s.includes('temperature') || s.includes('humidity') || s.includes('light')) {
-    if (isAuto) return isEn
-      ? "The system logged this climate sensor anomaly automatically. Review air temperature, humidity, light reading, the climate sensor, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في حساسات المناخ تلقائياً. راجع حرارة الهواء، الرطوبة، قراءة الإضاءة، حساس المناخ، واتصال الجهاز.";
-    return isEn
-      ? "Do you want to review air temperature, humidity, light reading, the climate sensor, and device connection?"
-      : "هل تود مراجعة حرارة الهواء، الرطوبة، قراءة الإضاءة، حساس المناخ، واتصال الجهاز؟";
-  }
-
-  if (isAuto) return isEn
-    ? "The system logged this anomaly automatically. Review the mentioned device if shown, related readings, and sensor connectivity."
-    : "سجّل النظام هذا النمط غير الطبيعي تلقائياً. راجع الجهاز المذكور إن وجد، والقراءات المرتبطة، واتصال الحساسات.";
-  return isEn
-    ? "Do you want to review the mentioned device, related readings, and sensor connectivity?"
-    : "هل تود مراجعة الجهاز المذكور، والقراءات المرتبطة، واتصال الحساسات؟";
-}
-
-function getActionExplanation(category, isEn, isAuto, sensorType = '') {
+function getActionExplanation(category, isEn, isAuto) {
   const c = (category || '').toLowerCase();
 
   // Climate / Temperature / Ventilation
@@ -881,11 +835,6 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
       : "هل تود مراجعة قراءة حساس الطاقة واتصال الجهاز؟";
   }
 
-  // Multi-sensor anomaly
-  if (c === 'ml_anomaly') {
-    return getMlAnomalyActionExplanation(sensorType, isEn, isAuto);
-  }
-
   // General / Default — still descriptive
   if (isAuto) return isEn
     ? "The system logged this alert automatically. Please review the related sensor or connection status."
@@ -893,19 +842,6 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   return isEn
     ? "Do you want to review the related sensor or connection status?"
     : "هل تود مراجعة الحساس أو حالة الاتصال المرتبطة؟";
-}
-
-function getManualCompletionExplanation(category, isEn) {
-  return getActionExplanation(category, isEn, true)
-    .replace(/\s*autonomously/gi, '')
-    .replace(/\s*automatically/gi, '')
-    .replace(/\s*تلقائياً/g, '');
-}
-
-function getIgnoredRecommendationMessage(isEn) {
-  return isEn
-    ? "Recommendation ignored. It will remain available in the recommendations page for later review."
-    : "تم تجاهل التوصية. ستبقى متاحة في صفحة التوصيات للمراجعة لاحقاً.";
 }
 
 // ─── THEME & ICONS ──────────────────────────────────────────────────────────
@@ -1006,63 +942,25 @@ export function RecommendationCard({
   onIgnore,
   onFeedback,
   feedbackState = {},
-  showThanks = [],
-  compact = false,
-  autoDismissOnAction = false,
-  onDismiss,
-  onActionChange
+  compact = false
 }) {
   const isRtl = !isEn;
   const theme = getRecommendationTheme(rec.category || rec.type, extractSafeText(rec.title || rec.message));
   const actionType = rec.category || rec.type || 'general';
   const [isLoading, setIsLoading] = React.useState(false);
-  const [actionResult, setActionResult] = React.useState(rec.action_status || null);
-  const [feedbackNotice, setFeedbackNotice] = React.useState(null);
-
-  React.useEffect(() => {
-    setActionResult(rec.action_status || null);
-  }, [rec.id, rec.action_status]);
-
-  const scheduleDismiss = () => {
-    if (!autoDismissOnAction) return;
-    window.setTimeout(() => {
-      onDismiss?.(rec.id);
-    }, 2200);
-  };
+  const [executionSuccess, setExecutionSuccess] = React.useState(false);
 
   const handleExecute = async () => {
-    if (isLoading || actionResult) return;
     setIsLoading(true);
-    setActionResult('executed');
-    scheduleDismiss();
     try {
-      await onActionChange?.(rec.rawId || rec.id, 'executed');
-      const executionResult = await onExecute?.(actionType, farmId, rec.rawId || rec.id);
-      if (executionResult === null) throw new Error('Recommendation execution failed');
+      await onExecute?.(actionType, farmId);
+      setExecutionSuccess(true);
+      setTimeout(() => setExecutionSuccess(false), 3000);
     } catch (err) {
       console.error('Execution failed:', err);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleIgnore = async () => {
-    setActionResult('ignored');
-    if (autoDismissOnAction) {
-      scheduleDismiss();
-    }
-    await onActionChange?.(rec.rawId || rec.id, 'ignored');
-    onIgnore?.(rec.id);
-  };
-
-  const handleFeedbackClick = (type) => {
-    onFeedback?.(rec.id, type);
-    setFeedbackNotice(
-      type === 'up'
-        ? (isEn ? 'Thanks, your rating was saved.' : 'شكراً، تم حفظ تقييمك.')
-        : (isEn ? 'Thanks, we will use your feedback to improve.' : 'شكراً، سنستخدم ملاحظتك للتحسين.')
-    );
-    window.setTimeout(() => setFeedbackNotice(null), 2200);
   };
 
   const severityColor =
@@ -1088,6 +986,7 @@ export function RecommendationCard({
   const formatRecMeta = () => {
     const raw = rec.created_at || rec.timestamp;
     if (!raw) return null;
+    // eslint-disable-next-line react-hooks/purity
     const diffMs = Date.now() - new Date(raw).getTime();
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
@@ -1134,7 +1033,7 @@ export function RecommendationCard({
 
       {/* Unified Footer Area */}
       <div className="pt-1.5 flex flex-col gap-2 mt-auto w-full">
-        {!globalAutoMode && !actionResult ? (
+        {!globalAutoMode ? (
           <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 w-full">
             <div className="flex items-start gap-2">
               <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 flex items-center justify-center">
@@ -1147,9 +1046,9 @@ export function RecommendationCard({
             <div className="flex gap-2 justify-end w-full">
               <button
                 onClick={handleExecute}
-                disabled={isLoading || Boolean(actionResult)}
+                disabled={isLoading || executionSuccess}
                 className={`px-3 py-1 text-white text-[12px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
-                  bg-emerald-600 hover:bg-emerald-700 ${isLoading ? 'opacity-75' : ''}`}
+                  ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
               >
                 {isLoading ? (
                   <>
@@ -1158,10 +1057,17 @@ export function RecommendationCard({
                     </svg>
                     {isEn ? 'Executing…' : 'جاري التنفيذ…'}
                   </>
+                ) : executionSuccess ? (
+                  <>
+                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                    {isEn ? 'Done' : 'تم'}
+                  </>
                 ) : (isEn ? 'Execute' : 'نفذ')}
               </button>
               <button
-                onClick={handleIgnore}
+                onClick={() => onIgnore?.(rec.id)}
                 className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
               >
                 {isEn ? 'Ignore' : 'تجاهل'}
@@ -1174,11 +1080,7 @@ export function RecommendationCard({
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
             </div>
             <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
-              {actionResult === 'ignored'
-                ? getIgnoredRecommendationMessage(isEn)
-                : actionResult === 'executed' && !globalAutoMode
-                ? getManualCompletionExplanation(rec.category || rec.type, isEn)
-                : getActionExplanation(rec.category || rec.type, isEn, true)}
+              {getActionExplanation(rec.category || rec.type, isEn, true)}
             </p>
           </div>
         )}
@@ -1189,7 +1091,7 @@ export function RecommendationCard({
               {isEn ? 'Helpful?' : 'مفيدة؟'}
             </span>
             <button
-              onClick={() => handleFeedbackClick('down')}
+              onClick={() => onFeedback?.(rec.id, 'down')}
               className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
                 ${feedbackState[rec.id] === 'down'
                   ? 'bg-red-50 border-red-300 text-red-600 scale-110'
@@ -1200,7 +1102,7 @@ export function RecommendationCard({
               </svg>
             </button>
             <button
-              onClick={() => handleFeedbackClick('up')}
+              onClick={() => onFeedback?.(rec.id, 'up')}
               className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
                 ${feedbackState[rec.id] === 'up'
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
@@ -1212,11 +1114,6 @@ export function RecommendationCard({
             </button>
           </div>
         </div>
-        {feedbackNotice && (
-          <div className="self-end px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-bold animate-fade-in">
-            {feedbackNotice}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1230,7 +1127,6 @@ export function AlertCard({
   onAccept,
   onFeedback,
   feedbackState = {},
-  showThanks = [],
   compact = false
 }) {
   const isRtl = !isEn;
@@ -1247,11 +1143,10 @@ export function AlertCard({
   const cfg = severityConfig[severity] || severityConfig.info;
 
   const safeMessage = extractSafeText(alert.message, isEn ? 'System alert detected' : 'تم رصد تنبيه من النظام');
-  const safeAction = extractSafeText(alert.action, '');
+  const _safeAction = extractSafeText(alert.action, '');
 
   const sensorType = alert.sensor_type || '';
   const anomalyType = alert.anomaly_type || null;
-  const isMlAnomaly = anomalyType === 'ml_anomaly';
   const lang = isEn ? 'en' : 'ar';
   const displayMessage = (() => {
     const sensorName = ALERT_SENSOR_NAMES[sensorType]?.[lang] || sensorType;
@@ -1265,9 +1160,8 @@ export function AlertCard({
     return fn(sensorName, val, alertTitleForSensor(sensorType, lang), alert);
   })();
   const msgText = safeMessage.toLowerCase();
-  const category = isMlAnomaly
-    ? 'ml_anomaly'
-    : (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
+  const category =
+    (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
      sensorType === 'temperature' || sensorType === 'humidity' || sensorType === 'air_humidity' ||
      sensorType.includes('ventilation') || msgText.includes('حرار') ||
      msgText.includes('temperature') || msgText.includes('رطوبة الهواء') ||
@@ -1286,7 +1180,7 @@ export function AlertCard({
     : 'system';
 
   const actionType = category === 'climate' ? 'cool' : category === 'irrigation' ? 'irrigate' : 'general';
-  const primaryActionLabel = category === 'system' || category === 'power' || category === 'ml_anomaly'
+  const primaryActionLabel = category === 'system' || category === 'power'
     ? (isEn ? 'Review' : 'راجع')
     : (isEn ? 'Execute' : 'نفذ');
 
@@ -1303,6 +1197,7 @@ export function AlertCard({
   const formatAlertMeta = () => {
     const raw = alert.created_at || alert.timestamp;
     if (!raw) return null;
+    // eslint-disable-next-line react-hooks/purity
     const diffMs = Date.now() - new Date(raw).getTime();
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
@@ -1362,7 +1257,7 @@ export function AlertCard({
                 <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
               </div>
               <p className="font-medium text-[12px] md:text-[13px] text-sky-800 leading-snug flex-1 text-start">
-                {getActionExplanation(category, isEn, false, sensorType)}
+                {getActionExplanation(category, isEn, false)}
               </p>
             </div>
             <div className="flex gap-2 justify-end w-full">
@@ -1399,7 +1294,7 @@ export function AlertCard({
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
             </div>
             <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
-              {getActionExplanation(category, isEn, true, sensorType)}
+              {getActionExplanation(category, isEn, true)}
             </p>
           </div>
         )}
@@ -1461,5 +1356,6 @@ export {
   WindSharedIcon,
   IrrigationSmartIcon,
   DashboardErrorBoundary,
+  // eslint-disable-next-line react-refresh/only-export-components
   getRecommendationTheme
 };

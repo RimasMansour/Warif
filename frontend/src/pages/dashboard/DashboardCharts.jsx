@@ -61,7 +61,7 @@ export function HealthStyleBarChart({
   const barW = (slotW - gapBetweenGroups) / 2;
   const totalContentW = n * (barW * 2) + (n - 1) * gapBetweenGroups;
   const startOffset = (w - pLeft - pRight - totalContentW) / 2;
-  const x = (i) => pLeft + startOffset + i * (barW * 2 + gapBetweenGroups);
+  const _x = (i) => pLeft + startOffset + i * (barW * 2 + gapBetweenGroups);
 
   const ys = data.flatMap(d => [d.water || 0, d.power || 0, d.value || 0]);
   const yMax = Math.ceil(Math.max(...ys, 5) / 10) * 10 + 10; 

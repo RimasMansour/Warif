@@ -10,19 +10,11 @@ Overview:
 import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, desc
-from src.db.models.models import Alert, AlertSeverity, AlertStatus, Device, SensorReading
+from sqlalchemy import select, and_
+from src.db.models.models import Alert, AlertSeverity, AlertStatus
 from src.ml.anomaly_detector import AnomalyDetector, AnomalyReport
 
 logger = logging.getLogger(__name__)
-
-NON_DIAGNOSTIC_SENSOR_TYPES = {
-    "energy_kwh",
-    "valve_state",
-    "fan_state",
-    "cooling_state",
-}
-ML_ANOMALY_CONFIRMATION_COUNT = 2
 
 
 class AnomalyAlertSystem:
@@ -31,7 +23,6 @@ class AnomalyAlertSystem:
     def __init__(self):
         """Initializes internal AnomalyDetector instance"""
         self.detector = AnomalyDetector()
-        self._ml_anomaly_counts: dict[tuple[int, str], int] = {}
 
     async def check_sensor_reading_anomalies(
         self,
@@ -56,9 +47,6 @@ class AnomalyAlertSystem:
             Alert model instance if an anomaly is identified, otherwise None.
         """
         try:
-            if sensor_type in NON_DIAGNOSTIC_SENSOR_TYPES:
-                return None
-
             # Perform statistical/rule-based validation
             anomaly_report: AnomalyReport | None = await self.detector.detect_anomalies(
                 sensor_type=sensor_type,
@@ -143,8 +131,6 @@ class AnomalyAlertSystem:
         sensor_data: dict,
         farm_id: int,
         db: AsyncSession,
-        source_device_id: str | None = None,
-        source_sensor_type: str | None = None,
     ) -> Alert | None:
         """
         Runs KNN and Isolation Forest on a full multi-sensor snapshot.
@@ -154,10 +140,6 @@ class AnomalyAlertSystem:
         try:
             from src.ml.anomaly_knn import predict as knn_predict, FEATURES as ML_FEATURES
             from src.ml.anomaly_isolation_forest import predict as isolation_forest_predict
-
-            if source_sensor_type and source_sensor_type not in ML_FEATURES:
-                logger.debug(f"[ML] Skipping source sensor outside ML feature set: {source_sensor_type}")
-                return None
 
             if not set(ML_FEATURES).issubset(sensor_data.keys()):
                 logger.debug(f"[ML] Skipping — missing features: {set(ML_FEATURES) - sensor_data.keys()}")
@@ -182,22 +164,12 @@ class AnomalyAlertSystem:
             knn_anomaly = knn_result.get("is_anomaly", False) if knn_result else False
             isolation_forest_anomaly = isolation_forest_result.get("is_anomaly", False) if isolation_forest_result else False
             if not knn_anomaly and not isolation_forest_anomaly:
-                if source_sensor_type:
-                    self._ml_anomaly_counts.pop((farm_id, source_sensor_type), None)
                 return None
 
             knn_conf = knn_result.get("confidence", 0.0) if knn_anomaly else 0.0
             isolation_forest_conf = isolation_forest_result.get("confidence", 0.0) if isolation_forest_anomaly else 0.0
             confidence = max(knn_conf, isolation_forest_conf)
             severity = AlertSeverity.critical if confidence >= 0.85 else AlertSeverity.warning
-            anomaly_key = (farm_id, source_sensor_type or "multi_sensor")
-            self._ml_anomaly_counts[anomaly_key] = self._ml_anomaly_counts.get(anomaly_key, 0) + 1
-            if self._ml_anomaly_counts[anomaly_key] < ML_ANOMALY_CONFIRMATION_COUNT:
-                logger.info(
-                    f"[ML] Anomaly pending confirmation for farm {farm_id}, "
-                    f"source={source_sensor_type}, count={self._ml_anomaly_counts[anomaly_key]}"
-                )
-                return None
 
             # Suppress if an open ML alert already exists for this farm within the last 30 minutes
             cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -205,7 +177,7 @@ class AnomalyAlertSystem:
                 select(Alert).where(
                     and_(
                         Alert.farm_id == farm_id,
-                        Alert.explanation.like("ml_anomaly%"),
+                        Alert.explanation == "ml_anomaly",
                         Alert.status == AlertStatus.open,
                         Alert.created_at >= cooldown,
                     )
@@ -224,42 +196,17 @@ class AnomalyAlertSystem:
                 f"ML Anomaly ({', '.join(models)}) — confidence {confidence:.0%}. "
                 + (f"Rule violated: {rule_violated}." if rule_violated else "Abnormal multi-sensor pattern detected.")
             )
-            alert_sensor_type = rule_violated.split("=")[0].strip() if rule_violated else (source_sensor_type or "multi_sensor")
-            alert_device_id = source_device_id
-
-            if rule_violated:
-                latest_sensor_device = await db.execute(
-                    select(SensorReading.device_id)
-                    .where(
-                        SensorReading.farm_id == farm_id,
-                        SensorReading.sensor_type == alert_sensor_type,
-                    )
-                    .order_by(desc(SensorReading.timestamp))
-                    .limit(1)
-                )
-                alert_device_id = latest_sensor_device.scalar_one_or_none() or source_device_id
-
-            device_label = None
-            if alert_device_id:
-                device_result = await db.execute(
-                    select(Device).where(Device.device_id == alert_device_id)
-                )
-                device = device_result.scalar_one_or_none()
-                if device:
-                    device_label = f"{device.name or device.device_id} ({device.device_id})"
 
             alert = Alert(
                 farm_id=farm_id,
-                device_id=alert_device_id,
-                sensor_type=alert_sensor_type,
+                sensor_type=rule_violated.split("=")[0].strip() if rule_violated else "multi_sensor",
                 severity=severity,
                 status=AlertStatus.open,
                 message=message,
-                explanation=f"ml_anomaly|device={device_label}" if device_label else "ml_anomaly",
+                explanation="ml_anomaly",
             )
             db.add(alert)
             await db.flush()
-            self._ml_anomaly_counts.pop(anomaly_key, None)
             logger.warning(f"[ML Alert] Farm {farm_id} — {message}")
             return alert
 

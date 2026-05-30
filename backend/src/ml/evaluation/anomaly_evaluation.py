@@ -14,13 +14,10 @@ Outputs:
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 import asyncio
 from datetime import datetime, timedelta
-
-import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -40,9 +37,9 @@ BACKEND_DIR = ROOT_DIR / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.append(str(BACKEND_DIR))
 
-from src.ml.anomaly_knn import predict as knn_predict
-from src.ml.anomaly_isolation_forest import predict as if_predict
-from src.ml.anomaly_detector import AnomalyDetector
+from src.ml.anomaly_knn import predict as knn_predict  # noqa: E402
+from src.ml.anomaly_isolation_forest import predict as if_predict  # noqa: E402
+from src.ml.anomaly_detector import AnomalyDetector  # noqa: E402
 
 BRAND_PRIMARY = "#1B5E20"
 BRAND_SECONDARY = "#4CAF50"

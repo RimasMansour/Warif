@@ -7,7 +7,7 @@ Warif Digital Twin Decision Engine
 import os
 import logging
 from datetime import datetime, timezone
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
 logger = logging.getLogger(__name__)
@@ -276,8 +276,6 @@ class SmartDecisionEngine:
             elif 10 <= hour <= 15:
                 parts.append("تجنب الري وقت الذروة لتقليل التبخر")
 
-            reasoning = " — ".join(parts)
-
             if score > 0.5:
                 severity = "urgent" if score > 0.75 else "warning"
                 if score > 0.75:
@@ -321,8 +319,6 @@ class SmartDecisionEngine:
                 if cloudcover < 20:
                     parts.append("سماء صافية تزيد الحمل الحراري")
 
-            reasoning = " — ".join(parts)
-
             if combined_temp > 38 and cloudcover < 20:
                 recommendations.append(SmartRecommendation(
                     message="تفعيل نظام التبريد الطارئ",
@@ -357,8 +353,6 @@ class SmartDecisionEngine:
             parts = [f"رطوبة الهواء {air_humidity:.0f}%"]
             if ext_humidity is not None:
                 parts.append(f"رطوبة خارجية {ext_humidity:.0f}%")
-
-            reasoning = " — ".join(parts)
 
             if air_humidity > 85:
                 severity = "urgent" if (ext_humidity or 0) > 80 else "warning"

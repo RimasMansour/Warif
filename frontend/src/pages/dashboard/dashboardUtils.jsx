@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 // Helper for bilingual labels
 const L = (isEn) => ({
   now: isEn ? "Now" : "الآن",

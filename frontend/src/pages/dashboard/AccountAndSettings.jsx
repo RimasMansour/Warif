@@ -147,15 +147,15 @@ export function AccountAndSettingsPages({
   const [editingField, setEditingField] = useState(null);
   const [draftValue, setDraftValue] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [activeFarm, setActiveFarm] = useState(0);
+  const [_activeFarm, _setActiveFarm] = useState(0);
   const [showUnifiedGuide, setShowUnifiedGuide] = useState(false);
   const [showProfilePassword, setShowProfilePassword] = useState(false);
-  const userLang = lang || 'ar';
-  const t = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en') ? guides['en'] : guides['ar'];
+  const _userLang = lang || 'ar';
+  const _t = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en') ? guides['en'] : guides['ar'];
 
   const sensors = propSensors || [];
 
-  const getDeviceDescription = (device) => {
+  const _getDeviceDescription = (device) => {
     const name = `${device?.name || ''}`.toLowerCase();
     const type = `${device?.type || ''}`.toLowerCase();
 
@@ -190,7 +190,7 @@ export function AccountAndSettingsPages({
       : (isEn ? 'Connected control device.' : 'جهاز تحكم متصل بالنظام.');
   };
 
-  const getConnectionStatus = (device) => {
+  const _getConnectionStatus = (device) => {
     const active = device?.status === 'active' || device?.status === 'normal';
     return active
       ? (isEn ? 'Connected and running' : 'تعمل')
@@ -785,7 +785,7 @@ export function AccountAndSettingsPages({
                         <>
                           <div className="flex flex-col gap-3">
                             {displayFarms.map((farm) => {
-                              const isActive = farm.id === activeFarmId;
+                              const _isActive = farm.id === activeFarmId;
                               return (
                                 <div key={farm.id} 
                                   onClick={() => handleSwitchFarm(farm)}
@@ -1394,6 +1394,7 @@ export function AccountAndSettingsPages({
                     ? 'bg-orange-50 text-orange-600 border border-orange-100'
                     : 'bg-gray-50 text-gray-600 border border-gray-100');
                 const date = new Date(log.created_at);
+                // eslint-disable-next-line react-hooks/purity
                 const diffMs = Date.now() - date.getTime();
                 const diffMin = Math.floor(diffMs / 60000);
                 const diffHr = Math.floor(diffMin / 60);

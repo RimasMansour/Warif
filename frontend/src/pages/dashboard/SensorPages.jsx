@@ -1,5 +1,4 @@
 import { useMemo, useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { translations } from '../../i18n';
 import {
   SensorTopBar,
@@ -12,7 +11,7 @@ import {
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling, triggerManualIrrigation, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction, useCoolingStatus } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
@@ -74,21 +73,18 @@ const sectionRows = (title, headers, rows) => [
 
 export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
-  const [commandDialog, setCommandDialog] = useState(null);
+  const [activeAction, setActiveAction] = useState("");
   const [fanRunning, setFanRunning] = useState(false);
   const [coolerRunning, setCoolerRunning] = useState(false);
-  const { data: coolingStatus, refetch: refetchCoolingStatus } = useCoolingStatus(farmId);
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
-  const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-    const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
-    await submitRecommendationFeedback(farmId, rawId, type === 'up');
+    await submitRecommendationFeedback(farmId, id, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -122,26 +118,6 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     lastUpdateEn: "Last Update",
     noRecsTitle: isEn ? "All Systems Stable" : "كافة الأنظمة مستقرة.",
     noRecsSub: isEn ? "No specific recommendations at the moment." : "لا توجد توصيات محددة حالياً.",
-  };
-
-  useEffect(() => {
-    if (!coolingStatus) return;
-    setFanRunning(Boolean(coolingStatus.fan));
-    setCoolerRunning(Boolean(coolingStatus.cooler));
-  }, [coolingStatus]);
-
-  const showCommandDialog = (message, variant = 'success', autoClose = true) => {
-    setCommandDialog({ message, variant });
-    if (autoClose) window.setTimeout(() => setCommandDialog(null), 2500);
-  };
-
-  const handleRecommendationExecute = async (category, targetFarmId, recId, rawId) => {
-    await executeRecommendation(category, targetFarmId, rawId);
-    if (category === 'temperature' || category === 'climate' || category === 'humidity') {
-      setFanRunning(true);
-      setCoolerRunning(true);
-      refetchCoolingStatus?.();
-    }
   };
 
   const handleExport = () => {
@@ -193,6 +169,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSeconds(0);
     const interval = setInterval(() => {
       setSeconds(s => s + 1);
@@ -306,27 +283,17 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 
 
   const { data: apiRecs } = useRecommendations(farmId);
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
-    return apiRecs
-      .filter(r => {
-        const itemId = `${r.source || 'recommendation'}-${r.id}`;
-        return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);
-      })
-      .filter(r => ['temperature', 'humidity', 'climate'].includes(r.category || r.type))
-      .map(r => ({
-        id: `${r.source || 'recommendation'}-${r.id}`,
-        rawId: r.id,
-        source: r.source || 'recommendation',
-        text: r.message,
-        reasoning: r.data_insight || r.reasoning || r.message,
-        category: r.category || r.type || 'temperature',
-        action_status: r.action_status,
-        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
-        severity: r.severity,
-        created_at: r.created_at
-      }));
-  }, [apiRecs, handledRecommendationIds]);
+    return apiRecs.map(r => ({
+      id: r.id,
+      text: r.message,
+      reasoning: r.data_insight || r.reasoning || r.message,
+      severity: r.severity,
+      created_at: r.created_at
+    }));
+  }, [apiRecs]);
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -341,37 +308,6 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
           T={translations[lang]}
           isRtl={isRtl}
         />
-
-        {commandDialog && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/25 backdrop-blur-[2px] px-4 animate-fade-in">
-            <div className="w-full max-w-[340px] rounded-[28px] bg-white border border-gray-100 shadow-2xl p-6 text-center animate-modal-in">
-              <div className={`mx-auto mb-4 w-14 h-14 rounded-2xl flex items-center justify-center border ${
-                commandDialog.variant === 'error'
-                  ? 'bg-red-50 text-red-600 border-red-100'
-                  : commandDialog.variant === 'pending'
-                    ? 'bg-blue-50 text-blue-600 border-blue-100'
-                  : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-              }`}>
-                <span className="text-2xl font-black">{commandDialog.variant === 'error' ? '!' : commandDialog.variant === 'pending' ? '...' : '✓'}</span>
-              </div>
-              <p className="text-[16px] font-black text-gray-800 leading-relaxed">{commandDialog.message}</p>
-              <button
-                type="button"
-                onClick={() => setCommandDialog(null)}
-                className={`mt-5 w-full rounded-2xl py-3 text-sm font-black transition-all ${
-                  commandDialog.variant === 'error'
-                    ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                    : commandDialog.variant === 'pending'
-                      ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                      : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                }`}
-              >
-                {isEn ? 'OK' : 'تم'}
-              </button>
-            </div>
-          </div>,
-          document.body
-        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="animate-fade-in-up delay-1">
@@ -417,26 +353,20 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                       key={rec.id || i}
                       rec={{
                         id: rec.id || i,
-                        rawId: rec.rawId,
                         title: rec.text,
                         message: rec.text,
                         reasoning: rec.reasoning,
-                        category: rec.category,
-                        action_status: rec.action_status,
+                        category: 'temperature',
                         severity: rec.severity || 'normal',
-                        created_at: rec.created_at,
-                        source: rec.source
+                        created_at: rec.created_at
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
                       isEn={isEn}
-                      onExecute={(category, targetFarmId, rawId) => handleRecommendationExecute(category, targetFarmId, rec.id || i, rawId)}
-                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
-                      autoDismissOnAction={true}
-                      onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
+                      onExecute={executeRecommendation}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
-                      feedbackState={{ ...(rec.feedback ? { [rec.id]: rec.feedback } : {}), ...feedback }}
+                      feedbackState={feedback}
                       showThanks={showThanksIds}
                       compact={true}
                     />
@@ -452,8 +382,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-3 flex flex-col gap-4">
-            <CardShell className="p-6 flex flex-col gap-4 card-interactive justify-start overflow-hidden">
+          <div className="animate-fade-in-up delay-3">
+            <CardShell className="p-6 flex flex-col gap-4 h-[320px] card-interactive justify-start overflow-hidden">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.control}</div>
                 <div className="text-[12px] font-medium text-gray-400 mt-1 mb-2">{T.autoSub}</div>
@@ -474,19 +404,12 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <div className="flex flex-col gap-1">
                     <IrrigationActionButton 
                       active={fanRunning && coolerRunning} 
-                      onClick={async () => {
+                      onClick={() => {
                         setFanRunning(true);
                         setCoolerRunning(true);
-                        showCommandDialog(isEn ? 'Sending cooling command...' : 'جاري إرسال أمر التبريد...', 'pending', false);
-                        try {
-                          await triggerManualCooling('full', farmId);
-                          refetchCoolingStatus?.();
-                          showCommandDialog(isEn ? 'Cooling and fan activated' : 'تم تشغيل التبريد والمروحة');
-                        } catch {
-                          setFanRunning(false);
-                          setCoolerRunning(false);
-                          showCommandDialog(isEn ? 'Cooling command failed' : 'تعذر تنفيذ أمر التبريد', 'error');
-                        }
+                        setActiveAction('full');
+                        triggerManualCooling && triggerManualCooling('full', farmId);
+                        setTimeout(() => setActiveAction(""), 5000);
                       }}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/></svg>}
                       isRtl={isRtl}
@@ -499,19 +422,12 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <div className="flex flex-col gap-1">
                     <IrrigationActionButton 
                       active={fanRunning && !coolerRunning} 
-                      onClick={async () => {
+                      onClick={() => {
                         setFanRunning(true);
                         setCoolerRunning(false);
-                        showCommandDialog(isEn ? 'Sending fan command...' : 'جاري إرسال أمر المروحة...', 'pending', false);
-                        try {
-                          await triggerManualCooling('fan_only', farmId);
-                          refetchCoolingStatus?.();
-                          showCommandDialog(isEn ? 'Fan activated' : 'تم تشغيل المروحة');
-                        } catch {
-                          setFanRunning(false);
-                          setCoolerRunning(false);
-                          showCommandDialog(isEn ? 'Fan command failed' : 'تعذر تنفيذ أمر المروحة', 'error');
-                        }
+                        setActiveAction('fan_only');
+                        triggerManualCooling && triggerManualCooling('fan_only', farmId);
+                        setTimeout(() => setActiveAction(""), 5000);
                       }}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" /></svg>}
                       isRtl={isRtl}
@@ -520,48 +436,42 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                     </IrrigationActionButton>
                   </div>
 
-                  {(fanRunning || coolerRunning) && (
-                    <div className="flex flex-col gap-1">
-                      <button 
-                        onClick={async () => {
-                          const previousFan = fanRunning;
-                          const previousCooler = coolerRunning;
-                          setFanRunning(false);
-                          setCoolerRunning(false);
-                          showCommandDialog(isEn ? 'Sending stop command...' : 'جاري إرسال أمر الإيقاف...', 'pending', false);
-                          try {
-                            await triggerManualCooling('stop', farmId);
-                            refetchCoolingStatus?.();
-                            showCommandDialog(isEn ? 'Cooling and fan stopped' : 'تم إيقاف التبريد والمروحة');
-                          } catch {
-                            setFanRunning(previousFan);
-                            setCoolerRunning(previousCooler);
-                            showCommandDialog(isEn ? 'Stop command failed' : 'تعذر تنفيذ أمر الإيقاف', 'error');
-                          }
-                        }}
-                        className="w-full flex items-center justify-center gap-3 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black"
-                      >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
-                        {isEn ? "Stop All Units" : "إيقاف الكل"}
-                      </button>
+                  {/* Mode 3: Stop All */}
+                  <div className="flex flex-col gap-1">
+                    <button 
+                      onClick={() => {
+                        setFanRunning(false);
+                        setCoolerRunning(false);
+                        setActiveAction('stop');
+                        triggerManualCooling && triggerManualCooling('stop', farmId);
+                        setTimeout(() => setActiveAction(""), 5000);
+                      }}
+                      className="w-full flex items-center justify-center gap-3 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                      {isEn ? "Stop All Units" : "إيقاف الكل"}
+                    </button>
+                  </div>
+
+                  {/* Status Indicators */}
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${fanRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                      <span className="text-[10px] font-bold uppercase">{isEn ? 'Fan Status' : 'حالة المروحة'}</span>
+                      <span className="text-sm font-black">{fanRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
+                    </div>
+                    <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${coolerRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                      <span className="text-[10px] font-bold uppercase">{isEn ? 'Cooler Status' : 'حالة المكيف'}</span>
+                      <span className="text-sm font-black">{coolerRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
+                    </div>
+                  </div>
+
+                  {activeAction && (
+                    <div className="mt-2 px-4 py-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-black flex items-center gap-2 animate-pulse">
+                      <span>✓ {isEn ? 'Command sent to gateway...' : 'تم إرسال الأمر للوحدة المركزية...'}</span>
                     </div>
                   )}
-
                 </div>
               )}
-            </CardShell>
-
-            <CardShell className="p-4 card-interactive">
-              <div className="grid grid-cols-2 gap-3">
-                <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${fanRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                  <span className="text-[10px] font-bold uppercase">{isEn ? 'Fan Status' : 'حالة المروحة'}</span>
-                  <span className="text-sm font-black">{fanRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
-                </div>
-                <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${coolerRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                  <span className="text-[10px] font-bold uppercase">{isEn ? 'Cooler Status' : 'حالة المكيف'}</span>
-                  <span className="text-sm font-black">{coolerRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
-                </div>
-              </div>
             </CardShell>
           </div>
         </div>
@@ -608,19 +518,17 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 ========================================================= */
 export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
-  const [pumpRunning, setPumpRunning] = useState(false);
-  const [irrigationFeedback, setIrrigationFeedback] = useState(null);
+  const [pumpRunning, _setPumpRunning] = useState(false);
+  const [irrigationFeedback, _setIrrigationFeedback] = useState(null);
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
-  const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-    const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
-    await submitRecommendationFeedback(farmId, rawId, type === 'up');
+    await submitRecommendationFeedback(farmId, id, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -697,6 +605,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSeconds(0);
     const interval = setInterval(() => {
       setSeconds(s => s + 1);
@@ -806,27 +715,17 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
 
 
   const { data: apiRecs } = useRecommendations(farmId);
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];
-    return apiRecs
-      .filter(r => ['soil'].includes(r.category || r.type))
-      .filter(r => {
-        const itemId = `${r.source || 'recommendation'}-${r.id}`;
-        return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);
-      })
-      .map(r => ({
-        id: `${r.source || 'recommendation'}-${r.id}`,
-        rawId: r.id,
-        source: r.source || 'recommendation',
-        text: r.message,
-        reasoning: r.data_insight || r.reasoning || r.message,
-        category: r.category || r.type || 'soil',
-        action_status: r.action_status,
-        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
-        severity: r.severity,
-        created_at: r.created_at
-      }));
-  }, [apiRecs, handledRecommendationIds]);
+    return apiRecs.map(r => ({
+      id: r.id,
+      text: r.message,
+      reasoning: r.data_insight || r.reasoning || r.message,
+      severity: r.severity,
+      created_at: r.created_at
+    }));
+  }, [apiRecs]);
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -878,26 +777,20 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                       key={rec.id || i}
                       rec={{
                         id: rec.id || i,
-                        rawId: rec.rawId,
                         title: rec.text,
                         message: rec.text,
                         reasoning: rec.reasoning,
-                        category: rec.category,
-                        action_status: rec.action_status,
+                        category: 'soil',
                         severity: rec.severity || 'normal',
-                        created_at: rec.created_at,
-                        source: rec.source
+                        created_at: rec.created_at
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
                       isEn={isEn}
                       onExecute={executeRecommendation}
-                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
-                      autoDismissOnAction={true}
-                      onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
-                      feedbackState={{ ...(rec.feedback ? { [rec.id]: rec.feedback } : {}), ...feedback }}
+                      feedbackState={feedback}
                       showThanks={showThanksIds}
                       compact={true}
                     />

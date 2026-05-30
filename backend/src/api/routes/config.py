@@ -10,7 +10,7 @@ Sensor thresholds define the optimal, warning, and critical ranges
 for each sensor type (soil_moisture, air_temperature, air_humidity, etc.)
 """
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from src.db.session import get_db

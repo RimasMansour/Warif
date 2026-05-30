@@ -68,11 +68,11 @@ async def list_recommendations(
         since_utc = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
         q = q.where(Recommendation.created_at >= since_utc)
     if type == "urgent":
-        q = q.where((Recommendation.is_alert == True) | (Recommendation.severity.in_(["urgent", "warning"])))
+        q = q.where((Recommendation.is_alert == True) | (Recommendation.severity.in_(["urgent", "warning"])))  # noqa: E712
     elif type == "improvement":
-        q = q.where((Recommendation.is_alert == False) & (Recommendation.severity == "normal"))
+        q = q.where((Recommendation.is_alert == False) & (Recommendation.severity == "normal"))  # noqa: E712
     if unread_only:
-        q = q.where(Recommendation.is_read == False)
+        q = q.where(Recommendation.is_read == False)  # noqa: E712
 
     result = await db.execute(q)
     recommendations = result.scalars().all()
@@ -236,7 +236,7 @@ async def mark_all_read(
     result = await db.execute(
         select(Recommendation).where(
             Recommendation.farm_id == farm_id,
-            Recommendation.is_read == False,
+            Recommendation.is_read == False,  # noqa: E712
         )
     )
     recs = result.scalars().all()
@@ -321,7 +321,7 @@ async def get_feedback_stats(
             func.sum(func.cast(Recommendation.helpful, Integer)).label("helpful_count"),
             func.count(
                 Recommendation.id
-            ).filter(Recommendation.helpful == False).label("not_helpful_count")
+            ).filter(Recommendation.helpful == False).label("not_helpful_count")  # noqa: E712
         ).where(
             Recommendation.farm_id == farm_id,
             Recommendation.helpful.isnot(None),

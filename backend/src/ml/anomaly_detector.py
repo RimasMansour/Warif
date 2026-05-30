@@ -10,8 +10,8 @@ Uses multiple algorithms for robust anomaly detection:
 import logging
 import numpy as np
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -193,8 +193,6 @@ class AnomalyDetector:
             return None
 
         opt_min, opt_max = optimal_ranges[sensor_type]
-        warning_margin = (opt_max - opt_min) * 0.2  # 20% margin
-
         if critical_max and value > critical_max:
             return AnomalyReport(
                 is_anomalous=True,

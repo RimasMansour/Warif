@@ -16,9 +16,9 @@ import httpx
 
 from src.db.session import get_db
 from src.db.models.models import (
-    Farm, Device, SensorReading, SensorThreshold,
+    Farm, Device, SensorReading,
     Recommendation, IrrigationEvent, IrrigationCommand,
-    Actuator, IrrigationStatus
+    Actuator
 )
 from src.api.schemas.schemas import DashboardOut
 from src.core.security import get_current_user
@@ -48,7 +48,7 @@ async def get_dashboard(
         select(Recommendation)
         .where(
             Recommendation.farm_id == farm_id,
-            Recommendation.is_read == False,
+            Recommendation.is_read == False,  # noqa: E712
         )
         .order_by(desc(Recommendation.created_at))
         .limit(1)

@@ -22,9 +22,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
-
-log = logging.getLogger(__name__)
-
 from src.db.session import get_db
 from src.db.models.models import (
     Farm, Device, Actuator, IrrigationCommand,
@@ -37,6 +34,8 @@ from src.api.schemas.schemas import (
     IrrigationStatusOut
 )
 from src.core.security import get_current_user
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -104,14 +103,14 @@ async def start_manual_irrigation(
         select(Device).where(Device.device_id == body.device_id).limit(1)
     )
     dev = dev_result.scalar_one_or_none()
-    log = ActivityLog(
+    activity = ActivityLog(
         farm_id=dev.farm_id if dev else None,
         action_type="manual_irrigation_start",
         device_id=body.device_id,
         details={"duration_min": body.duration_min},
         performed_by="user",
     )
-    db.add(log)
+    db.add(activity)
     await db.commit()
     await db.refresh(command)
 

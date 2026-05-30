@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { translations } from '../../i18n';
 import {
   PlantSoilIcon,

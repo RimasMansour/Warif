@@ -3,7 +3,6 @@
 Unit tests for sensor-related utilities.
 Run with:  pytest tests/unit/
 """
-import pytest
 from src.api.routes.sensors import _compute_status
 
 

@@ -69,21 +69,22 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
   } catch (error) {
     if (timeoutId) clearTimeout(timeoutId)
 
+    let handledError = error;
     if (error.name === 'AbortError') {
-      error = new ApiError(`Connection timeout. Please check your internet connection or server status.`, 408)
+      handledError = new ApiError(`Connection timeout. Please check your internet connection or server status.`, 408)
     }
 
-    const isTransientError = 
-      error.name === 'TypeError' || 
-      (error instanceof ApiError && (error.status >= 500 || error.status === 408));
+    const isTransientError =
+      handledError.name === 'TypeError' ||
+      (handledError instanceof ApiError && (handledError.status >= 500 || handledError.status === 408));
 
     if (isTransientError && retries < maxRetries) {
-      debugLog(`Retry attempt ${retries + 1}/${maxRetries} for ${url} due to transient error: ${error.message}`)
+      debugLog(`Retry attempt ${retries + 1}/${maxRetries} for ${url} due to transient error: ${handledError.message}`)
       await new Promise(resolve => setTimeout(resolve, retryDelay * (retries + 1)))
       return fetchWithRetry(url, options, retries + 1)
     }
 
-    if (error instanceof ApiError && error.status === 401) {
+    if (handledError instanceof ApiError && handledError.status === 401) {
       localStorage.removeItem('warif_token')
       sessionStorage.removeItem('warif_token')
       localStorage.removeItem('warif_user')
@@ -92,8 +93,8 @@ export async function fetchWithRetry(url, options = {}, retries = 0) {
       }
     }
 
-    debugLog(`Error: ${url}`, error.message)
-    throw error
+    debugLog(`Error: ${url}`, handledError.message)
+    throw handledError
   }
 }
 

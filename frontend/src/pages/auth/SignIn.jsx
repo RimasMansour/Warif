@@ -214,8 +214,8 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                 setRegisterError('');
                 setIsSubmitting(true);
                 
-                let registered = false;
-                let loggedIn = false;
+                let _registered = false;
+                let _loggedIn = false;
                 let farmCreated = false;
 
                 try {
@@ -229,14 +229,14 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                       fullNameEn: final.fullNameEn,
                       language: lang
                     });
-                    registered = true;
+                    _registered = true;
                   } catch (err) {
                     // If user already exists, it's a "failure" but might be a retry
                     const errorMsg = err.details?.detail || err.message || '';
                     if (errorMsg.includes('already registered') || errorMsg.includes('already taken')) {
                        // Special case: if we are retrying, maybe they are already registered
                        // We'll try to log in anyway
-                       registered = true; 
+                       _registered = true;
                     } else {
                        throw err;
                     }
@@ -245,7 +245,7 @@ export default function SignIn({ onLogin, lang: propLang, onLangChange }) {
                   // 2. If registration success, login to get token
                   const loginData = await loginUser(final.username, final.password);
                   sessionStorage.setItem('warif_token', loginData.access_token);
-                  loggedIn = true;
+                  _loggedIn = true;
 
                   // 3. Create initial farm
                   const farmTypeMap = {
@@ -422,6 +422,7 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
     const saved = localStorage.getItem('warif_remember');
     if (saved) {
       const { username: u, password: p } = JSON.parse(saved);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUsername(u); setPassword(p); setRemember(true);
     }
   }, []);
@@ -542,7 +543,7 @@ function LoginPage({ onLogin, onNewUser, T, isRtl, onForgotPassword }) {
   );
 }
 
-function ForgotPasswordPage({ step, setStep, onBack, onSuccess, T, isRtl }) {
+function ForgotPasswordPage({ step, setStep, onSuccess, T, isRtl }) {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [newPass, setNewPass] = useState('');
@@ -597,7 +598,7 @@ function ForgotPasswordPage({ step, setStep, onBack, onSuccess, T, isRtl }) {
       await saveNewPassword(newPass);
       setSuccess(T.passwordResetSuccess || 'تم تحديث كلمة المرور بنجاح');
       setTimeout(() => onSuccess(), 1800);
-    } catch (err) {
+    } catch {
       setError(T.errUpdatePassword || 'فشل تحديث كلمة المرور');
     }
   };

@@ -17,7 +17,6 @@ import os
 import psycopg2
 import psycopg2.extras
 from src.core.config import settings
-import json
 import joblib
 import numpy as np
 import pandas as pd
@@ -25,9 +24,6 @@ from datetime import datetime, timezone
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
-from xgboost import XGBClassifier
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -515,7 +511,7 @@ class ContinualLearner:
             recent_acc   = self.db.get_recent_accuracy(last_n=100)
             new_records  = self.db.get_unlabeled_count()
 
-            print(f"\nPerformance Monitor:")
+            print("\nPerformance Monitor:")
             print(f"   Accuracy over last 100 predictions: {recent_acc*100:.1f}%")
             print(f"   New labeled field records: {new_records}")
 
@@ -640,8 +636,6 @@ class ContinualLearner:
         # 6. Compute challenger ensemble accuracy using weighted vote of the new models
         rf_scores  = rf.predict(X_test_sc).astype(float)
         xgb_scores = xgb.predict(X_test_sc).astype(float)
-        eff_lstm_acc = lstm_acc if (self.ensemble.has_lstm and lstm_acc > 0) else rf_acc
-
         if self.ensemble.has_lstm and lstm_acc > 0:
             X_test_3d = X_test_sc.reshape(X_test_sc.shape[0], 1, X_test_sc.shape[1])
             lstm_scores = (
@@ -725,7 +719,7 @@ class ContinualLearner:
         print(f"\n   Model Promoted — Version: {new_version}")
         print(f"   RF: {rf_acc*100:.1f}%  XGB: {xgb_acc*100:.1f}%  "
               f"Ensemble: {challenger_acc*100:.1f}%")
-        print(f"   Legacy estimators backed up successfully.")
+        print("   Legacy estimators backed up successfully.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════

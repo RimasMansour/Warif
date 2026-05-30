@@ -9,7 +9,7 @@ Sections: Auth, User, Farm, Device, Sensor, Dashboard,
           Irrigation, Recommendation, Prediction, Alert, Command, Thresholds
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from pydantic import BaseModel, Field
 
 

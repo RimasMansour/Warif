@@ -18,17 +18,14 @@ Why Ensemble Estimation?
 
 import os
 import pandas as pd
-import numpy as np
 import joblib
 
 from sklearn.ensemble         import RandomForestClassifier
-from sklearn.model_selection  import train_test_split, cross_val_score
+from sklearn.model_selection  import train_test_split
 from sklearn.preprocessing    import StandardScaler
-from sklearn.metrics          import (accuracy_score, classification_report,
-                                      confusion_matrix)
+from sklearn.metrics          import (accuracy_score, classification_report)
 from xgboost import XGBClassifier
 
-import tensorflow as tf
 from tensorflow.keras.models  import Sequential
 from tensorflow.keras.layers  import LSTM, Dense, Dropout
 from tensorflow.keras.callbacks import EarlyStopping

@@ -5,8 +5,7 @@ Connectivity Monitor - Detects device disconnections automatically
 """
 
 import logging
-import os
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 from src.db.models.models import Device, Alert, AlertSeverity
@@ -14,7 +13,7 @@ from src.db.models.models import Device, Alert, AlertSeverity
 logger = logging.getLogger(__name__)
 
 # timeout بالثواني - إذا لم نتلقَ قراءة لمدة 5 دقائق، الجهاز مقطوع
-DEVICE_TIMEOUT_SECONDS = int(os.getenv("DEVICE_TIMEOUT_SECONDS", "900"))  # 15 minutes by default
+DEVICE_TIMEOUT_SECONDS = 300  # 5 minutes
 
 
 class ConnectivityMonitor:
