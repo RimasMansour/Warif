@@ -82,6 +82,58 @@ async def physics_simulation():
             print(f"[Physics Engine] Crashed: {e} — restarting in 15s")
         await asyncio.sleep(15)
 
+async def seed_tuya_devices():
+    """Ensure Tuya actuator devices from tuya_devices.json exist in the DB."""
+    import json
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy import select
+    from src.db.models.models import Device, Actuator
+
+    _actuator_type_map = {
+        "irrigation": "irrigation_valve",
+        "fan":        "fan",
+        "cooling":    "cooler",
+    }
+
+    config_path = Path(__file__).resolve().parents[2] / "tuya_devices.json"
+    if not config_path.exists():
+        return
+
+    cfg = json.loads(config_path.read_text())
+    farm_id = int(cfg.get("farm_id", -1))
+    actuators_cfg = cfg.get("actuators", {})
+    if farm_id < 0 or not actuators_cfg:
+        return
+
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    async_session_maker = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    try:
+        async with async_session_maker() as db:
+            for key, info in actuators_cfg.items():
+                device_id    = info.get("warif_device_id")
+                name         = info.get("warif_name", key)
+                actuator_type = _actuator_type_map.get(key, "irrigation_valve")
+                if not device_id:
+                    continue
+
+                existing = await db.execute(select(Device).where(Device.device_id == device_id))
+                if existing.scalar_one_or_none():
+                    continue
+
+                db.add(Device(farm_id=farm_id, device_id=device_id, name=name, type="actuator"))
+                await db.flush()
+                db.add(Actuator(device_id=device_id, actuator_type=actuator_type, state="off"))
+                print(f"[Seed] Registered Tuya device: {device_id} ({name}) → farm {farm_id}")
+
+            await db.commit()
+    except Exception as e:
+        print(f"[Seed] Tuya device seeding failed: {e}")
+    finally:
+        await engine.dispose()
+
+
 # ── Startup Events ────────────────────────────────────────────────────────
 @app.on_event("startup")
 async def startup_monitoring():
@@ -175,6 +227,7 @@ async def startup_monitoring():
     asyncio.create_task(ml_monitoring())
     asyncio.create_task(physics_simulation())
     asyncio.create_task(tuya_bridge())
+    asyncio.create_task(seed_tuya_devices())
 
 
 # ── Health ────────────────────────────────────────────────────────────────
