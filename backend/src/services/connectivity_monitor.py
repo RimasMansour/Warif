@@ -127,18 +127,21 @@ async def _generate_connectivity_alert(
     توليد تنبيه connectivity فوري
     نوع: critical للمضخات/المراوح, warning للحساسات
     """
+    device_name = device.name or device.device_id
+    device_identifier = device.device_id
+
     # تحديد severity حسب نوع الجهاز
     if device.type == "actuator":  # مضخة, مروحة = مهم جداً
         severity = AlertSeverity.critical
         message = (
-            f"⚠️ قطع الاتصال: {device.name} "
-            f"({device.device_id}) - لا يمكن إرسال الأوامر"
+            f"قطع الاتصال: معدة {device_name} "
+            f"({device_identifier}) - لا يمكن إرسال الأوامر"
         )
     else:  # حساس = تنبيه عادي
         severity = AlertSeverity.warning
         message = (
-            f"⚠️ قطع الاتصال: حساس {device.name} "
-            f"({device.device_id}) - توقف عن الإرسال"
+            f"قطع الاتصال: حساس {device_name} "
+            f"({device_identifier}) - توقف عن الإرسال"
         )
 
     alert = Alert(
