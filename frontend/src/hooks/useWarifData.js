@@ -732,6 +732,33 @@ export async function submitRecommendationFeedback(farmId, recId, helpful) {
   }
 }
 
+export async function submitRecommendationAction(farmId, recId, status) {
+  const token = getStoredToken();
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/action/${recId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) throw new Error('Recommendation action submission failed');
+    const data = await res.json();
+    Object.keys(globalCache.recommendations).forEach(key => {
+      if (!key.startsWith(`${farmId}_`)) return;
+      globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
+        String(rec.id) === String(recId) ? { ...rec, action_status: status, is_read: true } : rec
+      );
+    });
+    console.log('[Warif] Recommendation action submitted:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Recommendation action error:', err);
+    throw err;
+  }
+}
+
 export async function executeRecommendation(category, farmId, durationMin = 15) {
   const _token = getStoredToken();
   try {
