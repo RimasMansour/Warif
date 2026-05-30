@@ -237,7 +237,7 @@ def save_models(rf, xgb, lstm_model, scaler, base_dir):
     Ensures trained models can be loaded directly for operational inference
     without redundant training cycles.
     """
-    models_dir = os.path.join(base_dir, "saved_models")
+    models_dir = os.path.join(base_dir, "models")
     os.makedirs(models_dir, exist_ok=True)
 
     joblib.dump(rf,     os.path.join(models_dir, "rf_model.pkl"))

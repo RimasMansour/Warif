@@ -1,7 +1,7 @@
 # وارف | Warif
 ### AI-Toward Digital Twin for Smart Farms
 
-[![CI](https://github.com/RimasMansour/Warif/actions/workflows/ci.yml/badge.svg)](https://github.com/RimasMansour/Warif/actions)
+[![CI](https://github.com/RimasMansour/Warif/actions/workflows/ci.yml/badge.svg?branch=main-merge)](https://github.com/RimasMansour/Warif/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/Python-3.11-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.111-green)
 ![React](https://img.shields.io/badge/React-19-61DAFB)
@@ -424,13 +424,12 @@ The Warif chatbot is a **Retrieval-Augmented Generation (RAG)** assistant design
 
 | Branch | Purpose |
 |---|---|
-| `main` | Stable, always deployable — never push directly |
-| `dev` | Integration branch — all PRs target this branch |
+| `main-merge` | Primary working branch — all development and deployment runs from here |
 | `feature/<name>` | New features |
 | `fix/<name>` | Bug fixes |
 | `chore/<name>` | Tooling, CI, documentation changes |
 
-**Workflow:** `feature/xyz` → PR into `dev` → reviewed and CI passes → merged → PR `dev` into `main`
+**Workflow:** `feature/xyz` → PR into `main-merge` → reviewed and CI passes → merged
 
 ---
 
