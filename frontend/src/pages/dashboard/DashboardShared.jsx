@@ -111,6 +111,125 @@ const localizedGenericAlertMessage = (alert, isEn, sensorName) => {
     : `تنبيه ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
 };
 
+const localizedRecommendationCopy = (rec, isEn) => {
+  const category = String(rec?.category || rec?.type || 'general').toLowerCase();
+  const message = String(rec?.message || rec?.title || '').trim();
+  const reasoning = String(rec?.reasoning || '').trim();
+  const valueMatch = reasoning.match(/(\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*°\s*[Cc]|\d+(?:\.\d+)?)/);
+  const value = valueMatch ? valueMatch[1] : (isEn ? 'current value' : 'القيمة الحالية');
+
+  const EN = {
+    general: {
+      title: 'System Status',
+      reasoning: 'All indicators are within the ideal range. Continue monitoring the greenhouse conditions.',
+    },
+    irrigation_increase: {
+      title: 'Increase Irrigation Frequency',
+      reasoning: `Soil moisture (${value}) has started moving toward the critical threshold (70%). Recommendation: increase irrigation frequency gradually to maintain productivity.`,
+    },
+    irrigation_reduce: {
+      title: 'Reduce Irrigation',
+      reasoning: `Soil moisture (${value}) is above the ideal range for the crop (80%). Recommendation: reduce irrigation frequency to conserve water and protect the roots.`,
+    },
+    temperature_high: {
+      title: 'Activate Cooling',
+      reasoning: `Current temperature (${value}) has exceeded the critical threshold (38°C). Recommendation: activate cooling systems immediately and open all ventilation windows.`,
+    },
+    temperature_moderate: {
+      title: 'Improve Cooling and Ventilation',
+      reasoning: `Current temperature (${value}) is higher than the ideal range (28°C). Recommendation: increase ventilation and confirm airflow to avoid plant stress.`,
+    },
+    temperature_low: {
+      title: 'Activate Heating',
+      reasoning: `Current temperature (${value}) has dropped below the lower limit (15°C). Recommendation: activate heating gradually to avoid thermal shock to the crop.`,
+    },
+    humidity_high: {
+      title: 'Improve Ventilation',
+      reasoning: `Current air humidity (${value}) is too high. Recommendation: improve ventilation to reduce the risk of fungal disease.`,
+    },
+    humidity_low: {
+      title: 'Activate Misting',
+      reasoning: `Current air humidity (${value}) is below the lower limit (40%). Recommendation: activate the misting system to raise humidity and reduce water stress.`,
+    },
+    soil_hot: {
+      title: 'Protect Soil from Heat',
+      reasoning: `Current soil temperature (${value}) is too high and may reduce root nutrient uptake. Recommendation: use shading or soil cover to lower the temperature.`,
+    },
+    soil_cold: {
+      title: 'Reduce Irrigation in Cold Weather',
+      reasoning: `Current soil temperature (${value}) is very low and slows microbial activity. Recommendation: reduce irrigation frequency to avoid root rot.`,
+    },
+  };
+
+  const AR = {
+    general: {
+      title: 'الحالة العامة للنظام',
+      reasoning: 'جميع المؤشرات ضمن النطاق المثالي. استمر في مراقبة ظروف المزرعة.',
+    },
+    irrigation_increase: {
+      title: 'زيادة فترات الري',
+      reasoning: `رطوبة التربة (${value}) بدأت تتجه نحو الحد الحرج (70%). التوصية: زيادة تكرار الري تدريجيًا للحفاظ على الإنتاجية.`,
+    },
+    irrigation_reduce: {
+      title: 'تقليل الري',
+      reasoning: `رطوبة التربة (${value}) فوق المدى المثالي للمحصول (80%). التوصية: تقليل تكرار الري لتوفير المياه وحماية الجذور.`,
+    },
+    temperature_high: {
+      title: 'تفعيل التبريد',
+      reasoning: `درجة الحرارة الحالية (${value}) تجاوزت الحد الحرج (38°م). التوصية: تشغيل أنظمة التبريد فورًا وفتح جميع فتحات التهوية.`,
+    },
+    temperature_moderate: {
+      title: 'تحسين التبريد والتهوية',
+      reasoning: `درجة الحرارة الحالية (${value}) أعلى من المدى المثالي (28°م). التوصية: زيادة التهوية والتأكد من تدفق الهواء لتجنب إجهاد النبات.`,
+    },
+    temperature_low: {
+      title: 'تفعيل التدفئة',
+      reasoning: `درجة الحرارة الحالية (${value}) انخفضت تحت الحد الأدنى (15°م). التوصية: تشغيل التدفئة تدريجيًا لتجنب صدمة حرارية للمحصول.`,
+    },
+    humidity_high: {
+      title: 'تحسين التهوية',
+      reasoning: `رطوبة الهواء الحالية (${value}) مرتفعة جدًا. التوصية: تحسين التهوية لتقليل خطر الأمراض الفطرية.`,
+    },
+    humidity_low: {
+      title: 'تفعيل الرش',
+      reasoning: `رطوبة الهواء الحالية (${value}) أقل من الحد الأدنى (40%). التوصية: تشغيل نظام الرش لرفع الرطوبة وتقليل الإجهاد المائي.`,
+    },
+    soil_hot: {
+      title: 'حماية التربة من الحرارة',
+      reasoning: `درجة حرارة التربة الحالية (${value}) مرتفعة جدًا وقد تقلل امتصاص الجذور للعناصر الغذائية. التوصية: استخدام التظليل أو تغطية التربة لخفض الحرارة.`,
+    },
+    soil_cold: {
+      title: 'تقليل الري في البرودة',
+      reasoning: `درجة حرارة التربة الحالية (${value}) منخفضة جدًا وتبطئ النشاط الميكروبي. التوصية: تقليل تكرار الري لتجنب تعفن الجذور.`,
+    },
+  };
+
+  const pickVariant = () => {
+    if (category === 'irrigation' || category === 'water') {
+      if (message.includes('تقليل') || message.toLowerCase().includes('reduce')) return 'irrigation_reduce';
+      return 'irrigation_increase';
+    }
+    if (category === 'temperature' || category === 'climate') {
+      if (message.includes('تدفئة') || message.toLowerCase().includes('heating')) return 'temperature_low';
+      if (message.includes('تبريد') || message.toLowerCase().includes('cool')) return 'temperature_high';
+      return 'temperature_moderate';
+    }
+    if (category === 'humidity') {
+      if (message.includes('رش') || message.toLowerCase().includes('mist')) return 'humidity_low';
+      return 'humidity_high';
+    }
+    if (category === 'soil') {
+      if (message.includes('تقليل') || message.toLowerCase().includes('reduce')) return 'soil_cold';
+      return 'soil_hot';
+    }
+    return 'general';
+  };
+
+  const variant = pickVariant();
+  const table = isEn ? EN : AR;
+  return table[variant] || table.general;
+};
+
 export function LastUpdatedTimer({ seconds, ar, en }) {
   const [localSec, setLocalSec] = useState(seconds);
   useEffect(() => {
@@ -834,8 +953,9 @@ export function RecommendationCard({
     rec.severity === 'urgent' ? '#dc2626' :
     rec.severity === 'warning' ? '#d97706' : '#10b981';
 
-  const rawReasoning = extractSafeText(rec.reasoning);
-  const safeTitle = extractSafeText(rec.title || rec.message);
+  const localizedCopy = localizedRecommendationCopy(rec, isEn);
+  const rawReasoning = extractSafeText(localizedCopy.reasoning || rec.reasoning);
+  const safeTitle = extractSafeText(localizedCopy.title || rec.title || rec.message);
 
   const domainCategory = isEn
     ? (rec.category === 'irrigation' || rec.category === 'water' ? 'Irrigation & Water'
