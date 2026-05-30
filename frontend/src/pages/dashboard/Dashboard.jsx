@@ -286,6 +286,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const [manualDuration, setManualDuration] = useState(20);
   const [irrigationProcessing, setIrrigationProcessing] = useState(false);
   const [irrigationSuccess, setIrrigationSuccess] = useState(false);
+  const [irrigationError, setIrrigationError] = useState(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   const farms = userFarms.length > 0
@@ -1014,7 +1015,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
           {/* ===== NEW: Premium Manual Irrigation Modal (Full Screen Overlay) ===== */}
           {showManualIrrigation && (
-            <Account_ModalShell onClose={() => setShowManualIrrigation(false)} isRtl={isRtl}>
+            <Account_ModalShell onClose={() => { setShowManualIrrigation(false); setIrrigationError(null); }} isRtl={isRtl}>
               <div className="bg-white rounded-[24px] overflow-hidden shadow-2xl animate-modal-in flex flex-col w-[380px] max-w-[95vw] border border-gray-100" dir={isRtl ? 'rtl' : 'ltr'} onClick={e => e.stopPropagation()}>
                 
                 {/* Reverted Header Style - Clean White with Icon at Top */}
@@ -1077,12 +1078,13 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
                   {/* Action Buttons */}
                   <div className="flex flex-col gap-4 pt-4">
-                    <button 
+                    <button
                       onClick={async () => {
                         setIrrigationProcessing(true);
+                        setIrrigationError(null);
                         try {
-                          if (!valveDeviceId) throw new Error("No valve device registered for this farm");
-                          await startManualIrrigation(valveDeviceId, manualDuration);
+                          const deviceId = valveDeviceId || `irrigation_${currentFarmId}`;
+                          await startManualIrrigation(deviceId, manualDuration);
                           setIrrigationProcessing(false);
                           setIrrigationSuccess(true);
                           setTimeout(() => {
@@ -1091,10 +1093,11 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                           }, 2500);
                         } catch (e) {
                           setIrrigationProcessing(false);
+                          setIrrigationError(isEn ? "Failed to start irrigation. Please try again." : "فشل بدء الري. يرجى المحاولة مرة أخرى.");
                           console.error("Manual irrigation failed", e);
                         }
                       }}
-                      disabled={irrigationProcessing || !valveDeviceId}
+                      disabled={irrigationProcessing}
                       className="w-full py-5 bg-gradient-to-l from-emerald-800 to-emerald-600 text-white rounded-[24px] font-black text-lg shadow-xl shadow-emerald-900/10 hover:shadow-emerald-900/20 transition-all flex items-center justify-center gap-3 group active:scale-95 disabled:opacity-70"
                     >
                       {irrigationProcessing ? (
@@ -1112,12 +1115,18 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                       )}
                     </button>
 
-                    <button 
+                    <button
                       onClick={() => setShowManualIrrigation(false)}
                       className="text-[13px] text-gray-400 hover:text-red-500 transition-all group font-black uppercase tracking-[0.2em] py-2"
                     >
                       {isRtl ? 'إلغاء العملية' : 'Cancel Operation'}
                     </button>
+
+                    {irrigationError && (
+                      <div className="px-4 py-3 rounded-2xl bg-red-50 border border-red-100 text-red-700 text-xs font-bold text-center">
+                        {irrigationError}
+                      </div>
+                    )}
                   </div>
                 </div>
 
