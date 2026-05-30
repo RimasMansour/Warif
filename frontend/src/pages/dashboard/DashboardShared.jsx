@@ -15,6 +15,7 @@ const ALERT_SENSOR_NAMES = {
   water_tank:       { ar: 'خزان المياه',         en: 'Water Tank' },
   water_usage:      { ar: 'استهلاك المياه',      en: 'Water Usage' },
   power_usage:      { ar: 'استهلاك الطاقة',     en: 'Power Usage' },
+  multi_sensor:     { ar: 'النظام',              en: 'System' },
 };
 
 const alertTitleForSensor = (sensorType, lang) => {

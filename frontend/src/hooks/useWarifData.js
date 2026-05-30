@@ -16,6 +16,10 @@ const KNOWN_ANOMALY_TYPES = new Set([
   "threshold_violation",
 ]);
 
+const INTERNAL_ANOMALY_TYPES = new Set([
+  "ml_anomaly",
+]);
+
 const ALERT_SENSOR_LABELS = {
   ar: {
     water_tank: "خزان المياه",
@@ -30,6 +34,7 @@ const ALERT_SENSOR_LABELS = {
     water_usage: "استهلاك المياه",
     power_usage: "استهلاك الطاقة",
     soil: "التربة",
+    multi_sensor: "النظام",
   },
   en: {
     water_tank: "Water Tank",
@@ -44,6 +49,7 @@ const ALERT_SENSOR_LABELS = {
     water_usage: "Water Usage",
     power_usage: "Power Usage",
     soil: "Soil",
+    multi_sensor: "System",
   },
 };
 
@@ -54,6 +60,54 @@ const fallbackAlertMessage = (backendAlert, isEn) => {
   return isEn
     ? `Alert for ${sensorName}${value}. Review the current condition and take the appropriate action.`
     : `تنبيه ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
+};
+
+const mlAnomalyAlertMessage = (backendAlert, isEn) => {
+  const sensorType = backendAlert.sensor_type || "multi_sensor";
+  const sensorName = ALERT_SENSOR_LABELS[isEn ? "en" : "ar"][sensorType] || (isEn ? "System" : "النظام");
+
+  if (sensorType === "multi_sensor") {
+    return isEn
+      ? "An unusual pattern was detected across multiple sensor readings, and no single sensor was identified as the direct source. Review temperature, humidity, soil readings, and sensor connectivity."
+      : "تم رصد نمط غير طبيعي بين عدة حساسات، ولم يتم تحديد حساس واحد كمصدر مباشر. راجع قراءات الحرارة والرطوبة والتربة وتحقق من اتصال الحساسات.";
+  }
+
+  const actions = {
+    ar: {
+      air_temperature: "تحقق من قراءة الحساس واتصال الجهاز، وتأكد من أن نظام التبريد والتهوية يعمل بشكل طبيعي.",
+      temperature: "تحقق من قراءة الحساس واتصال الجهاز، وتأكد من أن نظام التبريد والتهوية يعمل بشكل طبيعي.",
+      soil_temperature: "تحقق من حساس حرارة التربة وقارن القراءة مع حالة التربة الفعلية.",
+      air_humidity: "تحقق من قراءة حساس رطوبة الهواء واضبط التهوية عند الحاجة.",
+      humidity: "تحقق من قراءة حساس رطوبة الهواء واضبط التهوية عند الحاجة.",
+      soil_moisture: "تحقق من حساس رطوبة التربة ونظام الري، وقارن القراءة بحالة التربة الفعلية.",
+      irrigation: "تحقق من حساس رطوبة التربة ونظام الري، وقارن القراءة بحالة التربة الفعلية.",
+      light_intensity: "تحقق من حساس الإضاءة ومصدر القراءة، وتأكد من عدم وجود عائق أو فصل في الاتصال.",
+      water_tank: "تحقق من حساس خزان المياه ومستوى الخزان الفعلي.",
+      water_usage: "تحقق من المضخة ومحابس الري وقراءة استهلاك المياه.",
+      power_usage: "تحقق من استهلاك الطاقة واتصال الأجهزة المرتبطة.",
+    },
+    en: {
+      air_temperature: "Check the sensor reading and device connection, and confirm that cooling and ventilation are operating normally.",
+      temperature: "Check the sensor reading and device connection, and confirm that cooling and ventilation are operating normally.",
+      soil_temperature: "Check the soil temperature sensor and compare the reading with the actual soil condition.",
+      air_humidity: "Check the air humidity sensor reading and adjust ventilation if needed.",
+      humidity: "Check the air humidity sensor reading and adjust ventilation if needed.",
+      soil_moisture: "Check the soil moisture sensor and irrigation system, and compare the reading with the actual soil condition.",
+      irrigation: "Check the soil moisture sensor and irrigation system, and compare the reading with the actual soil condition.",
+      light_intensity: "Check the light sensor and reading source, and confirm there is no obstruction or connection loss.",
+      water_tank: "Check the water tank sensor and the actual tank level.",
+      water_usage: "Check the pump, irrigation valves, and water usage reading.",
+      power_usage: "Check power consumption and connected device status.",
+    },
+  };
+
+  const action = actions[isEn ? "en" : "ar"][sensorType] || (isEn
+    ? "Check the sensor reading, device connection, and related equipment."
+    : "تحقق من قراءة الحساس واتصال الجهاز والمعدات المرتبطة.");
+
+  return isEn
+    ? `An unusual reading pattern was detected in ${sensorName}. The reading may be outside the expected range or inconsistent with other sensors. ${action}`
+    : `تم رصد نمط قراءة غير طبيعي في ${sensorName}. قد تكون القراءة خارج النطاق المتوقع أو غير متوافقة مع بقية الحساسات. ${action}`;
 };
 
 // Global Persistence Cache to prevent "zeroing" on navigation
@@ -310,8 +364,13 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         const sensorNameEn = ALERT_SENSOR_LABELS.en[backendAlert.sensor_type] || "System";
         const backendExplanation = backendAlert.anomaly_type || "";
         const anomalyType = KNOWN_ANOMALY_TYPES.has(backendExplanation) ? backendExplanation : null;
-        const reasoningText = anomalyType ? "" : backendExplanation;
-        const msg = backendAlert.message || fallbackAlertMessage(backendAlert, isEn);
+        const isInternalAnomaly = INTERNAL_ANOMALY_TYPES.has(backendExplanation);
+        const reasoningText = anomalyType || isInternalAnomaly ? "" : backendExplanation;
+        const isMultiSensorAlert = backendAlert.sensor_type === "multi_sensor";
+        const hasTechnicalMlCopy = /ML Anomaly|KNN|Isolation Forest|multi[_-]sensor/i.test(backendAlert.message || "");
+        const msg = isInternalAnomaly || isMultiSensorAlert || hasTechnicalMlCopy
+          ? mlAnomalyAlertMessage(backendAlert, isEn)
+          : (backendAlert.message || fallbackAlertMessage(backendAlert, isEn));
 
         let shortTitle = msg;
         let fullDetails = msg;
