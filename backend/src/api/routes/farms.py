@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from src.db.session import get_db
-from src.db.models.models import Farm, Device
+from src.db.models.models import Farm, Device, ActivityLog
 from src.api.schemas.schemas import FarmIn, FarmOut, DeviceIn, DeviceOut, FarmResourceUpdateIn
 from src.core.security import get_current_user
 
@@ -110,7 +110,24 @@ async def update_auto_mode(
     if not farm:
         raise HTTPException(status_code=404, detail="Farm not found")
     
-    farm.auto_mode = payload.get("auto_mode", True)
+    previous_auto_mode = farm.auto_mode
+    new_auto_mode = payload.get("auto_mode", True)
+    farm.auto_mode = new_auto_mode
+
+    if previous_auto_mode != new_auto_mode:
+        db.add(ActivityLog(
+            farm_id=farm_id,
+            user_id=int(current_user["sub"]),
+            action_type="auto_mode_changed",
+            details={
+                "previous_auto_mode": previous_auto_mode,
+                "new_auto_mode": new_auto_mode,
+                "previous_mode": "auto" if previous_auto_mode else "manual",
+                "new_mode": "auto" if new_auto_mode else "manual",
+            },
+            performed_by="user",
+        ))
+
     await db.commit()
     await db.refresh(farm)
     

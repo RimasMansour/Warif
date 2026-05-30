@@ -7,7 +7,7 @@ import {
   EmptyState,
   RecommendationCard
 } from './DashboardShared';
-import { useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
+import { useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 import { markRecommendationRead } from '../../services/api';
 
 export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode, sharedSensors }) {
@@ -22,19 +22,32 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     subtitle: isEn ? "Track and optimize AI decisions based on your data." : "تتبع وتحسين قرارات الذكاء الاصطناعي بناءً على بيانات المحمية.",
   };
 
-  const { data: apiRecs, error: recsError } = useRecommendations(farmId);
+  const weekStart = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const { data: apiRecs, error: recsError } = useRecommendations(farmId, {
+    limit: 1000,
+    since: weekStart
+  });
 
 
   const allRecommendations = useMemo(() => {
     if (apiRecs && apiRecs.length > 0) {
       return apiRecs.map(r => ({
-        id: `api-${r.id}`,
+        id: `${r.source || 'recommendation'}-${r.id}`,
         rawId: r.id,
+        source: r.source || 'recommendation',
         mode: 'auto',
-        type: r.category || 'irrigation',
+        type: r.category || 'general',
         title: r.message || 'توصية',
         reasoning: r.data_insight || r.reasoning || '',
         severity: r.severity || 'normal',
+        action_status: r.action_status,
+        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
         created_at: r.created_at,
         status: r.is_read ? 'accepted' : 'pending',
         week: isEn ? 'This Week' : 'هذا الأسبوع',
@@ -45,6 +58,9 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
   }, [apiRecs, isEn]);
 
   const [localRecs, setLocalRecs] = useState([]);
+  const feedbackState = useMemo(() => (
+    Object.fromEntries(localRecs.filter(rec => rec.feedback).map(rec => [rec.id, rec.feedback]))
+  ), [localRecs]);
 
   useEffect(() => {
     let filtered = allRecommendations;
@@ -58,15 +74,16 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
     if (!showThanksIds.includes(id)) {
       setShowThanksIds(prev => [...prev, id]);
     }
-    // Extract numeric id from 'api-123' format or use as-is
-    const rawId = String(id).replace('api-', '');
+    const item = localRecs.find(rec => rec.id === id);
+    const rawId = item?.rawId || String(id).replace(/^(recommendation|alert|api)-/, '');
     await submitRecommendationFeedback(farmId, rawId, val === 'up');
   };
 
   const handleDecision = async (id, val) => {
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, status: val } : rec));
     if (val === 'accepted') {
-      await markRecommendationRead(farmId, id.replace('api-', ''));
+      const item = localRecs.find(rec => rec.id === id);
+      await markRecommendationRead(farmId, String(item?.rawId || id).replace(/^(recommendation|api)-/, ''));
     }
   };
 
@@ -120,20 +137,24 @@ export function DecisionSupportPage({ onBack, activeFarm, farmId, globalAutoMode
                       key={item.id}
                       rec={{
                         id: item.id,
+                        rawId: item.rawId,
                         title: item.title,
                         message: item.suggestion || item.title,
                         reasoning: item.reasoning,
                         category: item.type || 'irrigation',
                         severity: item.severity || 'normal',
-                        created_at: item.created_at
+                        action_status: item.action_status,
+                        created_at: item.created_at,
+                        source: item.source
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
                       isEn={isEn}
                       onExecute={executeRecommendation}
+                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
-                      feedbackState={{}}
+                      feedbackState={feedbackState}
                       showThanks={showThanksIds}
                       compact={false}
                     />

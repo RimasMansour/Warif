@@ -141,7 +141,7 @@ let simState = {
 };
 
 // Expose manual triggers for UI
-export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15) {
+export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15, recommendationId = null) {
   const token = getStoredToken();
   try {
     if (action === 'stop') {
@@ -159,7 +159,7 @@ export async function triggerManualIrrigation(action = 'start', farmId = null, d
     const res = await fetch(`${API_BASE}/api/v1/irrigation/manual`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_id: `irrigation_${farmId}`, duration_min: durationMin })
+      body: JSON.stringify({ device_id: `irrigation_${farmId}`, duration_min: durationMin, recommendation_id: recommendationId })
     });
     if (!res.ok) throw new Error('Irrigation API failed');
     const data = await res.json();
@@ -172,11 +172,11 @@ export async function triggerManualIrrigation(action = 'start', farmId = null, d
     return null;
   }
 }
-export async function triggerManualCooling(mode = "stop", farmId = null) {
+export async function triggerManualCooling(mode = "stop", farmId = null, recommendationId = null) {
   console.log('[Warif] Manual cooling requested:', mode, 'farm:', farmId);
-  let payload = { fan: false, cooler: false, farm_id: farmId };
-  if (mode === 'full')     payload = { fan: true,  cooler: true,  farm_id: farmId };
-  if (mode === 'fan_only') payload = { fan: true,  cooler: false, farm_id: farmId };
+  let payload = { fan: false, cooler: false, farm_id: farmId, recommendation_id: recommendationId };
+  if (mode === 'full')     payload = { fan: true,  cooler: true,  farm_id: farmId, recommendation_id: recommendationId };
+  if (mode === 'fan_only') payload = { fan: true,  cooler: false, farm_id: farmId, recommendation_id: recommendationId };
 
   const token = getStoredToken();
   try {
@@ -194,6 +194,41 @@ export async function triggerManualCooling(mode = "stop", farmId = null) {
     console.error('Failed to trigger cooling:', e);
     throw e;
   }
+}
+
+export function useCoolingStatus(farmId, intervalMs = 15000) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(Boolean(farmId));
+
+  const fetchCoolingStatus = useCallback(async () => {
+    if (!farmId) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+    const token = getStoredToken();
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/commands/cooling/status/${farmId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch cooling status');
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      console.error('Cooling status fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [farmId]);
+
+  useEffect(() => {
+    fetchCoolingStatus();
+    if (!intervalMs) return undefined;
+    const id = setInterval(fetchCoolingStatus, intervalMs);
+    return () => clearInterval(id);
+  }, [fetchCoolingStatus, intervalMs]);
+
+  return { data, loading, refetch: fetchCoolingStatus };
 }
 
 export function useLatestSensors(intervalMs = 10000) {
@@ -261,6 +296,7 @@ export function useAutoMode(farmId) {
   // Load auto_mode from backend on mount
   useEffect(() => {
     if (!farmId) return;
+    setLoading(true);
     const token = getStoredToken();
     fetch(`${API_BASE}/api/v1/farms/${farmId}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -271,16 +307,19 @@ export function useAutoMode(farmId) {
           setAutoMode(data.auto_mode);
         }
       })
-      .catch(() => { });
+      .catch(() => { })
+      .finally(() => setLoading(false));
   }, [farmId]);
 
   // Save auto_mode to backend
   const toggleAutoMode = async (newValue) => {
     if (!farmId) return;
+    const previousValue = autoMode;
+    setAutoMode(newValue);
     setLoading(true);
     const token = getStoredToken();
     try {
-      await fetch(`${API_BASE}/api/v1/farms/${farmId}/auto-mode`, {
+      const res = await fetch(`${API_BASE}/api/v1/farms/${farmId}/auto-mode`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -288,9 +327,14 @@ export function useAutoMode(farmId) {
         },
         body: JSON.stringify({ auto_mode: newValue })
       });
-      setAutoMode(newValue);
+      if (!res.ok) throw new Error(`Failed to update auto mode (${res.status})`);
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.auto_mode === 'boolean') {
+        setAutoMode(data.auto_mode);
+      }
     } catch (e) {
       console.error('Failed to update auto mode:', e);
+      setAutoMode(previousValue);
     } finally {
       setLoading(false);
     }
@@ -499,15 +543,22 @@ export function useDashboard(farm_id) {
   return { data, loading, error, refetch: fetch_data }
 }
 
-export function useRecommendations(farm_id) {
-  const [data, setData] = useState(globalCache.recommendations[farm_id] || [])
-  const [loading, setLoading] = useState(!globalCache.recommendations[farm_id])
+export function useRecommendations(farm_id, options = {}) {
+  const includeAlerts = Boolean(options.includeAlerts);
+  const limit = options.limit || 50;
+  const since = options.since || null;
+  const sinceStr = since instanceof Date ? since.toISOString() : since;
+  const cacheKey = `${farm_id || 'none'}_${includeAlerts ? 'all' : 'recommendations'}_${limit}_${sinceStr || 'all'}`;
+  const [data, setData] = useState(globalCache.recommendations[cacheKey] || [])
+  const [loading, setLoading] = useState(!globalCache.recommendations[cacheKey])
   const [error, setError] = useState(null)
 
   const fetch_data = useCallback(async () => {
     if (!farm_id) return
     try {
-      const res = await fetch(`${API_BASE}/api/v1/recommendations/${farm_id}`, {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (sinceStr) params.set('since', sinceStr);
+      const res = await fetch(`${API_BASE}/api/v1/recommendations/${farm_id}?${params.toString()}`, {
         headers: authHeaders()
       })
       if (!res.ok) throw new Error('Failed to fetch recommendations')
@@ -517,10 +568,10 @@ export function useRecommendations(farm_id) {
       json = json.filter(rec => {
         const text = (rec.title || '') + ' ' + (rec.message || '') + ' ' + (rec.reasoning || '');
         const isPerfect = text.includes('النظام يعمل بشكل مثالي') || text.includes('ضمن النطاق المثالي');
-        return !isPerfect && rec.is_alert === false;
+        return !isPerfect && (includeAlerts || rec.is_alert === false);
       });
 
-      globalCache.recommendations[farm_id] = json;
+      globalCache.recommendations[cacheKey] = json;
       setData(json)
       setError(null)
     } catch (err) {
@@ -528,7 +579,7 @@ export function useRecommendations(farm_id) {
     } finally {
       setLoading(false)
     }
-  }, [farm_id])
+  }, [farm_id, includeAlerts, limit, sinceStr, cacheKey])
 
   useEffect(() => {
     fetch_data()
@@ -726,6 +777,12 @@ export async function submitRecommendationFeedback(farmId, recId, helpful) {
     });
     if (!res.ok) throw new Error('Feedback submission failed');
     const data = await res.json();
+    Object.keys(globalCache.recommendations).forEach(key => {
+      if (!key.startsWith(`${farmId}_`)) return;
+      globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
+        String(rec.id) === String(recId) ? { ...rec, helpful, feedback_at: data.feedback_at } : rec
+      );
+    });
     console.log('[Warif] Feedback submitted:', data);
     return data;
   } catch (err) {
@@ -734,13 +791,39 @@ export async function submitRecommendationFeedback(farmId, recId, helpful) {
   }
 }
 
-export async function executeRecommendation(category, farmId, durationMin = 15) {
+export async function submitRecommendationAction(farmId, recId, status) {
   const token = getStoredToken();
   try {
+    const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/action/${recId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ status })
+    });
+    if (!res.ok) throw new Error('Recommendation action submission failed');
+    const data = await res.json();
+    Object.keys(globalCache.recommendations).forEach(key => {
+      if (!key.startsWith(`${farmId}_`)) return;
+      globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
+        String(rec.id) === String(recId) ? { ...rec, action_status: status, is_read: true } : rec
+      );
+    });
+    console.log('[Warif] Recommendation action submitted:', data);
+    return data;
+  } catch (err) {
+    console.error('[Warif] Recommendation action error:', err);
+    throw err;
+  }
+}
+
+export async function executeRecommendation(category, farmId, recommendationId = null, durationMin = 15) {
+  try {
     if (category === 'irrigation') {
-      return await triggerManualIrrigation('start', farmId, durationMin);
+      return await triggerManualIrrigation('start', farmId, durationMin, recommendationId);
     } else if (category === 'temperature' || category === 'humidity') {
-      return await triggerManualCooling('full', farmId);
+      return await triggerManualCooling('full', farmId, recommendationId);
     } else {
       console.warn('[Warif] Unsupported recommendation category:', category);
       return null;

@@ -89,6 +89,54 @@ async def list_commands(limit: int = 50, db: AsyncSession = Depends(get_db), cur
     )
     return result.scalars().all()
 
+@router.get("/cooling/status/{farm_id}", response_model=dict)
+async def get_cooling_status(
+    farm_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the latest persisted cooling state for the requested farm."""
+    farm_check = await db.execute(
+        select(Farm).where(
+            Farm.id == farm_id,
+            Farm.user_id == int(current_user["sub"]),
+        )
+    )
+    if not farm_check.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Access denied: Farm not owned by current user")
+
+    result = await db.execute(
+        select(ActivityLog)
+        .where(
+            ActivityLog.farm_id == farm_id,
+            ActivityLog.action_type.in_([
+                "manual_cooling_full",
+                "manual_cooling_fan_only",
+                "manual_cooling_stop",
+                "auto_cooling_full",
+                "auto_cooling_fan_only",
+                "auto_cooling_stop",
+            ]),
+        )
+        .order_by(desc(ActivityLog.created_at))
+        .limit(1)
+    )
+    latest = result.scalar_one_or_none()
+    details = latest.details if latest and isinstance(latest.details, dict) else {}
+    mode = details.get("mode") or "stop"
+    fan = bool(details.get("fan", mode in {"full", "fan_only"}))
+    cooler = bool(details.get("cooler", mode == "full"))
+
+    return {
+        "farm_id": farm_id,
+        "fan": fan,
+        "cooler": cooler,
+        "active": fan or cooler,
+        "mode": mode,
+        "source": latest.action_type if latest else None,
+        "updated_at": latest.created_at if latest else None,
+    }
+
 
 @router.post("", response_model=CommandOut, status_code=201)
 async def send_command(payload: CommandIn, db: AsyncSession = Depends(get_db), current_user: dict = Depends(get_current_user)):

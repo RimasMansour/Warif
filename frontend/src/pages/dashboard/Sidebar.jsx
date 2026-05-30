@@ -40,6 +40,7 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globa
         <div className={`flex items-center justify-between p-1.5 rounded-2xl border bg-white/50 backdrop-blur-sm ${globalAutoMode ? 'border-emerald-100/50' : 'border-orange-100/50'}`}>
           <div className="flex bg-gray-100/80 rounded-xl p-1 shadow-inner relative overflow-hidden w-full">
             <button
+              type="button"
               onClick={() => setGlobalAutoMode && setGlobalAutoMode(true)}
               className={`flex-1 py-1.5 text-[11px] font-black rounded-lg transition-all duration-300 z-10 flex items-center justify-center gap-1.5 ${globalAutoMode ? 'text-white drop-shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
             >
@@ -47,6 +48,7 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globa
               {T.auto || (isRtl ? 'تلقائي' : 'Auto')}
             </button>
             <button
+              type="button"
               onClick={() => setGlobalAutoMode && setGlobalAutoMode(false)}
               className={`flex-1 py-1.5 text-[11px] font-black rounded-lg transition-all duration-300 z-10 flex items-center justify-center gap-1.5 ${!globalAutoMode ? 'text-white drop-shadow-md' : 'text-gray-500 hover:text-gray-700'}`}
             >
@@ -55,7 +57,7 @@ export function Sidebar({ currentPage, onGo, T, activeFarm, setActiveFarm, globa
             </button>
             {/* Sliding indicator */}
             <div 
-              className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-transform duration-300 ease-in-out shadow-sm ${globalAutoMode ? 'bg-emerald-500' : 'bg-orange-400'}`} 
+              className={`pointer-events-none absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-lg transition-transform duration-300 ease-in-out shadow-sm ${globalAutoMode ? 'bg-emerald-500' : 'bg-orange-400'}`} 
               style={{
                 ...(isRtl ? { right: '4px' } : { left: '4px' }),
                 transform: globalAutoMode 

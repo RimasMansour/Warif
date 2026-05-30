@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
 import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer } from './DashboardShared';
 import { IrrigationActionButton, SustainabilityLineChart } from './DashboardCharts';
-import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback } from '../../hooks/useWarifData';
+import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 import { stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
@@ -107,12 +107,14 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
+  const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-    await submitRecommendationFeedback(farmId, id, type === 'up');
+    const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
+    await submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
   const { data: localSensors } = useLatestSensors(10000);
@@ -181,16 +183,23 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
     if (!apiRecs) return [];
     return apiRecs
       .filter(r => r.category === 'irrigation')
+      .filter(r => {
+        const itemId = `${r.source || 'recommendation'}-${r.id}`;
+        return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);
+      })
       .map(r => ({
-        id: r.id,
+        id: `${r.source || 'recommendation'}-${r.id}`,
+        rawId: r.id,
         type: r.category,
         title: r.title,
         text: r.message,
         reasoning: r.data_insight || r.reasoning || r.reason || r.message,
         suggestion: r.suggestion,
-        benefit: r.benefit
+        benefit: r.benefit,
+        action_status: r.action_status,
+        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null
       }));
-  }, [apiRecs]);
+  }, [apiRecs, handledRecommendationIds]);
 
   const dualSeries = useMemo(() => {
     const targetLen = range === 'D' ? 24 : range === 'W' ? 7 : range === 'M' ? 30 : 12;
@@ -386,20 +395,25 @@ export function IrrigationPage({ onBack, globalAutoMode, activeFarm, farmId, onO
                       key={rec.id || i}
                       rec={{
                         id: rec.id || i,
+                        rawId: rec.rawId,
                         title: rec.title || rec.text,
                         message: rec.suggestion || rec.text,
                         reasoning: rec.reasoning,
                         category: rec.type || 'irrigation',
                         severity: rec.severity || 'normal',
-                        created_at: rec.created_at
+                        created_at: rec.created_at,
+                        action_status: rec.action_status
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
                       isEn={isEn}
                       onExecute={executeRecommendation}
+                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+                      autoDismissOnAction={true}
+                      onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
-                      feedbackState={feedback}
+                      feedbackState={{ ...(rec.feedback ? { [rec.id]: rec.feedback } : {}), ...feedback }}
                       showThanks={showThanksIds}
                       compact={true}
                     />

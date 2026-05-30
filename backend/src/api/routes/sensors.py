@@ -304,8 +304,15 @@ async def ingest_sensor_reading(
 
                     sev_lower = (sr.severity or "normal").lower()
 
-                    # ── RULES: normal, low, informational, optimization -> RECOMMENDATIONS ──
-                    if sev_lower in ("normal", "low", "informational", "optimization"):
+                    rec_severity = RecommendationSeverity.normal
+                    if sev_lower in ("urgent", "critical"):
+                        rec_severity = RecommendationSeverity.urgent
+                    elif sev_lower in ("medium", "warning", "risk"):
+                        rec_severity = RecommendationSeverity.warning
+
+                    # Store every Decision Engine item as a recommendation.
+                    # Warning/urgent items may also create alert cards below, but alerts are kept separate.
+                    if sev_lower in ("normal", "low", "informational", "optimization", "medium", "warning", "urgent", "critical", "risk"):
                         cooldown_5min = datetime.now(timezone.utc) - timedelta(minutes=5)
                         recent_rec_result = await db.execute(
                             select(Recommendation)
@@ -323,12 +330,13 @@ async def ingest_sensor_reading(
                                 message=sr.message,
                                 reasoning=sr.reasoning,
                                 category=cat_map.get(sr.category, RecommendationCategory.irrigation),
-                                severity=RecommendationSeverity.normal,
+                                severity=rec_severity,
                                 is_read=False,
+                                is_alert=False,
                             ))
 
                     # ── RULES: medium, warning, urgent, critical, risk -> ALERTS ─────────────
-                    elif sev_lower in ("medium", "warning", "urgent", "critical", "risk"):
+                    if sev_lower in ("medium", "warning", "urgent", "critical", "risk"):
                         alert_sev = AlertSeverity.critical if sev_lower in ("urgent", "critical") else AlertSeverity.warning
                         cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
                         existing = await db.execute(

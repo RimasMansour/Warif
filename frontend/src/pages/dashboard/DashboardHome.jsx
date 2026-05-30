@@ -17,7 +17,7 @@ import {
   LastUpdatedTimer
 } from './DashboardShared';
 import { getLabelForRange } from './dashboardUtils';
-import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources, submitRecommendationFeedback, executeRecommendation, submitAlertFeedback } from '../../hooks/useWarifData';
+import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources, submitRecommendationFeedback, submitRecommendationAction, executeRecommendation, submitAlertFeedback } from '../../hooks/useWarifData';
 
 
 
@@ -577,6 +577,8 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
     type: r.category || 'general',
     category: r.category || 'general',
     is_read: r.is_read,
+    action_status: r.action_status,
+    feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
     created_at: r.created_at,
   })) : [];
 
@@ -625,15 +627,17 @@ function DSSGlanceCard({ onGo, globalAutoMode, activeFarm, farmId }) {
                 reasoning: rec.data_insight,
                 category: rec.category,
                 severity: rec.severity || 'normal',
+                action_status: rec.action_status,
                 created_at: rec.created_at
               }}
               farmId={farmId}
               globalAutoMode={globalAutoMode}
               isEn={isEn}
-              onExecute={(category, farmId) => executeRecommendation(category, farmId)}
+              onExecute={(category, farmId, recId) => executeRecommendation(category, farmId, recId)}
+              onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
               onIgnore={() => {}}
               onFeedback={handleFeedback}
-              feedbackState={feedback}
+              feedbackState={{ ...(rec.feedback ? { [rec.id]: rec.feedback } : {}), ...feedback }}
               showThanks={showThanksIds}
               compact={true}
             />

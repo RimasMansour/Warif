@@ -277,8 +277,10 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     }
   }, [page]);
   const [activeFarm, setActiveFarm] = useState(0); 
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
-  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(farmId);
+  const savedFarmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId || null;
+  const currentFarm = userFarms[activeFarm] || userFarms[0] || null;
+  const currentFarmId = currentFarm?.id || currentFarm?.farm_id || savedFarmId;
+  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(currentFarmId);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSensorsPopup, setShowSensorsPopup] = useState(false);
   const [showManualIrrigation, setShowManualIrrigation] = useState(false);
@@ -316,7 +318,6 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   const [connectedSensors, setConnectedSensors] = useState([]);
 
-  const currentFarmId = userFarms[activeFarm]?.id || null;
   const { devices, counts, loading: devicesLoading } = useDevices(currentFarmId);
 
   const valveDeviceId = useMemo(() => {
@@ -491,7 +492,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       const API_BASE = import.meta.env.VITE_API_URL || "";
       const fetchUrl = `${API_BASE.replace(/\/$/, "")}/api/v1/chatbot/ask`;
       const token = sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token');
-      const chatFarmId = farmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
+      const chatFarmId = currentFarmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
 
       const response = await fetch(fetchUrl, {
         method: "POST",

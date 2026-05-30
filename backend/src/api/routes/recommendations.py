@@ -20,7 +20,7 @@ from sqlalchemy import select, desc, Integer, func
 from pydantic import BaseModel
 
 from src.db.session import get_db
-from src.db.models.models import Recommendation, Farm
+from src.db.models.models import Recommendation, Farm, ActivityLog
 from src.api.schemas.schemas import RecommendationOut
 from src.core.security import get_current_user
 # PresentationFormatter removed — formatting is handled inline per endpoint
@@ -29,6 +29,10 @@ from src.core.security import get_current_user
 class FeedbackRequest(BaseModel):
     # Request body for recommendation feedback — farmer rates if recommendation was useful
     helpful: bool
+
+
+class RecommendationActionRequest(BaseModel):
+    status: str
 
 
 router = APIRouter()
@@ -41,8 +45,9 @@ async def list_recommendations(
     category: Optional[str] = Query(None, description="irrigation | temperature | humidity | soil | general"),
     severity: Optional[str] = Query(None, description="normal | warning | urgent"),
     type: Optional[str] = Query(None, description="urgent | improvement"),
+    since: Optional[datetime] = Query(None, description="Return recommendations created at or after this UTC timestamp"),
     unread_only: bool = Query(False),
-    limit: int = Query(50, le=200),
+    limit: int = Query(50, le=1000),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -59,6 +64,9 @@ async def list_recommendations(
         q = q.where(Recommendation.category == category)
     if severity:
         q = q.where(Recommendation.severity == severity)
+    if since:
+        since_utc = since if since.tzinfo else since.replace(tzinfo=timezone.utc)
+        q = q.where(Recommendation.created_at >= since_utc)
     if type == "urgent":
         q = q.where((Recommendation.is_alert == True) | (Recommendation.severity.in_(["urgent", "warning"])))
     elif type == "improvement":
@@ -68,6 +76,27 @@ async def list_recommendations(
 
     result = await db.execute(q)
     recommendations = result.scalars().all()
+    recommendation_ids = {rec.id for rec in recommendations}
+
+    action_status_by_id = {}
+    if recommendation_ids:
+        action_logs_result = await db.execute(
+            select(ActivityLog)
+            .where(
+                ActivityLog.farm_id == farm_id,
+                ActivityLog.action_type.in_(["recommendation_executed", "recommendation_ignored"]),
+            )
+            .order_by(desc(ActivityLog.created_at))
+            .limit(1000)
+        )
+        for log in action_logs_result.scalars().all():
+            details = log.details or {}
+            try:
+                rec_id = int(details.get("recommendation_id"))
+            except (TypeError, ValueError):
+                continue
+            if rec_id in recommendation_ids and rec_id not in action_status_by_id:
+                action_status_by_id[rec_id] = "executed" if log.action_type == "recommendation_executed" else "ignored"
 
     # Debug: log count of returned recommendations
     print(f"[DEBUG] Farm {farm_id}: Found {len(recommendations)} recommendations")
@@ -75,6 +104,18 @@ async def list_recommendations(
         # Check if any recommendations exist at all for this farm
         all_recs = await db.execute(select(Recommendation).where(Recommendation.farm_id == farm_id))
         print(f"[DEBUG] Total recommendations in DB for farm {farm_id}: {len(all_recs.scalars().all())}")
+
+    def normalize_category(value: Optional[str]) -> str:
+        raw = (value or "general").lower()
+        if raw in ("air_temperature", "temperature", "climate"):
+            return "temperature"
+        if raw in ("air_humidity", "humidity"):
+            return "humidity"
+        if raw in ("soil_temperature", "soil"):
+            return "soil"
+        if raw in ("soil_moisture", "irrigation", "water"):
+            return "irrigation"
+        return raw
 
     # Serialize recommendations — safely extract enum values for frontend
     professional_recs = []
@@ -86,20 +127,75 @@ async def list_recommendations(
 
             professional_recs.append({
                 "id": rec.id,
+                "source": "recommendation",
                 "title": rec.message[:60] if rec.message else "توصية",
                 "message": rec.message,
                 "reasoning": rec.reasoning,
-                "category": category_value,
+                "category": normalize_category(category_value),
                 "severity": severity_value,
                 "is_read": rec.is_read,
                 "is_alert": rec.is_alert,
+                "helpful": rec.helpful,
+                "feedback_at": rec.feedback_at.isoformat() if rec.feedback_at else None,
+                "action_status": rec.mode if rec.mode in ("executed", "ignored") else action_status_by_id.get(rec.id),
                 "created_at": rec.created_at.isoformat() if rec.created_at else None,
             })
         except Exception as e:
             print(f"[ERROR] Recommendation {rec.id}: {e}")
             continue
 
+    professional_recs.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+    professional_recs = professional_recs[:limit]
+
     return professional_recs
+
+
+@router.post("/{farm_id}/action/{recommendation_id}", response_model=dict)
+async def record_recommendation_action(
+    farm_id: int,
+    recommendation_id: int,
+    action: RecommendationActionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Persist the user's execute/ignore decision for a recommendation."""
+    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+
+    result = await db.execute(
+        select(Recommendation).where(
+            Recommendation.id == recommendation_id,
+            Recommendation.farm_id == farm_id,
+        )
+    )
+    rec = result.scalar_one_or_none()
+    if not rec:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+
+    status = action.status.strip().lower()
+    if status not in ("executed", "ignored"):
+        raise HTTPException(status_code=422, detail="status must be executed or ignored")
+
+    log = ActivityLog(
+        farm_id=farm_id,
+        user_id=int(current_user["sub"]),
+        action_type=f"recommendation_{status}",
+        details={
+            "recommendation_id": recommendation_id,
+            "category": rec.category.value if hasattr(rec.category, "value") else str(rec.category),
+            "message": rec.message,
+        },
+        performed_by="user",
+    )
+    db.add(log)
+    rec.is_read = True
+    rec.mode = status
+    await db.commit()
+
+    return {
+        "success": True,
+        "recommendation_id": recommendation_id,
+        "action_status": status,
+    }
 
 
 @router.post("/{farm_id}/mark-read/{recommendation_id}", response_model=RecommendationOut)

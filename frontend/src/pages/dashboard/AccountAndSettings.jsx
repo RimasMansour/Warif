@@ -1292,16 +1292,27 @@ export function AccountAndSettingsPages({
               )}
               {!logsLoading && logs.map((log, i) => {
                 const actionLabels = {
-                  irrigation_start: isEn ? 'Irrigation started' : 'بدء الري',
+                  irrigation_start: isEn ? 'Irrigation started' : 'تشغيل الري',
                   irrigation_stop: isEn ? 'Irrigation stopped' : 'إيقاف الري',
-                  irrigation_auto_start: isEn ? 'Auto irrigation started' : 'بدء الري التلقائي',
-                  irrigation_auto_stop: isEn ? 'Auto irrigation stopped' : 'إيقاف الري التلقائي',
+                  irrigation_auto_start: isEn ? 'Irrigation started' : 'تشغيل الري',
+                  irrigation_auto_stop: isEn ? 'Irrigation stopped' : 'إيقاف الري',
+                  manual_irrigation_start: isEn ? 'Irrigation started' : 'تشغيل الري',
+                  manual_irrigation_stop: isEn ? 'Irrigation stopped' : 'إيقاف الري',
+                  auto_irrigation_start: isEn ? 'Irrigation started' : 'تشغيل الري',
+                  auto_irrigation_stop: isEn ? 'Irrigation stopped' : 'إيقاف الري',
                   cooler_auto_on: isEn ? 'Cooler activated' : 'تشغيل التكييف',
                   cooler_auto_off: isEn ? 'Cooler stopped' : 'إيقاف التكييف',
                   fan_auto_on: isEn ? 'Fan activated' : 'تشغيل المروحة',
                   fan_auto_off: isEn ? 'Fan stopped' : 'إيقاف المروحة',
                   pump_on: isEn ? 'Pump started' : 'تشغيل المضخة',
                   pump_off: isEn ? 'Pump stopped' : 'إيقاف المضخة',
+                  manual_cooling_full: isEn ? 'Cooling activated' : 'تشغيل التبريد',
+                  manual_cooling_fan_only: isEn ? 'Fan activated' : 'تشغيل المروحة',
+                  manual_cooling_stop: isEn ? 'Cooling stopped' : 'إيقاف التبريد',
+                  auto_cooling_full: isEn ? 'Cooling activated' : 'تشغيل التبريد',
+                  auto_cooling_fan_only: isEn ? 'Fan activated' : 'تشغيل المروحة',
+                  auto_cooling_stop: isEn ? 'Cooling stopped' : 'إيقاف التبريد',
+                  auto_mode_changed: isEn ? 'System mode changed' : 'تغيير وضع النظام',
                 };
 
                 const getIcon = (type) => {
@@ -1357,7 +1368,31 @@ export function AccountAndSettingsPages({
                 };
 
                 const label = actionLabels[log.action_type] || log.action_type;
+                const isAutoModeChange = log.action_type === 'auto_mode_changed';
                 const isSystem = log.performed_by === 'system';
+                const actionMode = log.action_type?.startsWith('auto_') || log.action_type?.includes('_auto_')
+                  ? 'auto'
+                  : (log.action_type?.startsWith('manual_') || log.action_type?.includes('_manual_')
+                    ? 'manual'
+                    : null);
+                const modeBadge = isAutoModeChange
+                  ? (log.details?.new_mode === 'auto'
+                    ? (isEn ? 'Auto' : 'تلقائي')
+                    : (isEn ? 'Manual' : 'يدوي'))
+                  : (actionMode === 'auto'
+                    ? (isEn ? 'Auto' : 'تلقائي')
+                    : (actionMode === 'manual' ? (isEn ? 'Manual' : 'يدوي') : null));
+                const isAutoBadge = isAutoModeChange
+                  ? log.details?.new_mode === 'auto'
+                  : (actionMode === 'auto' || (!actionMode && isSystem));
+                const isManualBadge = isAutoModeChange
+                  ? log.details?.new_mode !== 'auto'
+                  : (actionMode === 'manual' || (!actionMode && !isSystem));
+                const badgeClass = isAutoBadge
+                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                  : (isManualBadge
+                    ? 'bg-orange-50 text-orange-600 border border-orange-100'
+                    : 'bg-gray-50 text-gray-600 border border-gray-100');
                 const date = new Date(log.created_at);
                 const diffMs = Date.now() - date.getTime();
                 const diffMin = Math.floor(diffMs / 60000);
@@ -1391,11 +1426,8 @@ export function AccountAndSettingsPages({
                           </div>
                         </div>
 
-                        <span className={`text-[13px] font-black px-3 py-1.5 rounded-full shrink-0 mr-auto
-                          ${isSystem
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
-                          {isSystem ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي')}
+                        <span className={`text-[13px] font-black px-3 py-1.5 rounded-full shrink-0 mr-auto ${badgeClass}`}>
+                          {modeBadge || (isSystem ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي'))}
                         </span>
                       </>
                     ) : (
@@ -1413,11 +1445,8 @@ export function AccountAndSettingsPages({
                           </div>
                         </div>
 
-                        <span className={`text-[13px] font-black px-3 py-1.5 rounded-full shrink-0
-                          ${isSystem
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                            : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
-                          {isSystem ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي')}
+                        <span className={`text-[13px] font-black px-3 py-1.5 rounded-full shrink-0 ${badgeClass}`}>
+                          {modeBadge || (isSystem ? (isEn ? 'Auto' : 'تلقائي') : (isEn ? 'Manual' : 'يدوي'))}
                         </span>
                       </>
                     )}
