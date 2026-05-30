@@ -278,9 +278,10 @@ async def ingest_sensor_reading(
                         & (SensorReading.timestamp == sub.c.max_ts),
                     ).where(SensorReading.farm_id == farm_id)
                 )
+                # Build the analysis snapshot only from persisted sensor_readings.
+                # The current reading was flushed above, so the transaction can see it
+                # without injecting raw payload values directly into the ML/decision path.
                 full_sensor_data = {r.sensor_type: r.value for r in latest_rows.scalars().all()}
-                # Include the reading just flushed (may not be visible in the query above yet)
-                full_sensor_data[sensor_type] = value
 
                 # ML anomaly detection — reuses the already-fetched sensor snapshot
                 from src.services.anomaly_alert_system import get_anomaly_alert_system
