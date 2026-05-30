@@ -23,7 +23,9 @@ log = logging.getLogger("tuya_bridge")
 _port = os.getenv("PORT", "8000")
 WARIF_API = os.getenv("WARIF_API_URL", f"http://localhost:{_port}")
 POLL_INTERVAL = int(os.getenv("TUYA_POLL_INTERVAL", "120"))
+OFFLINE_FAILURE_THRESHOLD = int(os.getenv("TUYA_OFFLINE_FAILURE_THRESHOLD", "3"))
 CONFIG_FILE   = Path(__file__).resolve().parents[2] / "tuya_devices.json"
+_offline_failures: dict[str, int] = {}
 
 
 # ── Tuya helpers ──────────────────────────────────────────────────────────────
@@ -94,6 +96,20 @@ def _mark_offline(warif_device_id: str):
         pass
 
 
+def _record_poll_success(warif_device_id: str):
+    _offline_failures.pop(warif_device_id, None)
+
+
+def _record_poll_failure(warif_device_id: str, label: str):
+    failures = _offline_failures.get(warif_device_id, 0) + 1
+    _offline_failures[warif_device_id] = failures
+    log.warning(
+        f"{label}: poll failed ({failures}/{OFFLINE_FAILURE_THRESHOLD})"
+    )
+    if failures >= OFFLINE_FAILURE_THRESHOLD:
+        _mark_offline(warif_device_id)
+
+
 def _register_actuators(config: dict):
     """Ensure every actuator exists as a Device row in the DB. Safe to call repeatedly."""
     farm_id = config.get("farm_id")
@@ -133,9 +149,9 @@ def poll_once(api, config: dict):
 
         status = _fetch_device_status(api, tuya_id, poll_api)
         if not status:
-            log.warning(f"{label} ({tuya_id}): offline or no data")
-            _mark_offline(warif_id)
+            _record_poll_failure(warif_id, f"{label} ({tuya_id})")
             continue
+        _record_poll_success(warif_id)
 
         pushed = 0
         for code, mapping in dev["properties"].items():
@@ -159,12 +175,13 @@ def poll_once(api, config: dict):
             st = _fetch_device_status(api, tuya_id, act.get("command_api", "v1.0"))
             tuya_status_cache[tuya_id] = st or None
             if not st:
-                log.warning(f"actuator/{name} ({tuya_id}): offline or no data")
+                log.warning(f"actuator/{name} ({tuya_id}): no data")
 
         status = tuya_status_cache.get(tuya_id)
         if status is None:
-            _mark_offline(warif_id)
+            _record_poll_failure(warif_id, f"actuator/{name} ({tuya_id})")
             continue
+        _record_poll_success(warif_id)
 
         switch_code = act.get("switch_code") or (act.get("codes") or [None])[0]
         if switch_code and switch_code in status:

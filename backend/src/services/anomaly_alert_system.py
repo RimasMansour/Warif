@@ -16,6 +16,14 @@ from src.ml.anomaly_detector import AnomalyDetector, AnomalyReport
 
 logger = logging.getLogger(__name__)
 
+NON_DIAGNOSTIC_SENSOR_TYPES = {
+    "energy_kwh",
+    "valve_state",
+    "fan_state",
+    "cooling_state",
+}
+ML_ANOMALY_CONFIRMATION_COUNT = 2
+
 
 class AnomalyAlertSystem:
     """Advanced alert orchestration system pairing anomaly detection with real-time logging"""
@@ -23,6 +31,7 @@ class AnomalyAlertSystem:
     def __init__(self):
         """Initializes internal AnomalyDetector instance"""
         self.detector = AnomalyDetector()
+        self._ml_anomaly_counts: dict[tuple[int, str], int] = {}
 
     async def check_sensor_reading_anomalies(
         self,
@@ -47,6 +56,9 @@ class AnomalyAlertSystem:
             Alert model instance if an anomaly is identified, otherwise None.
         """
         try:
+            if sensor_type in NON_DIAGNOSTIC_SENSOR_TYPES:
+                return None
+
             # Perform statistical/rule-based validation
             anomaly_report: AnomalyReport | None = await self.detector.detect_anomalies(
                 sensor_type=sensor_type,
@@ -143,6 +155,10 @@ class AnomalyAlertSystem:
             from src.ml.anomaly_knn import predict as knn_predict, FEATURES as ML_FEATURES
             from src.ml.anomaly_isolation_forest import predict as isolation_forest_predict
 
+            if source_sensor_type and source_sensor_type not in ML_FEATURES:
+                logger.debug(f"[ML] Skipping source sensor outside ML feature set: {source_sensor_type}")
+                return None
+
             if not set(ML_FEATURES).issubset(sensor_data.keys()):
                 logger.debug(f"[ML] Skipping — missing features: {set(ML_FEATURES) - sensor_data.keys()}")
                 return None
@@ -166,12 +182,22 @@ class AnomalyAlertSystem:
             knn_anomaly = knn_result.get("is_anomaly", False) if knn_result else False
             isolation_forest_anomaly = isolation_forest_result.get("is_anomaly", False) if isolation_forest_result else False
             if not knn_anomaly and not isolation_forest_anomaly:
+                if source_sensor_type:
+                    self._ml_anomaly_counts.pop((farm_id, source_sensor_type), None)
                 return None
 
             knn_conf = knn_result.get("confidence", 0.0) if knn_anomaly else 0.0
             isolation_forest_conf = isolation_forest_result.get("confidence", 0.0) if isolation_forest_anomaly else 0.0
             confidence = max(knn_conf, isolation_forest_conf)
             severity = AlertSeverity.critical if confidence >= 0.85 else AlertSeverity.warning
+            anomaly_key = (farm_id, source_sensor_type or "multi_sensor")
+            self._ml_anomaly_counts[anomaly_key] = self._ml_anomaly_counts.get(anomaly_key, 0) + 1
+            if self._ml_anomaly_counts[anomaly_key] < ML_ANOMALY_CONFIRMATION_COUNT:
+                logger.info(
+                    f"[ML] Anomaly pending confirmation for farm {farm_id}, "
+                    f"source={source_sensor_type}, count={self._ml_anomaly_counts[anomaly_key]}"
+                )
+                return None
 
             # Suppress if an open ML alert already exists for this farm within the last 30 minutes
             cooldown = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -179,7 +205,7 @@ class AnomalyAlertSystem:
                 select(Alert).where(
                     and_(
                         Alert.farm_id == farm_id,
-                        Alert.explanation == "ml_anomaly",
+                        Alert.explanation.like("ml_anomaly%"),
                         Alert.status == AlertStatus.open,
                         Alert.created_at >= cooldown,
                     )
@@ -233,6 +259,7 @@ class AnomalyAlertSystem:
             )
             db.add(alert)
             await db.flush()
+            self._ml_anomaly_counts.pop(anomaly_key, None)
             logger.warning(f"[ML Alert] Farm {farm_id} — {message}")
             return alert
 
