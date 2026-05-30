@@ -16,6 +16,7 @@ To run locally:
 import asyncio
 from pathlib import Path
 from fastapi import FastAPI
+
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
@@ -38,6 +39,8 @@ from src.api.routes import (  # noqa: E402
     dashboard,
     logs,
 )
+
+_background_tasks: list[asyncio.Task] = []
 
 app = FastAPI(
     title="Warif API",
@@ -223,11 +226,25 @@ async def startup_monitoring():
                 print(f"[Tuya Bridge] Stopped: {e} — restarting in 15s")
             await asyncio.sleep(15)
 
-    asyncio.create_task(connectivity_monitoring())
-    asyncio.create_task(ml_monitoring())
-    asyncio.create_task(physics_simulation())
-    asyncio.create_task(tuya_bridge())
-    asyncio.create_task(seed_tuya_devices())
+    _background_tasks.extend([
+        asyncio.create_task(connectivity_monitoring()),
+        asyncio.create_task(ml_monitoring()),
+        asyncio.create_task(physics_simulation()),
+        asyncio.create_task(tuya_bridge()),
+        asyncio.create_task(seed_tuya_devices()),
+    ])
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cancel background tasks and close DB connections before the process exits."""
+    from src.db.session import engine
+
+    for task in _background_tasks:
+        task.cancel()
+    await asyncio.gather(*_background_tasks, return_exceptions=True)
+
+    await engine.dispose()
 
 
 # ── Health ────────────────────────────────────────────────────────────────
