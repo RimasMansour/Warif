@@ -450,11 +450,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide, includin
 
 This project was developed as a Final Year Project at the Department of Computer Science and Artificial Intelligence, Faculty of Computing — Umm Al-Qura University, KSA (2025/2026).
 
-| Name | Role |
-|---|---|
-| Ayah Badr Fallatah | ML Pipeline |
-| Ghala Sami Alhajjaji | Backend API |
-| Yara Ismail Alsiamy | Frontend |
-| Rimas Mansour Alzahrani | Frontend |
+| Name |
+|---|
+| Ayah Badr Fallatah |
+| Ghala Sami Alhajjaji |
+| Yara Ismail Alsiamy |
+| Rimas Mansour Alzahrani |
 
 ---
