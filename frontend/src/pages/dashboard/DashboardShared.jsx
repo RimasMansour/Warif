@@ -15,6 +15,7 @@ const ALERT_SENSOR_NAMES = {
   water_tank:       { ar: 'خزان المياه',         en: 'Water Tank' },
   water_usage:      { ar: 'استهلاك المياه',      en: 'Water Usage' },
   power_usage:      { ar: 'استهلاك الطاقة',     en: 'Power Usage' },
+  energy_kwh:       { ar: 'استهلاك الطاقة',     en: 'Energy Usage' },
   multi_sensor:     { ar: 'النظام',              en: 'System' },
 };
 
@@ -31,6 +32,7 @@ const alertTitleForSensor = (sensorType, lang) => {
     water_tank:       { ar: 'تنبيه مياه',        en: 'Water Alert' },
     water_usage:      { ar: 'تنبيه مياه',        en: 'Water Alert' },
     power_usage:      { ar: 'تنبيه طاقة',        en: 'Power Alert' },
+    energy_kwh:       { ar: 'تنبيه طاقة',        en: 'Power Alert' },
   };
   return titles[sensorType]?.[lang] || (lang === 'ar' ? 'تنبيه' : 'Alert');
 };
@@ -87,6 +89,7 @@ const ALERT_SENSOR_UNITS = {
   light_intensity: { ar: 'لوكس', en: 'lux' },
   water_usage: { ar: 'لتر', en: 'L' },
   power_usage: { ar: 'واط', en: 'W' },
+  energy_kwh: { ar: 'ك.واط', en: 'kWh' },
 };
 
 const formatAlertValue = (sensorType, value, lang) => {
@@ -821,13 +824,23 @@ function getActionExplanation(category, isEn, isAuto) {
       : "هل تود تفعيل نظام التسميد لتعزيز المعادن الأساسية للمحصول؟";
   }
 
+  // Power / energy sensors
+  if (c === 'power' || c === 'energy') {
+    if (isAuto) return isEn
+      ? "The system logged the power sensor alert automatically. Please verify the sensor reading and device connection."
+      : "سجّل النظام تنبيه الطاقة تلقائياً. يرجى التحقق من قراءة الحساس واتصال الجهاز.";
+    return isEn
+      ? "Do you want to review the power sensor reading and device connection?"
+      : "هل تود مراجعة قراءة حساس الطاقة واتصال الجهاز؟";
+  }
+
   // General / Default — still descriptive
   if (isAuto) return isEn
-    ? "The digital twin system executed the recommended optimization action autonomously."
-    : "قام نظام التوأم الرقمي بتنفيذ إجراء التحسين الموصى به تلقائياً.";
+    ? "The system logged this alert automatically. Please review the related sensor or connection status."
+    : "سجّل النظام هذا التنبيه تلقائياً. يرجى مراجعة الحساس أو حالة الاتصال المرتبطة.";
   return isEn
-    ? "Do you want to execute the recommended action to optimize system performance?"
-    : "هل تود تنفيذ الإجراء الموصى به لتحسين أداء النظام؟";
+    ? "Do you want to review the related sensor or connection status?"
+    : "هل تود مراجعة الحساس أو حالة الاتصال المرتبطة؟";
 }
 
 // ─── THEME & ICONS ──────────────────────────────────────────────────────────
@@ -1160,9 +1173,16 @@ export function AlertCard({
        sensorType.includes('humidity') || msgText.includes('ري') ||
        msgText.includes('irrigat') || msgText.includes('رطوبة'))
       ? 'irrigation'
+    : (sensorType.includes('power') || sensorType.includes('energy') ||
+       msgText.includes('طاقة') || msgText.includes('كهرب') ||
+       msgText.includes('power') || msgText.includes('energy'))
+      ? 'power'
     : 'system';
 
   const actionType = category === 'climate' ? 'cool' : category === 'irrigation' ? 'irrigate' : 'general';
+  const primaryActionLabel = category === 'system' || category === 'power'
+    ? (isEn ? 'Review' : 'راجع')
+    : (isEn ? 'Execute' : 'نفذ');
 
   const domainTitle = isEn
     ? (category === 'climate'    ? 'Climate & Ventilation'
@@ -1260,7 +1280,7 @@ export function AlertCard({
                     </svg>
                     {isEn ? 'Done' : 'تم'}
                   </>
-                ) : (isEn ? 'Execute' : 'نفذ')}
+                ) : primaryActionLabel}
               </button>
               <button className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap">
                 {isEn ? 'Ignore' : 'تجاهل'}

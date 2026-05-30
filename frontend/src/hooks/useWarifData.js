@@ -33,6 +33,7 @@ const ALERT_SENSOR_LABELS = {
     light_intensity: "شدة الإضاءة",
     water_usage: "استهلاك المياه",
     power_usage: "استهلاك الطاقة",
+    energy_kwh: "استهلاك الطاقة",
     soil: "التربة",
     multi_sensor: "النظام",
   },
@@ -48,6 +49,7 @@ const ALERT_SENSOR_LABELS = {
     light_intensity: "Light Intensity",
     water_usage: "Water Usage",
     power_usage: "Power Usage",
+    energy_kwh: "Energy Usage",
     soil: "Soil",
     multi_sensor: "System",
   },
@@ -68,8 +70,8 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
 
   if (sensorType === "multi_sensor") {
     return isEn
-      ? "An unusual pattern was detected across multiple sensor readings, and no single sensor was identified as the direct source. Review temperature, humidity, soil readings, and sensor connectivity."
-      : "تم رصد نمط غير طبيعي بين عدة حساسات، ولم يتم تحديد حساس واحد كمصدر مباشر. راجع قراءات الحرارة والرطوبة والتربة وتحقق من اتصال الحساسات.";
+      ? "Alert: An unusual pattern was detected across multiple sensors. Check sensor connectivity and review the latest readings."
+      : "تنبيه: تم رصد نمط غير طبيعي بين عدة حساسات. تحقق من اتصال الحساسات وراجع آخر القراءات.";
   }
 
   const actions = {
@@ -85,6 +87,7 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
       water_tank: "تحقق من حساس خزان المياه ومستوى الخزان الفعلي.",
       water_usage: "تحقق من المضخة ومحابس الري وقراءة استهلاك المياه.",
       power_usage: "تحقق من استهلاك الطاقة واتصال الأجهزة المرتبطة.",
+      energy_kwh: "تحقق من قراءة استهلاك الطاقة واتصال الجهاز.",
     },
     en: {
       air_temperature: "Check the sensor reading and device connection, and confirm that cooling and ventilation are operating normally.",
@@ -98,6 +101,7 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
       water_tank: "Check the water tank sensor and the actual tank level.",
       water_usage: "Check the pump, irrigation valves, and water usage reading.",
       power_usage: "Check power consumption and connected device status.",
+      energy_kwh: "Check the energy reading and device connection.",
     },
   };
 
@@ -106,8 +110,8 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
     : "تحقق من قراءة الحساس واتصال الجهاز والمعدات المرتبطة.");
 
   return isEn
-    ? `An unusual reading pattern was detected in ${sensorName}. The reading may be outside the expected range or inconsistent with other sensors. ${action}`
-    : `تم رصد نمط قراءة غير طبيعي في ${sensorName}. قد تكون القراءة خارج النطاق المتوقع أو غير متوافقة مع بقية الحساسات. ${action}`;
+    ? `Alert: Unusual reading in ${sensorName}. ${action}`
+    : `تنبيه: قراءة غير طبيعية في ${sensorName}. ${action}`;
 };
 
 // Global Persistence Cache to prevent "zeroing" on navigation
@@ -398,7 +402,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           if (sensorType === 'soil_moisture') return isEn ? "Check irrigation system and soil sensors." : "تحقق من نظام الري وحساسات التربة.";
           if (sensorType === 'water_tank') return isEn ? "Refill water tank immediately." : "أعد تعبئة خزان المياه فوراً.";
           if (sensorType === 'water_usage') return isEn ? "Check pump and irrigation valves." : "تحقق من المضخة ومحابس الري.";
-          if (sensorType === 'power_usage') return isEn ? "Check power consumption of devices." : "تحقق من استهلاك الطاقة للأجهزة.";
+          if (sensorType === 'power_usage' || sensorType === 'energy_kwh') return isEn ? "Check power consumption of devices." : "تحقق من استهلاك الطاقة للأجهزة.";
           return isEn ? "Review system status and take action." : "راجع حالة النظام واتخذ الإجراء المناسب.";
         };
 
