@@ -16,11 +16,14 @@ Note: The simulator writes directly to the DB and does NOT call these endpoints.
 All POST endpoints require JWT authentication.
 """
 import asyncio
+import logging
 from typing import List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
+
+log = logging.getLogger(__name__)
 
 from src.db.session import get_db
 from src.db.models.models import (
@@ -119,12 +122,20 @@ async def start_manual_irrigation(
     await db.commit()
     await db.refresh(command)
 
-    # ── Tuya Physical Control (farm 22 only) ──────────────────────────────────
-    if dev and tuya_client.is_tuya_farm(dev.farm_id):
+    # ── Tuya Physical Control ──────────────────────────────────────────────────
+    if dev is None:
+        log.warning("start_manual_irrigation: Device row not found for device_id=%s — skipping Tuya", body.device_id)
+    elif not tuya_client.is_tuya_farm(dev.farm_id):
+        log.info("start_manual_irrigation: farm_id=%s is not the Tuya farm — skipping physical control", dev.farm_id)
+    else:
         try:
-            await asyncio.to_thread(tuya_client.control_irrigation, True)
-        except Exception:
-            pass  # DB already saved — physical failure is non-blocking
+            ok = await asyncio.to_thread(tuya_client.control_irrigation, True)
+            if not ok:
+                log.error("start_manual_irrigation: Tuya valve open command FAILED for device_id=%s", body.device_id)
+            else:
+                log.info("start_manual_irrigation: Tuya valve opened OK for device_id=%s", body.device_id)
+        except Exception as e:
+            log.error("start_manual_irrigation: Tuya call raised exception: %s", e)
 
     return command
 
@@ -262,9 +273,13 @@ async def stop_irrigation(
     dev = dev_result.scalar_one_or_none()
     if dev and tuya_client.is_tuya_farm(dev.farm_id):
         try:
-            await asyncio.to_thread(tuya_client.control_irrigation, False)
-        except Exception:
-            pass
+            ok = await asyncio.to_thread(tuya_client.control_irrigation, False)
+            if not ok:
+                log.error("stop_irrigation: Tuya valve close command FAILED for device_id=%s", device_id)
+            else:
+                log.info("stop_irrigation: Tuya valve closed OK for device_id=%s", device_id)
+        except Exception as e:
+            log.error("stop_irrigation: Tuya call raised exception: %s", e)
 
         # Calculate liters used: flow_rate = 3 L/min
         if started_at:
@@ -310,12 +325,16 @@ async def stop_farm_irrigation(
 
     await db.commit()
 
-    # ── Tuya Physical Control (farm 22 only) ─────────────────────────────────
+    # ── Tuya Physical Control ─────────────────────────────────────────────────
     if tuya_client.is_tuya_farm(farm_id):
         try:
-            await asyncio.to_thread(tuya_client.control_irrigation, False)
-        except Exception:
-            pass
+            ok = await asyncio.to_thread(tuya_client.control_irrigation, False)
+            if not ok:
+                log.error("stop_farm_irrigation: Tuya valve close command FAILED for farm_id=%s", farm_id)
+            else:
+                log.info("stop_farm_irrigation: Tuya valve closed OK for farm_id=%s", farm_id)
+        except Exception as e:
+            log.error("stop_farm_irrigation: Tuya call raised exception: %s", e)
 
     return {"stopped": stopped, "farm_id": farm_id}
 
