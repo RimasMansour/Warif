@@ -761,7 +761,54 @@ const extractSafeText = (data, fallback = '') => {
 };
 
 // ─── DESCRIPTIVE AUTONOMOUS TEXT UTILITY ────────────────────────────────────
-function getActionExplanation(category, isEn, isAuto) {
+function getMlAnomalyActionExplanation(sensorType, isEn, isAuto) {
+  const s = (sensorType || '').toLowerCase();
+
+  if (s.includes('water') || s.includes('irrigation')) {
+    if (isAuto) return isEn
+      ? "The system logged this irrigation anomaly automatically. Review the irrigation valve, pump status, water flow reading, and device connection."
+      : "سجّل النظام نمطاً غير طبيعي في الري تلقائياً. راجع صمام الري، حالة المضخة، قراءة تدفق المياه، واتصال الجهاز.";
+    return isEn
+      ? "Do you want to review the irrigation valve, pump status, water flow reading, and device connection?"
+      : "هل تود مراجعة صمام الري، حالة المضخة، قراءة تدفق المياه، واتصال الجهاز؟";
+  }
+
+  if (s.includes('power') || s.includes('energy')) {
+    if (isAuto) return isEn
+      ? "The system logged this energy anomaly automatically. Review the energy meter reading, connected equipment, and device connection."
+      : "سجّل النظام نمطاً غير طبيعي في الطاقة تلقائياً. راجع قراءة عداد الطاقة، الأجهزة المرتبطة، واتصال الجهاز.";
+    return isEn
+      ? "Do you want to review the energy meter reading, connected equipment, and device connection?"
+      : "هل تود مراجعة قراءة عداد الطاقة، الأجهزة المرتبطة، واتصال الجهاز؟";
+  }
+
+  if (s.includes('soil')) {
+    if (isAuto) return isEn
+      ? "The system logged this soil sensor anomaly automatically. Review soil moisture, soil temperature, the soil sensor, and device connection."
+      : "سجّل النظام نمطاً غير طبيعي في حساسات التربة تلقائياً. راجع رطوبة التربة، حرارة التربة، حساس التربة، واتصال الجهاز.";
+    return isEn
+      ? "Do you want to review soil moisture, soil temperature, the soil sensor, and device connection?"
+      : "هل تود مراجعة رطوبة التربة، حرارة التربة، حساس التربة، واتصال الجهاز؟";
+  }
+
+  if (s.includes('temperature') || s.includes('humidity') || s.includes('light')) {
+    if (isAuto) return isEn
+      ? "The system logged this climate sensor anomaly automatically. Review air temperature, humidity, light reading, the climate sensor, and device connection."
+      : "سجّل النظام نمطاً غير طبيعي في حساسات المناخ تلقائياً. راجع حرارة الهواء، الرطوبة، قراءة الإضاءة، حساس المناخ، واتصال الجهاز.";
+    return isEn
+      ? "Do you want to review air temperature, humidity, light reading, the climate sensor, and device connection?"
+      : "هل تود مراجعة حرارة الهواء، الرطوبة، قراءة الإضاءة، حساس المناخ، واتصال الجهاز؟";
+  }
+
+  if (isAuto) return isEn
+    ? "The system logged this anomaly automatically. Review the mentioned device if shown, related readings, and sensor connectivity."
+    : "سجّل النظام هذا النمط غير الطبيعي تلقائياً. راجع الجهاز المذكور إن وجد، والقراءات المرتبطة، واتصال الحساسات.";
+  return isEn
+    ? "Do you want to review the mentioned device, related readings, and sensor connectivity?"
+    : "هل تود مراجعة الجهاز المذكور، والقراءات المرتبطة، واتصال الحساسات؟";
+}
+
+function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   const c = (category || '').toLowerCase();
 
   // Climate / Temperature / Ventilation
@@ -832,6 +879,11 @@ function getActionExplanation(category, isEn, isAuto) {
     return isEn
       ? "Do you want to review the power sensor reading and device connection?"
       : "هل تود مراجعة قراءة حساس الطاقة واتصال الجهاز؟";
+  }
+
+  // Multi-sensor anomaly
+  if (c === 'ml_anomaly') {
+    return getMlAnomalyActionExplanation(sensorType, isEn, isAuto);
   }
 
   // General / Default — still descriptive
@@ -1147,6 +1199,7 @@ export function AlertCard({
 
   const sensorType = alert.sensor_type || '';
   const anomalyType = alert.anomaly_type || null;
+  const isMlAnomaly = anomalyType === 'ml_anomaly';
   const lang = isEn ? 'en' : 'ar';
   const displayMessage = (() => {
     const sensorName = ALERT_SENSOR_NAMES[sensorType]?.[lang] || sensorType;
@@ -1160,8 +1213,9 @@ export function AlertCard({
     return fn(sensorName, val, alertTitleForSensor(sensorType, lang), alert);
   })();
   const msgText = safeMessage.toLowerCase();
-  const category =
-    (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
+  const category = isMlAnomaly
+    ? 'ml_anomaly'
+    : (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
      sensorType === 'temperature' || sensorType === 'humidity' || sensorType === 'air_humidity' ||
      sensorType.includes('ventilation') || msgText.includes('حرار') ||
      msgText.includes('temperature') || msgText.includes('رطوبة الهواء') ||
@@ -1180,7 +1234,7 @@ export function AlertCard({
     : 'system';
 
   const actionType = category === 'climate' ? 'cool' : category === 'irrigation' ? 'irrigate' : 'general';
-  const primaryActionLabel = category === 'system' || category === 'power'
+  const primaryActionLabel = category === 'system' || category === 'power' || category === 'ml_anomaly'
     ? (isEn ? 'Review' : 'راجع')
     : (isEn ? 'Execute' : 'نفذ');
 
@@ -1256,7 +1310,7 @@ export function AlertCard({
                 <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
               </div>
               <p className="font-medium text-[12px] md:text-[13px] text-sky-800 leading-snug flex-1 text-start">
-                {getActionExplanation(category, isEn, false)}
+                {getActionExplanation(category, isEn, false, sensorType)}
               </p>
             </div>
             <div className="flex gap-2 justify-end w-full">
@@ -1293,7 +1347,7 @@ export function AlertCard({
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
             </div>
             <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
-              {getActionExplanation(category, isEn, true)}
+              {getActionExplanation(category, isEn, true, sensorType)}
             </p>
           </div>
         )}

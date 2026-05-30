@@ -284,7 +284,13 @@ async def ingest_sensor_reading(
 
                 # ML anomaly detection — reuses the already-fetched sensor snapshot
                 from src.services.anomaly_alert_system import get_anomaly_alert_system
-                await get_anomaly_alert_system().check_ml_anomalies(full_sensor_data, farm_id, db)
+                await get_anomaly_alert_system().check_ml_anomalies(
+                    full_sensor_data,
+                    farm_id,
+                    db,
+                    source_device_id=device_id,
+                    source_sensor_type=sensor_type,
+                )
 
                 engine = _get_decision_engine()
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)

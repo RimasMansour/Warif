@@ -20,6 +20,10 @@ const INTERNAL_ANOMALY_TYPES = new Set([
   "ml_anomaly",
 ]);
 
+const isInternalAnomalyType = (value = "") => (
+  value === "ml_anomaly" || String(value).startsWith("ml_anomaly|")
+);
+
 const ALERT_SENSOR_LABELS = {
   ar: {
     water_tank: "خزان المياه",
@@ -67,11 +71,17 @@ const fallbackAlertMessage = (backendAlert, isEn) => {
 const mlAnomalyAlertMessage = (backendAlert, isEn) => {
   const sensorType = backendAlert.sensor_type || "multi_sensor";
   const sensorName = ALERT_SENSOR_LABELS[isEn ? "en" : "ar"][sensorType] || (isEn ? "System" : "النظام");
+  const deviceLabel = String(backendAlert.anomaly_type || "").match(/device=([^|]+)/)?.[1];
 
   if (sensorType === "multi_sensor") {
+    if (deviceLabel) {
+      return isEn
+        ? `Alert: Unusual pattern after the latest reading from ${deviceLabel}. Review the device connection and related readings.`
+        : `تنبيه: نمط غير طبيعي بعد آخر قراءة من ${deviceLabel}. راجع اتصال الجهاز والقراءات المرتبطة.`;
+    }
     return isEn
-      ? "Alert: An unusual pattern was detected across multiple sensors. Check sensor connectivity and review the latest readings."
-      : "تنبيه: تم رصد نمط غير طبيعي بين عدة حساسات. تحقق من اتصال الحساسات وراجع آخر القراءات.";
+      ? "Alert: Unusual pattern across multiple readings. Review the related devices, sensor connectivity, and latest readings."
+      : "تنبيه: نمط غير طبيعي بين عدة قراءات. راجع الأجهزة المرتبطة، واتصال الحساسات، وآخر القراءات.";
   }
 
   const actions = {
@@ -110,8 +120,8 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
     : "تحقق من قراءة الحساس واتصال الجهاز والمعدات المرتبطة.");
 
   return isEn
-    ? `Alert: Unusual reading in ${sensorName}. ${action}`
-    : `تنبيه: قراءة غير طبيعية في ${sensorName}. ${action}`;
+    ? `Alert: Unusual reading in ${deviceLabel || sensorName}. ${action}`
+    : `تنبيه: قراءة غير طبيعية في ${deviceLabel || sensorName}. ${action}`;
 };
 
 // Global Persistence Cache to prevent "zeroing" on navigation
@@ -368,7 +378,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
         const sensorNameEn = ALERT_SENSOR_LABELS.en[backendAlert.sensor_type] || "System";
         const backendExplanation = backendAlert.anomaly_type || "";
         const anomalyType = KNOWN_ANOMALY_TYPES.has(backendExplanation) ? backendExplanation : null;
-        const isInternalAnomaly = INTERNAL_ANOMALY_TYPES.has(backendExplanation);
+        const isInternalAnomaly = isInternalAnomalyType(backendExplanation);
         const reasoningText = anomalyType || isInternalAnomaly ? "" : backendExplanation;
         const isMultiSensorAlert = backendAlert.sensor_type === "multi_sensor";
         const hasTechnicalMlCopy = /ML Anomaly|KNN|Isolation Forest|multi[_-]sensor/i.test(backendAlert.message || "");
@@ -413,7 +423,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           severity: backendAlert.severity || frontendSeverity,
           created_at: backendAlert.created_at,
           sensor_type: backendAlert.sensor_type,
-          anomaly_type: anomalyType,
+          anomaly_type: isInternalAnomaly ? "ml_anomaly" : anomalyType,
           actual_value: backendAlert.actual_value,
           threshold: backendAlert.threshold,
           sensor: isEn ? sensorNameEn : sensorNameAr,

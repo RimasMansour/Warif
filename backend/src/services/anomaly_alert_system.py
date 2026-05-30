@@ -10,8 +10,8 @@ Overview:
 import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
-from src.db.models.models import Alert, AlertSeverity, AlertStatus, Device
+from sqlalchemy import select, and_, desc
+from src.db.models.models import Alert, AlertSeverity, AlertStatus, Device, SensorReading
 from src.ml.anomaly_detector import AnomalyDetector, AnomalyReport
 
 logger = logging.getLogger(__name__)
@@ -131,6 +131,8 @@ class AnomalyAlertSystem:
         sensor_data: dict,
         farm_id: int,
         db: AsyncSession,
+        source_device_id: str | None = None,
+        source_sensor_type: str | None = None,
     ) -> Alert | None:
         """
         Runs KNN and Isolation Forest on a full multi-sensor snapshot.
@@ -196,14 +198,38 @@ class AnomalyAlertSystem:
                 f"ML Anomaly ({', '.join(models)}) — confidence {confidence:.0%}. "
                 + (f"Rule violated: {rule_violated}." if rule_violated else "Abnormal multi-sensor pattern detected.")
             )
+            alert_sensor_type = rule_violated.split("=")[0].strip() if rule_violated else (source_sensor_type or "multi_sensor")
+            alert_device_id = source_device_id
+
+            if rule_violated:
+                latest_sensor_device = await db.execute(
+                    select(SensorReading.device_id)
+                    .where(
+                        SensorReading.farm_id == farm_id,
+                        SensorReading.sensor_type == alert_sensor_type,
+                    )
+                    .order_by(desc(SensorReading.timestamp))
+                    .limit(1)
+                )
+                alert_device_id = latest_sensor_device.scalar_one_or_none() or source_device_id
+
+            device_label = None
+            if alert_device_id:
+                device_result = await db.execute(
+                    select(Device).where(Device.device_id == alert_device_id)
+                )
+                device = device_result.scalar_one_or_none()
+                if device:
+                    device_label = f"{device.name or device.device_id} ({device.device_id})"
 
             alert = Alert(
                 farm_id=farm_id,
-                sensor_type=rule_violated.split("=")[0].strip() if rule_violated else "multi_sensor",
+                device_id=alert_device_id,
+                sensor_type=alert_sensor_type,
                 severity=severity,
                 status=AlertStatus.open,
                 message=message,
-                explanation="ml_anomaly",
+                explanation=f"ml_anomaly|device={device_label}" if device_label else "ml_anomaly",
             )
             db.add(alert)
             await db.flush()
