@@ -276,7 +276,25 @@ class SmartDecisionEngine:
             elif 10 <= hour <= 15:
                 parts.append("تجنب الري وقت الذروة لتقليل التبخر")
 
-            if score > 0.5:
+            # Hard overrides for critically extreme soil moisture — bypass scoring math
+            if soil_moisture >= 90:
+                sev = "urgent" if soil_moisture >= 95 else "warning"
+                recommendations.append(SmartRecommendation(
+                    message="تقليل فترات الري فوراً",
+                    reasoning=f"رطوبة التربة ({soil_moisture:.0f}%) بلغت مستوى حرجاً يتجاوز الحد الأقصى. الإجراء: إيقاف الري فوراً وتحسين الصرف لتجنب تعفن الجذور وفقدان المحصول.",
+                    category="irrigation",
+                    severity=sev,
+                    confidence=0.95,
+                ))
+            elif soil_moisture < 25:
+                recommendations.append(SmartRecommendation(
+                    message="ري طارئ مطلوب",
+                    reasoning=f"رطوبة التربة ({soil_moisture:.0f}%) انخفضت إلى مستوى حرج جداً يهدد المحصول. الإجراء: تفعيل الري الفوري لإنقاذ النبات.",
+                    category="irrigation",
+                    severity="urgent",
+                    confidence=0.97,
+                ))
+            elif score > 0.5:
                 severity = "urgent" if score > 0.75 else "warning"
                 if score > 0.75:
                     message = "تحسين إدارة الري"
@@ -313,38 +331,50 @@ class SmartDecisionEngine:
             if ext_temp is not None:
                 combined_temp = air_temperature * 0.7 + ext_temp * 0.3
 
-            parts = [f"حرارة الهواء الداخلي {air_temperature:.1f}°C"]
-            if ext_temp is not None:
-                parts.append(f"حرارة خارجية {ext_temp:.0f}°C")
-                if cloudcover < 20:
-                    parts.append("سماء صافية تزيد الحمل الحراري")
-
-            if combined_temp > 38 and cloudcover < 20:
+            # Hard overrides based on raw indoor temperature — outdoor blending
+            # must not mask critically hot or cold readings inside the greenhouse.
+            if air_temperature >= 36:
                 recommendations.append(SmartRecommendation(
                     message="تفعيل نظام التبريد الطارئ",
-                    reasoning=f"درجة الحرارة الحالية ({combined_temp:.0f}°C) تجاوزت الحد الحرج (38°C) وسماء صافية تزيد الضغط الحراري. الإجراء: تشغيل أنظمة التبريد فوراً وفتح جميع فتحات التهوية.",
+                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) تجاوزت الحد الحرج. الإجراء: تشغيل أنظمة التبريد فوراً وفتح جميع فتحات التهوية لإنقاذ المحصول.",
+                    category="temperature",
+                    severity="urgent",
+                    confidence=0.95,
+                ))
+            elif air_temperature >= 30:
+                conf = 0.82 if ext_temp and ext_temp > 28 else 0.75
+                recommendations.append(SmartRecommendation(
+                    message="تحسين التهوية والتبريد",
+                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) مرتفعة عن الحد المثالي (28°C). التوصية: زيادة التهوية والتأكد من سريان الهواء لتجنب إجهاد النبات.",
+                    category="temperature",
+                    severity="warning",
+                    confidence=conf,
+                ))
+            elif air_temperature <= 12:
+                recommendations.append(SmartRecommendation(
+                    message="تفعيل نظام التدفئة",
+                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) انخفضت عن الحد الأدنى (15°C). الإجراء: تشغيل التدفئة تدريجياً لتجنب صدمة حرارية للنبات.",
+                    category="temperature",
+                    severity="warning",
+                    confidence=0.84,
+                ))
+            elif combined_temp > 38 and cloudcover < 20:
+                # Combined (indoor+outdoor) confirms extreme heat under clear sky
+                recommendations.append(SmartRecommendation(
+                    message="تفعيل نظام التبريد الطارئ",
+                    reasoning=f"الحرارة المدمجة ({combined_temp:.0f}°C) تجاوزت الحد الحرج وسماء صافية تزيد الضغط الحراري. الإجراء: تشغيل أنظمة التبريد فوراً.",
                     category="temperature",
                     severity="urgent",
                     confidence=0.93,
                 ))
             elif combined_temp > 33:
-                # Higher confidence if outdoor temp is also high
                 conf = 0.82 if ext_temp and ext_temp > 30 else 0.75
-                rec_text = f"درجة الحرارة الحالية ({combined_temp:.0f}°C) مرتفعة عن الحد المثالي (28°C). التوصية: زيادة التهوية والتأكد من سريان الهواء لتجنب إجهاد النبات."
                 recommendations.append(SmartRecommendation(
                     message="تحسين التهوية والتبريد",
-                    reasoning=rec_text,
-                    category="temperature",
-                    severity="normal",
-                    confidence=conf,
-                ))
-            elif combined_temp < 12:
-                recommendations.append(SmartRecommendation(
-                    message="تفعيل نظام التدفئة",
-                    reasoning=f"درجة الحرارة الحالية ({combined_temp:.0f}°C) انخفضت عن الحد الأدنى (15°C). الإجراء: تشغيل التدفئة تدريجياً لتجنب صدمة حرارية للنبات.",
+                    reasoning=f"الحرارة المدمجة ({combined_temp:.0f}°C) مرتفعة. التوصية: زيادة التهوية لتجنب إجهاد النبات.",
                     category="temperature",
                     severity="warning",
-                    confidence=0.84,
+                    confidence=conf,
                 ))
             # لا نضيف توصية إذا كانت درجة الحرارة مثالية
 
@@ -405,9 +435,17 @@ class SmartDecisionEngine:
 
         # If no issues found, return a "Healthy Status" recommendation
         if not recommendations:
+            status_parts = []
+            if soil_moisture is not None:
+                status_parts.append(f"رطوبة التربة {soil_moisture:.0f}%")
+            if air_temperature is not None:
+                status_parts.append(f"حرارة {air_temperature:.0f}°م")
+            if air_humidity is not None:
+                status_parts.append(f"رطوبة {air_humidity:.0f}%")
+            status_detail = f": {', '.join(status_parts)}" if status_parts else "."
             recommendations.append(SmartRecommendation(
                 message="النظام يعمل بشكل مثالي",
-                reasoning=f"جميع المؤشرات ضمن النطاق المثالي: رطوبة التربة {soil_moisture:.0f}%, حرارة {air_temperature:.0f}°م, رطوبة {air_humidity:.0f}%",
+                reasoning=f"جميع المؤشرات ضمن النطاق المثالي{status_detail}",
                 category="general",
                 severity="normal",
                 confidence=0.95,
