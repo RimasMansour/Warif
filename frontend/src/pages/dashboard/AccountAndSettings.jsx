@@ -1259,7 +1259,15 @@ export function AccountAndSettingsPages({
             onClick={e => e.stopPropagation()}>
 
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-100" dir="ltr">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100" dir={isRtl ? 'rtl' : 'ltr'}>
+              <div className={`${isRtl ? 'text-right' : 'text-left'}`}>
+                <h3 className="text-xl font-black text-gray-900 tracking-tight">
+                  {isEn ? 'Activity Log' : 'سجل النشاط'}
+                </h3>
+                <p className="text-xs text-gray-400 font-bold mt-0.5">
+                  {isEn ? 'All recent system activities' : 'كل أنشطة النظام الحديثة'}
+                </p>
+              </div>
               <button onClick={() => setShowLogsModal(false)}
                 className="w-8 h-8 rounded-xl bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -1268,14 +1276,6 @@ export function AccountAndSettingsPages({
                   <line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
-              <div className={`${isRtl ? 'text-right ml-auto' : 'text-left'}`}>
-                <h3 className="text-xl font-black text-gray-900 tracking-tight">
-                  {isEn ? 'Activity Log' : 'سجل النشاط'}
-                </h3>
-                <p className="text-xs text-gray-400 font-bold mt-0.5">
-                  {isEn ? 'All recent system activities' : 'كل أنشطة النظام الحديثة'}
-                </p>
-              </div>
             </div>
 
             {/* Modal Body */}
@@ -1310,9 +1310,12 @@ export function AccountAndSettingsPages({
                   manual_cooling_fan_only: isEn ? 'Fan activated' : 'تشغيل المروحة',
                   manual_cooling_stop: isEn ? 'Cooling stopped' : 'إيقاف التبريد',
                   auto_cooling_full: isEn ? 'Cooling activated' : 'تشغيل التبريد',
-                  auto_cooling_fan_only: isEn ? 'Fan activated' : 'تشغيل المروحة',
-                  auto_cooling_stop: isEn ? 'Cooling stopped' : 'إيقاف التبريد',
+                  auto_cooling_fan_only: isEn ? 'Cooler stopped, fan continues' : 'إيقاف المكيف واستمرار المروحة',
+                  auto_cooling_stop: isEn ? 'Fan stopped' : 'إيقاف المروحة',
                   auto_mode_changed: isEn ? 'System mode changed' : 'تغيير وضع النظام',
+                  recommendation_executed: isEn ? 'Recommendation executed' : 'تنفيذ التوصية',
+                  cooling: isEn ? 'Cooling control' : 'التحكم بالتبريد',
+                  irrigation: isEn ? 'Irrigation control' : 'التحكم بالري',
                 };
 
                 const getIcon = (type) => {
@@ -1351,6 +1354,14 @@ export function AccountAndSettingsPages({
                       <path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5s-3 3.5-3 5.5a7 7 0 0 0 7 7z"/>
                     </svg>
                   );
+                  if (type?.includes('recommendation')) return (
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .5 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
+                      <path d="M9 18h6"/>
+                      <path d="M10 22h4"/>
+                    </svg>
+                  );
                   return (
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
                       stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
@@ -1364,6 +1375,7 @@ export function AccountAndSettingsPages({
                   if (type?.includes('fan')) return 'bg-emerald-50 text-emerald-500 border-emerald-100';
                   if (type?.includes('cool') || type?.includes('cooler')) return 'bg-cyan-50 text-cyan-500 border-cyan-100';
                   if (type?.includes('irrigation') || type?.includes('pump')) return 'bg-blue-50 text-blue-500 border-blue-100';
+                  if (type?.includes('recommendation')) return 'bg-amber-50 text-amber-500 border-amber-100';
                   return 'bg-gray-50 text-gray-500 border-gray-100';
                 };
 

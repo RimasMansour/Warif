@@ -140,3 +140,21 @@ def control_cooling(on: bool) -> bool:
     ok = _send_commands(device_id, commands, use_v2=use_v2)
     log.info(f"Cooling → {'ON' if on else 'OFF'}  success={ok}")
     return ok
+
+
+def control_cooler_only(on: bool) -> bool:
+    """
+    Control only the cooling compressor stage without changing the fan power.
+    This is used by the closed-loop controller when temperature is already safe
+    but ventilation should continue until humidity is also safe.
+    """
+    cfg = _get_config().get("actuators", {}).get("cooling", {})
+    device_id = cfg.get("tuya_device_id", "")
+    use_v2 = cfg.get("command_api", "v1.0") == "v2.0"
+    cooler_code = cfg.get("cooler_code", "TEMPONOFF")
+    if not device_id:
+        log.warning("Cooling device not configured in tuya_devices.json")
+        return False
+    ok = _send_commands(device_id, [{"code": cooler_code, "value": on}], use_v2=use_v2)
+    log.info(f"Cooler compressor → {'ON' if on else 'OFF'}  success={ok}")
+    return ok

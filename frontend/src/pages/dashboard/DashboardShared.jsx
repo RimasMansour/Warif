@@ -121,6 +121,7 @@ const localizedRecommendationCopy = (rec, isEn) => {
   const reasoning = String(rec?.reasoning || '').trim();
   const valueMatch = reasoning.match(/(\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*°\s*[Cc]|\d+(?:\.\d+)?)/);
   const value = valueMatch ? valueMatch[1] : (isEn ? 'current value' : 'القيمة الحالية');
+  const numericValue = valueMatch ? Number.parseFloat(valueMatch[1]) : null;
 
   const EN = {
     general: {
@@ -215,10 +216,15 @@ const localizedRecommendationCopy = (rec, isEn) => {
     }
     if (category === 'temperature' || category === 'climate') {
       if (message.includes('تدفئة') || message.toLowerCase().includes('heating')) return 'temperature_low';
-      if (message.includes('تبريد') || message.toLowerCase().includes('cool')) return 'temperature_high';
+      if (message.includes('تبريد') || message.toLowerCase().includes('cool')) {
+        return numericValue !== null && numericValue >= 38 ? 'temperature_high' : 'temperature_moderate';
+      }
       return 'temperature_moderate';
     }
     if (category === 'humidity') {
+      if (numericValue !== null) {
+        return numericValue < 30 ? 'humidity_low' : 'humidity_high';
+      }
       if (message.includes('رش') || message.toLowerCase().includes('mist')) return 'humidity_low';
       return 'humidity_high';
     }
@@ -815,11 +821,11 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   // Climate / Temperature / Ventilation
   if (c === 'climate' || c === 'temperature') {
     if (isAuto) return isEn
-      ? "Greenhouse fans activated autonomously to lower temperature and stabilize the crop environment."
-      : "تم تشغيل المراوح تلقائياً لتخفيف درجة الحرارة وتلطيف أجواء الصوبة لضمان استقرار المحصول.";
+      ? "Greenhouse cooling and fans activated autonomously to lower temperature and stabilize the crop environment."
+      : "تم تشغيل التبريد والمراوح تلقائياً لتخفيف درجة الحرارة وتلطيف أجواء الصوبة لضمان استقرار المحصول.";
     return isEn
-      ? "Do you want to turn on the fans to lower the temperature and stabilize the crop environment?"
-      : "هل تود تشغيل المراوح لتخفيف درجة الحرارة وتلطيف أجواء الصوبة؟";
+      ? "Do you want to turn on cooling and fans to lower the temperature and stabilize the crop environment?"
+      : "هل تود تشغيل التبريد والمراوح لتخفيف درجة الحرارة وتلطيف أجواء الصوبة؟";
   }
 
   // Irrigation / Water
@@ -835,11 +841,11 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   // Humidity
   if (c === 'humidity') {
     if (isAuto) return isEn
-      ? "Humidification system activated autonomously to balance air humidity and protect crop health."
-      : "تم تشغيل نظام الترطيب تلقائياً لموازنة رطوبة الهواء وحماية صحة المحصول.";
+      ? "Ventilation fans activated autonomously to exhaust excess humidity and protect crop health."
+      : "تم تشغيل نظام التهوية والمراوح تلقائياً لتصريف الرطوبة الزائدة وحماية صحة المحصول.";
     return isEn
-      ? "Do you want to activate the humidification system to balance air humidity?"
-      : "هل تود تشغيل نظام الترطيب لموازنة رطوبة الهواء وحماية المحصول؟";
+      ? "Do you want to activate the ventilation fans to exhaust excess humidity and protect crop health?"
+      : "هل تود تشغيل نظام التهوية والمراوح لتصريف الرطوبة الزائدة وحماية المحصول؟";
   }
 
   // Soil

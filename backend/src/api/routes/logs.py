@@ -31,6 +31,7 @@ async def get_activity_logs(
     q = (
         select(ActivityLog)
         .where(ActivityLog.farm_id == farm_id)
+        .where(ActivityLog.action_type != "recommendation_ignored")
         .order_by(desc(ActivityLog.created_at))
         .limit(limit)
     )

@@ -11,7 +11,7 @@ import {
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
 import { formatLastUpdated } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction, useCoolingStatus } from '../../hooks/useWarifData';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
@@ -72,14 +72,36 @@ const sectionRows = (title, headers, rows) => [
 ========================================================= */
 
 export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
-  const [seconds, setSeconds] = useState(0);
-  const [activeAction, setActiveAction] = useState("");
-  const [fanRunning, setFanRunning] = useState(false);
-  const [coolerRunning, setCoolerRunning] = useState(false);
+   const [seconds, setSeconds] = useState(0);
+   const [activeAction, setActiveAction] = useState("");
+   const [fanRunning, setFanRunning] = useState(false);
+   const [coolerRunning, setCoolerRunning] = useState(false);
+
+  const { status: coolingStatus, refetch: refetchCoolingStatus } = useCoolingStatus(farmId);
+
+  useEffect(() => {
+    if (coolingStatus) {
+      setFanRunning(coolingStatus.fan);
+      setCoolerRunning(coolingStatus.cooler);
+    }
+  }, [coolingStatus]);
 
   const [feedback, setFeedback] = useState({});
   const [showThanksIds, setShowThanksIds] = useState([]);
   const [handledRecommendationIds, setHandledRecommendationIds] = useState([]);
+
+  const handleCoolingCommand = async (mode) => {
+    if (activeAction) return;
+    setActiveAction(mode);
+    try {
+      await triggerManualCooling(mode, farmId);
+      await refetchCoolingStatus();
+    } catch (error) {
+      console.error('[Warif] Cooling command failed:', error);
+    } finally {
+      setActiveAction("");
+    }
+  };
 
   const handleFeedback = async (id, type) => {
     setFeedback(prev => ({ ...prev, [id]: type }));
@@ -179,7 +201,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   }, [activeFarm]);
 
   const [range, setRange] = useState("D");
-  const { data: localSensors } = useLatestSensors(10000);
+  const { data: localSensors } = useLatestSensors(3000, farmId);
   const livesensors = sharedSensors || localSensors;
   const temp = livesensors?.air_temperature ?? 0;
   const hum  = livesensors?.air_humidity    ?? 0;
@@ -378,6 +400,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                       isEn={isEn}
                       onExecute={executeRecommendation}
                       onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+                      autoDismissOnAction={true}
                       onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}
@@ -397,7 +420,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
             </CardShell>
           </div>
 
-          <div className="animate-fade-in-up delay-3">
+          <div className="animate-fade-in-up delay-3 flex flex-col gap-4">
             <CardShell className="p-6 flex flex-col gap-4 h-[320px] card-interactive justify-start overflow-hidden">
               <div className={isRtl ? 'text-right' : 'text-left'}>
                 <div className="text-xl font-black text-gray-800 tracking-tight leading-tight">{T.control}</div>
@@ -419,17 +442,14 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <div className="flex flex-col gap-1">
                     <IrrigationActionButton 
                       active={fanRunning && coolerRunning} 
-                      onClick={() => {
-                        setFanRunning(true);
-                        setCoolerRunning(true);
-                        setActiveAction('full');
-                        triggerManualCooling && triggerManualCooling('full', farmId);
-                        setTimeout(() => setActiveAction(""), 5000);
-                      }}
+                      disabled={Boolean(activeAction)}
+                      onClick={() => handleCoolingCommand('full')}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/></svg>}
                       isRtl={isRtl}
                     >
-                      {isEn ? "Full Cooling (Fan + Cooler)" : "تبريد كامل (مروحة + مكيف)"}
+                      {activeAction === 'full'
+                        ? (isEn ? "Starting..." : "جاري التشغيل...")
+                        : (isEn ? "Full Cooling (Fan + Cooler)" : "تبريد كامل (مروحة + مكيف)")}
                     </IrrigationActionButton>
                   </div>
 
@@ -437,57 +457,65 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                   <div className="flex flex-col gap-1">
                     <IrrigationActionButton 
                       active={fanRunning && !coolerRunning} 
-                      onClick={() => {
-                        setFanRunning(true);
-                        setCoolerRunning(false);
-                        setActiveAction('fan_only');
-                        triggerManualCooling && triggerManualCooling('fan_only', farmId);
-                        setTimeout(() => setActiveAction(""), 5000);
-                      }}
+                      disabled={Boolean(activeAction)}
+                      onClick={() => handleCoolingCommand('fan_only')}
                       icon={<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" /></svg>}
                       isRtl={isRtl}
                     >
-                      {isEn ? "Ventilation Only (Fan)" : "تهوية فقط (مروحة)"}
+                      {activeAction === 'fan_only'
+                        ? (isEn ? "Starting..." : "جاري التشغيل...")
+                        : (isEn ? "Ventilation Only (Fan)" : "تهوية فقط (مروحة)")}
                     </IrrigationActionButton>
                   </div>
 
                   {/* Mode 3: Stop All */}
-                  <div className="flex flex-col gap-1">
-                    <button 
-                      onClick={() => {
-                        setFanRunning(false);
-                        setCoolerRunning(false);
-                        setActiveAction('stop');
-                        triggerManualCooling && triggerManualCooling('stop', farmId);
-                        setTimeout(() => setActiveAction(""), 5000);
-                      }}
-                      className="w-full flex items-center justify-center gap-3 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black"
-                    >
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
-                      {isEn ? "Stop All Units" : "إيقاف الكل"}
-                    </button>
-                  </div>
-
-                  {/* Status Indicators */}
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${fanRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                      <span className="text-[10px] font-bold uppercase">{isEn ? 'Fan Status' : 'حالة المروحة'}</span>
-                      <span className="text-sm font-black">{fanRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
-                    </div>
-                    <div className={`p-3 rounded-2xl border flex flex-col items-center gap-1 ${coolerRunning ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                      <span className="text-[10px] font-bold uppercase">{isEn ? 'Cooler Status' : 'حالة المكيف'}</span>
-                      <span className="text-sm font-black">{coolerRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}</span>
-                    </div>
-                  </div>
-
-                  {activeAction && (
-                    <div className="mt-2 px-4 py-2.5 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 text-xs font-black flex items-center gap-2 animate-pulse">
-                      <span>✓ {isEn ? 'Command sent to gateway...' : 'تم إرسال الأمر للوحدة المركزية...'}</span>
+                  {(fanRunning || coolerRunning) && (
+                    <div className="flex flex-col gap-1">
+                      <button 
+                        disabled={Boolean(activeAction)}
+                        onClick={() => handleCoolingCommand('stop')}
+                        className={`w-full flex items-center justify-center gap-3 p-4 rounded-[20px] bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 transition-all font-black animate-fade-in ${activeAction ? 'opacity-60 cursor-wait pointer-events-none' : ''}`}
+                      >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+                        {activeAction === 'stop'
+                          ? (isEn ? "Stopping..." : "جاري الإيقاف...")
+                          : (isEn ? "Stop All Units" : "إيقاف الكل")}
+                      </button>
                     </div>
                   )}
                 </div>
               )}
             </CardShell>
+
+            {/* Simple Status Bar */}
+            <div className="p-3.5 bg-white/70 backdrop-blur-md rounded-[22px] border border-gray-100/60 shadow-[0_2px_10px_rgba(0,0,0,0.01)] flex items-center justify-between px-6 gap-4 animate-fade-in">
+              {/* Fan Indicator */}
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${fanRunning ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] animate-pulse' : 'bg-gray-300'}`}></span>
+                <svg className={`w-5 h-5 ${fanRunning ? 'animate-spin text-emerald-600' : 'text-gray-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 12L12 3C15 3 18 6 18 9S15 12 12 12Z" /><path d="M12 12L21 12C21 15 18 18 15 18S12 15 12 12Z" /><path d="M12 12L12 21C9 21 6 18 6 15S9 12 12 12Z" /><path d="M12 12L3 12C3 9 6 6 9 6S12 9 12 12Z" />
+                </svg>
+                <span className="text-[12px] font-black text-gray-700">{isEn ? 'Fan:' : 'المروحة:'}</span>
+                <span className={`text-[12px] font-black ${fanRunning ? 'text-emerald-600' : 'text-gray-400'}`}>
+                  {fanRunning ? (isEn ? 'ON' : 'تعمل') : (isEn ? 'OFF' : 'متوقفة')}
+                </span>
+              </div>
+
+              {/* Separator line */}
+              <div className="h-6 w-[1px] bg-gray-200/80"></div>
+
+              {/* Cooler Indicator */}
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${coolerRunning ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse' : 'bg-gray-300'}`}></span>
+                <svg className={`w-5 h-5 ${coolerRunning ? 'animate-pulse text-blue-600' : 'text-gray-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/><path d="m20 16-4-4 4-4"/><path d="m4 8 4 4-4 4"/><path d="m16 4-4 4-4-4"/><path d="m8 20l4-4 4 4"/>
+                </svg>
+                <span className="text-[12px] font-black text-gray-700">{isEn ? 'AC:' : 'المكيف:'}</span>
+                <span className={`text-[12px] font-black ${coolerRunning ? 'text-blue-600' : 'text-gray-400'}`}>
+                  {coolerRunning ? (isEn ? 'ON' : 'يعمل') : (isEn ? 'OFF' : 'متوقف')}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -630,7 +658,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   }, [activeFarm]);
 
   const [range, setRange] = useState("D");
-  const { data: localSensors2 } = useLatestSensors(10000);
+  const { data: localSensors2 } = useLatestSensors(3000, farmId);
   const livesensors2 = sharedSensors || localSensors2;
   const soilTemp  = livesensors2?.soil_temperature ?? 0;
   const soilMoist = livesensors2?.soil_moisture    ?? 0;
@@ -817,6 +845,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                       isEn={isEn}
                       onExecute={executeRecommendation}
                       onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+                      autoDismissOnAction={true}
                       onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
                       onIgnore={() => {}}
                       onFeedback={handleFeedback}

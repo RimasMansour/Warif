@@ -193,9 +193,12 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   // Initialize chat greeting with user name
   useEffect(() => {
+    const greeting = isEn
+      ? `Hello ${firstName}! I am your smart assistant. How can I help you today?`
+      : `مرحباً ${firstName}! أنا مساعدك الذكي. كيف أساعدك اليوم؟`;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setChatMessages([{ role: "bot", text: `مرحباً ${firstName}! أنا مساعدك الذكي. كيف أساعدك اليوم؟` }]);
-  }, [firstName]);
+    setChatMessages([{ role: "bot", text: greeting }]);
+  }, [firstName, isEn]);
 
   const [weatherData, setWeatherData] = useState({ temp: 31, humidity: 45, condition: "مشمس", code: 0, isDay: true, locationName: "جاري تحديد الموقع..." });
 
@@ -279,8 +282,8 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     }
   }, [page]);
   const [activeFarm, setActiveFarm] = useState(0); 
-  const farmId = JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
-  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(farmId);
+  const currentFarmId = userFarms[activeFarm]?.id || null;
+  const { autoMode: globalAutoMode, toggleAutoMode } = useAutoMode(currentFarmId);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSensorsPopup, setShowSensorsPopup] = useState(false);
   const [showManualIrrigation, setShowManualIrrigation] = useState(false);
@@ -318,7 +321,6 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   const [connectedSensors, setConnectedSensors] = useState([]);
 
-  const currentFarmId = userFarms[activeFarm]?.id || null;
   const { devices, counts: _counts, loading: devicesLoading } = useDevices(currentFarmId);
 
   const valveDeviceId = useMemo(() => {
@@ -360,7 +362,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   }, [devices]);
 
   // ── Real sensor data from API ──────────────────────────────
-  const { data: liveSensors } = useLatestSensors(10000);
+  const { data: liveSensors } = useLatestSensors(3000, currentFarmId);
   const { alerts: activeAlerts, dismissAlert } = useAutoAlerts(liveSensors, globalAutoMode);
   const [_showAlertsPanel, _setShowAlertsPanel] = useState(false);
 
@@ -467,7 +469,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       return;
     }
 
-    setChatMessages(prev => [...prev, { role: "bot", text: "جاري التفكير..." }]);
+    setChatMessages(prev => [...prev, { role: "bot", text: isEn ? "Thinking..." : "جاري التفكير..." }]);
 
     // Build live sensor snapshot directly from the real-time API data (liveSensors)
     const alertMessages = activeAlerts
@@ -496,7 +498,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
       const API_BASE = import.meta.env.VITE_API_URL || "";
       const fetchUrl = `${API_BASE.replace(/\/$/, "")}/api/v1/chatbot/ask`;
       const token = sessionStorage.getItem('warif_token') || localStorage.getItem('warif_token');
-      const chatFarmId = farmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
+      const chatFarmId = currentFarmId || JSON.parse(localStorage.getItem('warif_user') || '{}').farmId;
 
       const response = await fetch(fetchUrl, {
         method: "POST",

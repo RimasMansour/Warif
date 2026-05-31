@@ -131,7 +131,7 @@ let simState = {
 };
 
 // Expose manual triggers for UI
-export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15) {
+export async function triggerManualIrrigation(action = 'start', farmId = null, durationMin = 15, recommendationId = null) {
   const token = getStoredToken();
   try {
     if (action === 'stop') {
@@ -149,7 +149,7 @@ export async function triggerManualIrrigation(action = 'start', farmId = null, d
     const res = await fetch(`${API_BASE}/api/v1/irrigation/manual`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_id: `irrigation_${farmId}`, duration_min: durationMin })
+      body: JSON.stringify({ device_id: `irrigation_${farmId}`, duration_min: durationMin, recommendation_id: recommendationId })
     });
     if (!res.ok) throw new Error('Irrigation API failed');
     const data = await res.json();
@@ -162,11 +162,11 @@ export async function triggerManualIrrigation(action = 'start', farmId = null, d
     return null;
   }
 }
-export async function triggerManualCooling(mode = "stop", farmId = null) {
+export async function triggerManualCooling(mode = "stop", farmId = null, recommendationId = null) {
   console.log('[Warif] Manual cooling requested:', mode, 'farm:', farmId);
-  let payload = { fan: false, cooler: false, farm_id: farmId };
-  if (mode === 'full')     payload = { fan: true,  cooler: true,  farm_id: farmId };
-  if (mode === 'fan_only') payload = { fan: true,  cooler: false, farm_id: farmId };
+  let payload = { fan: false, cooler: false, farm_id: farmId, recommendation_id: recommendationId };
+  if (mode === 'full')     payload = { fan: true,  cooler: true,  farm_id: farmId, recommendation_id: recommendationId };
+  if (mode === 'fan_only') payload = { fan: true,  cooler: false, farm_id: farmId, recommendation_id: recommendationId };
 
   const token = getStoredToken();
   try {
@@ -186,7 +186,7 @@ export async function triggerManualCooling(mode = "stop", farmId = null) {
   }
 }
 
-export function useLatestSensors(intervalMs = 10000) {
+export function useLatestSensors(intervalMs = 10000, farmIdOverride = null) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(!globalCache.latestSensors)
   const [error, setError] = useState(null)
@@ -195,9 +195,9 @@ export function useLatestSensors(intervalMs = 10000) {
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
       const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
-      const farmId = sessionFarms.length > 0
+      const farmId = farmIdOverride || (sessionFarms.length > 0
         ? sessionFarms[0].id
-        : (userData.farmId || null);
+        : (userData.farmId || null));
       if (!farmId) return;
 
       let mapped = {}
@@ -233,7 +233,7 @@ export function useLatestSensors(intervalMs = 10000) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [farmIdOverride])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -781,14 +781,23 @@ export async function submitRecommendationAction(farmId, recId, status) {
   }
 }
 
-export async function executeRecommendation(category, farmId, durationMin = 15) {
+export async function executeRecommendation(category, farmId, recommendationId = null, durationMin = 15) {
   const _token = getStoredToken();
   try {
     const cat = String(category || '').toLowerCase().trim();
+    // Safely check if durationMin is a valid number, otherwise default to 15
+    const mins = (typeof durationMin === 'number' && durationMin > 0)
+      ? durationMin
+      : (typeof durationMin === 'string' && !isNaN(parseInt(durationMin)) && parseInt(durationMin) > 0)
+        ? parseInt(durationMin)
+        : 15;
+
     if (cat === 'irrigation' || cat === 'water' || cat === 'soil_moisture') {
-      return await triggerManualIrrigation('start', farmId, durationMin);
-    } else if (cat === 'temperature' || cat === 'humidity' || cat === 'climate' || cat === 'air_temperature' || cat === 'air_humidity') {
-      return await triggerManualCooling('full', farmId);
+      return await triggerManualIrrigation('start', farmId, mins, recommendationId);
+    } else if (cat === 'humidity' || cat === 'air_humidity') {
+      return await triggerManualCooling('fan_only', farmId, recommendationId);
+    } else if (cat === 'temperature' || cat === 'climate' || cat === 'air_temperature') {
+      return await triggerManualCooling('full', farmId, recommendationId);
     } else {
       console.warn('[Warif] Unsupported recommendation category:', category);
       return null;
@@ -852,3 +861,36 @@ export function useActivityLogs(farmId, limit = 20) {
 
   return { logs, loading, refetch: fetchLogs };
 }
+
+export function useCoolingStatus(farmId, intervalMs = 5000) {
+  const [status, setStatus] = useState({ fan: false, cooler: false, mode: 'stop' });
+  const [loading, setLoading] = useState(true);
+
+  const fetchStatus = useCallback(async () => {
+    if (!farmId) return;
+    try {
+      const token = getStoredToken();
+      const res = await fetch(`${API_BASE}/api/v1/commands/cooling/status/${farmId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setStatus(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch cooling status:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [farmId]);
+
+  useEffect(() => {
+    fetchStatus();
+    if (intervalMs <= 0) return;
+    const id = setInterval(fetchStatus, intervalMs);
+    return () => clearInterval(id);
+  }, [fetchStatus, intervalMs]);
+
+  return { status, loading, refetch: fetchStatus };
+}
+

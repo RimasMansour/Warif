@@ -84,7 +84,7 @@ async def list_recommendations(
             select(ActivityLog)
             .where(
                 ActivityLog.farm_id == farm_id,
-                ActivityLog.action_type.in_(["recommendation_executed", "recommendation_ignored"]),
+                ActivityLog.action_type == "recommendation_executed",
             )
             .order_by(desc(ActivityLog.created_at))
             .limit(1000)
@@ -96,14 +96,7 @@ async def list_recommendations(
             except (TypeError, ValueError):
                 continue
             if rec_id in recommendation_ids and rec_id not in action_status_by_id:
-                action_status_by_id[rec_id] = "executed" if log.action_type == "recommendation_executed" else "ignored"
-
-    # Debug: log count of returned recommendations
-    print(f"[DEBUG] Farm {farm_id}: Found {len(recommendations)} recommendations")
-    if len(recommendations) == 0:
-        # Check if any recommendations exist at all for this farm
-        all_recs = await db.execute(select(Recommendation).where(Recommendation.farm_id == farm_id))
-        print(f"[DEBUG] Total recommendations in DB for farm {farm_id}: {len(all_recs.scalars().all())}")
+                action_status_by_id[rec_id] = "executed"
 
     def normalize_category(value: Optional[str]) -> str:
         raw = (value or "general").lower()
@@ -175,18 +168,19 @@ async def record_recommendation_action(
     if status not in ("executed", "ignored"):
         raise HTTPException(status_code=422, detail="status must be executed or ignored")
 
-    log = ActivityLog(
-        farm_id=farm_id,
-        user_id=int(current_user["sub"]),
-        action_type=f"recommendation_{status}",
-        details={
-            "recommendation_id": recommendation_id,
-            "category": rec.category.value if hasattr(rec.category, "value") else str(rec.category),
-            "message": rec.message,
-        },
-        performed_by="user",
-    )
-    db.add(log)
+    if status == "executed":
+        log = ActivityLog(
+            farm_id=farm_id,
+            user_id=int(current_user["sub"]),
+            action_type="recommendation_executed",
+            details={
+                "recommendation_id": recommendation_id,
+                "category": rec.category.value if hasattr(rec.category, "value") else str(rec.category),
+                "message": rec.message,
+            },
+            performed_by="user",
+        )
+        db.add(log)
     rec.is_read = True
     rec.mode = status
     await db.commit()

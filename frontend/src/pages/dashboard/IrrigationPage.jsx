@@ -117,7 +117,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     await submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
-  const { data: localSensors } = useLatestSensors(10000);
+  const { data: localSensors } = useLatestSensors(3000, farmId);
   const livesensors = sharedSensors || localSensors;
   const { data: irrigationData } = useIrrigationStatus(farmId);
   const { data: resourceData } = useIrrigationResources(farmId, 15000);

@@ -577,16 +577,18 @@ export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
   );
 }
 
-export function IrrigationActionButton({ children, active, onClick, icon, isRtl }) {
+export function IrrigationActionButton({ children, active, onClick, icon, isRtl, disabled = false }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`
         w-full p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4
         ${active 
           ? 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-200 scale-[1.02]' 
           : 'bg-white border-gray-100 text-gray-700 hover:border-emerald-200 hover:bg-emerald-50/30'
         }
+        ${disabled ? 'opacity-60 cursor-wait pointer-events-none' : ''}
       `}
       dir={isRtl ? 'rtl' : 'ltr'}
     >

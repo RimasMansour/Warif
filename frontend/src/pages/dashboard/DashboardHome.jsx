@@ -54,7 +54,7 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
   }, [farmObj]);
 
   // ── Live data from Backend API ─────────────────────────────
-  const { data: localSensors } = useLatestSensors(10000);
+  const { data: localSensors } = useLatestSensors(3000, farmId);
   const { data: dashboardData } = useDashboard(farmId);
   const { devices: _devices, counts, loading: _devicesLoading } = useDevices(farmId);
   const { data: irrigationResources } = useIrrigationResources(farmId, 15000);
@@ -641,6 +641,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
               isEn={isEn}
               onExecute={(category, farmId, recId) => executeRecommendation(category, farmId, recId)}
               onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+              autoDismissOnAction={true}
               onDismiss={(id) => setHandledRecommendationIds(prev => [...new Set([...prev, id])])}
               onIgnore={() => {}}
               onFeedback={handleFeedback}

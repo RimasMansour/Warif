@@ -118,7 +118,7 @@ async def get_cooling_status(
                 "auto_cooling_stop",
             ]),
         )
-        .order_by(desc(ActivityLog.created_at))
+        .order_by(desc(ActivityLog.created_at), desc(ActivityLog.id))
         .limit(1)
     )
     latest = result.scalar_one_or_none()
@@ -174,7 +174,8 @@ async def control_cooling(
                 Farm.user_id == int(current_user["sub"])
             )
         )
-        if not farm_check.scalar_one_or_none():
+        farm = farm_check.scalar_one_or_none()
+        if not farm:
             raise HTTPException(status_code=403, detail="Access denied: Farm not owned by current user")
         farm_id = int(farm_id_from_payload)
     else:
@@ -188,6 +189,8 @@ async def control_cooling(
 
     # ── Continuous Learning: Override Detection (Manual Mode) ─────────────────
     if not is_auto_mode:
+        farm.auto_mode = False
+        db.add(farm)
         user_action_is_on = fan_state or cooler_state
         await _log_manual_override_feedback(
             db=db,
@@ -231,15 +234,17 @@ async def control_cooling(
     db.add(log)
     await db.commit()
 
-    # ── Tuya Physical Control (farm 22 only — does not affect other farms) ────
+    # ── Tuya Physical Control (configured Tuya farm only — does not affect other farms) ────
     if tuya_client.is_tuya_farm(farm_id):
         try:
             if cooler_state:
                 await asyncio.to_thread(tuya_client.control_cooling, True)
             elif fan_state:
+                await asyncio.to_thread(tuya_client.control_cooler_only, False)
                 await asyncio.to_thread(tuya_client.control_fan, True)
             else:
                 await asyncio.to_thread(tuya_client.control_cooling, False)
+                await asyncio.to_thread(tuya_client.control_fan, False)
         except Exception as e:
             logger.warning(f"Tuya cooling command failed (DB already saved): {e}")
 
@@ -291,7 +296,8 @@ async def control_irrigation(
                 Farm.user_id == int(current_user["sub"])
             )
         )
-        if not farm_check.scalar_one_or_none():
+        farm = farm_check.scalar_one_or_none()
+        if not farm:
             raise HTTPException(status_code=403, detail="Access denied: Farm not owned by current user")
         farm_id = int(farm_id_from_payload)
     else:
@@ -305,6 +311,8 @@ async def control_irrigation(
 
     # ── Continuous Learning: Override Detection (Manual Mode) ─────────────────
     if not is_auto_mode:
+        farm.auto_mode = False
+        db.add(farm)
         await _log_manual_override_feedback(
             db=db,
             farm_id=farm_id,
