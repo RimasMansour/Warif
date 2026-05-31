@@ -39,16 +39,16 @@ const alertTitleForSensor = (sensorType, lang) => {
 
 const ALERT_ANOMALY_TEXT = {
   sensor_stuck: {
-    ar: (s, v, title) => `${title}: ${s} ثابت عند ${v} - قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
-    en: (s, v, title) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
+    ar: (s, v, title, alert) => `${title}: ${s} ثابت عند ${v} - قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
+    en: (s, v, title, alert) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
   },
   unrealistic_jump: {
-    ar: (s, v, title) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ - افحص الحساس وقناة الإرسال.`,
-    en: (s, v, title) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
+    ar: (s, v, title, alert) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ - افحص الحساس وقناة الإرسال.`,
+    en: (s, v, title, alert) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
   },
   pattern_break: {
-    ar: (s, v, title) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
-    en: (s, v, title) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
+    ar: (s, v, title, alert) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
+    en: (s, v, title, alert) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
   },
   threshold_violation: {
     ar: (s, v, title, alert) => {

@@ -246,12 +246,13 @@ export function useLatestSensors(intervalMs = 10000) {
 }
 
 export function useAutoMode(farmId) {
-  const [autoMode, setAutoMode] = useState(true);
+  const [autoMode, setAutoMode] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Load auto_mode from backend on mount
   useEffect(() => {
     if (!farmId) return;
+    setLoading(true);
     const token = getStoredToken();
     fetch(`${API_BASE}/api/v1/farms/${farmId}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -262,16 +263,19 @@ export function useAutoMode(farmId) {
           setAutoMode(data.auto_mode);
         }
       })
-      .catch(() => { });
+      .catch(() => { })
+      .finally(() => setLoading(false));
   }, [farmId]);
 
   // Save auto_mode to backend
   const toggleAutoMode = async (newValue) => {
     if (!farmId) return;
+    const previousValue = autoMode;
+    setAutoMode(newValue);
     setLoading(true);
     const token = getStoredToken();
     try {
-      await fetch(`${API_BASE}/api/v1/farms/${farmId}/auto-mode`, {
+      const res = await fetch(`${API_BASE}/api/v1/farms/${farmId}/auto-mode`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -279,9 +283,14 @@ export function useAutoMode(farmId) {
         },
         body: JSON.stringify({ auto_mode: newValue })
       });
-      setAutoMode(newValue);
+      if (!res.ok) throw new Error(`Failed to update auto mode (${res.status})`);
+      const data = await res.json().catch(() => null);
+      if (data && typeof data.auto_mode === 'boolean') {
+        setAutoMode(data.auto_mode);
+      }
     } catch (e) {
       console.error('Failed to update auto mode:', e);
+      setAutoMode(previousValue);
     } finally {
       setLoading(false);
     }
