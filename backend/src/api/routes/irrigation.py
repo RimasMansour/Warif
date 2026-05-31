@@ -28,6 +28,8 @@ from src.db.models.models import (
     IrrigationEvent, IrrigationMode, IrrigationStatus, ActivityLog, SensorReading
 )
 from src.services import tuya_client
+from src.services.automation_executor import execute_auto_decisions
+from src.services.decision_engine import get_engine
 from src.api.schemas.schemas import (
     IrrigationManualIn, IrrigationScheduleIn,
     IrrigationCommandOut, IrrigationEventOut,
@@ -132,9 +134,8 @@ async def start_manual_irrigation(
     return command
 
 
-# Triggered by the frontend when auto mode is ON and ML recommends irrigation
-# Stops any existing active irrigation before starting a new one
-@router.post("/auto/{farm_id}", response_model=IrrigationCommandOut, status_code=status.HTTP_201_CREATED)
+# Legacy trigger: asks the backend automation path to execute the current ML decision.
+@router.post("/auto/{farm_id}", response_model=dict, status_code=status.HTTP_200_OK)
 async def trigger_auto_irrigation(
     farm_id: int,
     duration_min: int = 15,
@@ -142,61 +143,38 @@ async def trigger_auto_irrigation(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Trigger automatic irrigation based on ML/AI decision.
-    Called by the frontend when auto mode is ON and ML recommends irrigation.
+    Trigger automatic irrigation through the current backend ML/Decision Engine contract.
+    Kept for compatibility; the frontend no longer decides irrigation by itself.
     """
-    # Get the sensor device for this farm
-    device_result = await db.execute(
-        select(Device).where(Device.farm_id == farm_id, Device.type == "sensor").limit(1)
+    farm_result = await db.execute(
+        select(Farm).where(Farm.id == farm_id, Farm.user_id == int(current_user["sub"]))
     )
-    device = device_result.scalar_one_or_none()
+    farm = farm_result.scalar_one_or_none()
+    if not farm:
+        raise HTTPException(status_code=404, detail="Farm not found")
 
-    if not device:
-        # Auto-create device if not exists
-        device = Device(
-            farm_id=farm_id,
-            device_id=f"irrigation_{farm_id}",
-            name="Irrigation",
-            type="actuator",
-        )
-        db.add(device)
-        await db.flush()
+    sensor_data = await _latest_sensor_snapshot(farm_id, db)
+    sensor_data["crop_type"] = farm.crop_type or "tomatoes"
+    report = await get_engine().analyze_with_intelligence(sensor_data, farm_id)
+    decisions = report.get("action_decisions", {})
+    irrigation_decision = decisions.get("irrigation")
+    if not irrigation_decision:
+        raise HTTPException(status_code=422, detail="No irrigation decision is available")
 
-    device_id = f"irrigation_{farm_id}"
-    actuator = await _get_or_create_actuator(device_id, db)
-
-    # Stop any existing active irrigation first
-    existing = await db.execute(
-        select(IrrigationEvent)
-        .join(IrrigationCommand)
-        .join(Actuator)
-        .where(
-            Actuator.device_id == device_id,
-            IrrigationEvent.status == IrrigationStatus.active,
-        )
-        .limit(1)
+    result = await execute_auto_decisions(
+        db=db,
+        farm_id=farm_id,
+        sensor_data=sensor_data,
+        action_decisions={"irrigation": irrigation_decision},
     )
-    existing_event = existing.scalar_one_or_none()
-    if existing_event:
-        existing_event.status = IrrigationStatus.completed
-        await db.flush()
-
-    command = IrrigationCommand(
-        actuator_id=actuator.id,
-        mode=IrrigationMode.auto,
-        duration_min=duration_min,
-    )
-    db.add(command)
-    await db.flush()
-
-    event = IrrigationEvent(
-        command_id=command.id,
-        status=IrrigationStatus.active,
-    )
-    db.add(event)
     await db.commit()
-    await db.refresh(command)
-    return command
+    return {
+        "success": True,
+        "farm_id": farm_id,
+        "duration_min": duration_min,
+        "decision": irrigation_decision,
+        "automation": result,
+    }
 
 
 # Schedules irrigation for a specific future time
@@ -465,6 +443,21 @@ async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm
     if not farm:
         raise HTTPException(status_code=404, detail="Farm not found")
     return farm
+
+
+async def _latest_sensor_snapshot(farm_id: int, db: AsyncSession) -> dict:
+    snapshot = {}
+    for sensor_type in ("soil_moisture", "soil_temperature", "air_temperature", "air_humidity", "light_intensity"):
+        result = await db.execute(
+            select(SensorReading)
+            .where(SensorReading.farm_id == farm_id, SensorReading.sensor_type == sensor_type)
+            .order_by(desc(SensorReading.timestamp))
+            .limit(1)
+        )
+        reading = result.scalar_one_or_none()
+        if reading is not None:
+            snapshot[sensor_type] = reading.value
+    return snapshot
 
 
 async def _get_or_create_actuator(device_id: str, db: AsyncSession) -> Actuator:

@@ -1040,14 +1040,18 @@ export function RecommendationCard({
   const handleExecute = async () => {
     if (isLoading || actionResult) return;
     setIsLoading(true);
-    setActionResult('executed');
-    scheduleDismiss();
     try {
-      await onActionChange?.(rec.rawId || rec.id, 'executed');
       const executionResult = await onExecute?.(actionType, farmId, rec.rawId || rec.id);
-      if (executionResult === null) throw new Error('Recommendation execution failed');
+      if (!executionResult) throw new Error('Recommendation execution failed');
+      if (executionResult.executed === false) {
+        setActionResult(null);
+      } else {
+        setActionResult('executed');
+        scheduleDismiss();
+      }
     } catch (err) {
       console.error('Execution failed:', err);
+      setActionResult(null);
     } finally {
       setIsLoading(false);
     }

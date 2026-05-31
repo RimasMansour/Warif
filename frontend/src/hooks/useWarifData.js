@@ -781,30 +781,40 @@ export async function submitRecommendationAction(farmId, recId, status) {
   }
 }
 
-export async function executeRecommendation(category, farmId, recommendationId = null, durationMin = 15) {
-  const _token = getStoredToken();
+export async function executeRecommendation(_category, farmId, recommendationId = null, durationMin = 15) {
+  const token = getStoredToken();
   try {
-    const cat = String(category || '').toLowerCase().trim();
-    // Safely check if durationMin is a valid number, otherwise default to 15
+    void _category;
+    if (!farmId || !recommendationId) {
+      throw new Error('farmId and recommendationId are required to execute recommendation');
+    }
     const mins = (typeof durationMin === 'number' && durationMin > 0)
       ? durationMin
       : (typeof durationMin === 'string' && !isNaN(parseInt(durationMin)) && parseInt(durationMin) > 0)
         ? parseInt(durationMin)
         : 15;
 
-    if (cat === 'irrigation' || cat === 'water' || cat === 'soil_moisture') {
-      return await triggerManualIrrigation('start', farmId, mins, recommendationId);
-    } else if (cat === 'humidity' || cat === 'air_humidity') {
-      return await triggerManualCooling('fan_only', farmId, recommendationId);
-    } else if (cat === 'temperature' || cat === 'climate' || cat === 'air_temperature') {
-      return await triggerManualCooling('full', farmId, recommendationId);
-    } else {
-      console.warn('[Warif] Unsupported recommendation category:', category);
-      return null;
-    }
+    const res = await fetch(`${API_BASE}/api/v1/recommendations/${farmId}/execute/${recommendationId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ mode: 'manual', duration_min: mins })
+    });
+    if (!res.ok) throw new Error('Recommendation execution failed');
+    const data = await res.json();
+    Object.keys(globalCache.recommendations).forEach(key => {
+      if (String(key) !== String(farmId) && !key.startsWith(`${farmId}_`)) return;
+      globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
+        String(rec.id) === String(recommendationId) ? { ...rec, action_status: data.executed === false ? null : 'executed', is_read: true } : rec
+      );
+    });
+    console.log('[Warif] Recommendation executed by backend decision:', data);
+    return data;
   } catch (err) {
     console.error('[Warif] Execute recommendation error:', err);
-    return null;
+    throw err;
   }
 }
 

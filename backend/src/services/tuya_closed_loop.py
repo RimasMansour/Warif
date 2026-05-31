@@ -18,6 +18,7 @@ from src.db.models.models import (
     IrrigationCommand, IrrigationEvent, IrrigationStatus, Actuator, Device
 )
 from src.services import tuya_client
+from src.services.climate_control_policy import evaluate_climate_control
 
 log = logging.getLogger("tuya_closed_loop")
 
@@ -26,22 +27,27 @@ CROP_PROFILES = {
     "tomatoes": {
         "optimal_temp_max": 27.0,
         "optimal_hum_max": 70.0,
+        "optimal_soil_max": 70.0,
     },
     "cucumber": {
         "optimal_temp_max": 28.0,
         "optimal_hum_max": 70.0,
+        "optimal_soil_max": 80.0,
     },
     "pepper": {
         "optimal_temp_max": 28.0,
         "optimal_hum_max": 70.0,
+        "optimal_soil_max": 65.0,
     },
     "herbs": {
         "optimal_temp_max": 25.0,
         "optimal_hum_max": 70.0,
+        "optimal_soil_max": 60.0,
     },
     "default": {
         "optimal_temp_max": 28.0,
         "optimal_hum_max": 70.0,
+        "optimal_soil_max": 70.0,
     }
 }
 
@@ -114,17 +120,60 @@ async def run_closed_loop_once(db):
 
     current_temp = latest_temp_r.value
     current_hum = latest_hum_r.value
+    climate_decision = evaluate_climate_control(
+        current_mode=mode,
+        air_temperature=current_temp,
+        air_humidity=current_hum,
+        target_temperature=target_temp,
+        target_humidity=target_hum,
+        resume_cooling_humidity=hum_resume_cooling,
+    )
+
+    if climate_decision["mode"] == "stop":
+        log.info(f"[Tuya Closed-Loop] Climate targets achieved for Farm {farm_id}. Turning OFF cooling and fan.")
+        try:
+            ok_cooling = await asyncio.to_thread(tuya_client.control_cooling, False)
+            ok_fan = await asyncio.to_thread(tuya_client.control_fan, False)
+            if ok_cooling or ok_fan:
+                stop_cmd = DeviceCommand(
+                    device_id=f"cooling_unit_{farm_id}",
+                    command="COOLING_OFF",
+                    payload=json.dumps({"fan": False, "cooler": False, "reason": climate_decision["reason"]}),
+                    status="completed",
+                    completed_at=datetime.now(timezone.utc),
+                    issued_at=datetime.now(timezone.utc)
+                )
+                db.add(stop_cmd)
+
+                stop_log = ActivityLog(
+                    farm_id=farm_id,
+                    action_type="auto_cooling_stop",
+                    device_id=f"cooling_unit_{farm_id}",
+                    details={
+                        "fan": False,
+                        "cooler": False,
+                        "mode": "stop",
+                        "triggered_by": "automation",
+                        "reason": climate_decision["reason"],
+                        "actual_temp": current_temp,
+                        "actual_hum": current_hum,
+                        "targets": climate_decision["targets"],
+                    },
+                    performed_by="system",
+                )
+                db.add(stop_log)
+                await db.commit()
+        except Exception as tuya_err:
+            log.error(f"[Tuya Closed-Loop] Failed to physically stop cooling: {tuya_err}")
+            await db.rollback()
+        return
 
     # 4. Check if targets have been achieved and execute multi-stage physical shut down
     if mode == "full":
         # A. If temperature is achieved or humidity is too high, physically turn off
         # the cooler and keep the fan running for ventilation/dehumidification.
-        if current_temp <= target_temp or current_hum >= target_hum:
-            reason = (
-                "humidity limit reached, cooler turned off"
-                if current_hum >= target_hum
-                else "temperature target achieved, cooler turned off"
-            )
+        if climate_decision["mode"] == "fan_only":
+            reason = climate_decision["reason"]
             log.info(
                 f"[Tuya Closed-Loop] Switching Farm {farm_id} to fan-only "
                 f"(temp={current_temp}C target={target_temp}C, hum={current_hum}% target={target_hum}%)."
@@ -155,6 +204,7 @@ async def run_closed_loop_once(db):
                             "reason": reason,
                             "actual_temp": current_temp,
                             "actual_hum": current_hum,
+                            "targets": climate_decision["targets"],
                         },
                         performed_by="system",
                     )
@@ -186,7 +236,7 @@ async def run_closed_loop_once(db):
     details = latest_log.details if latest_log else {}
     current_mode = details.get("mode") or ("full" if "full" in latest_log.action_type else ("fan_only" if "fan_only" in latest_log.action_type else "stop")) if latest_log else "stop"
 
-    if current_mode == "fan_only" and current_temp > target_temp and current_hum <= hum_resume_cooling:
+    if current_mode == "fan_only" and climate_decision["mode"] == "full":
         log.info(
             f"[Tuya Closed-Loop] Humidity is safe for Farm {farm_id} ({current_hum}% <= "
             f"{hum_resume_cooling}%). Resuming full cooling because temp is {current_temp}C."
@@ -213,9 +263,10 @@ async def run_closed_loop_once(db):
                         "cooler": True,
                         "mode": "full",
                         "triggered_by": "automation",
-                        "reason": "humidity safe again, resuming cooling until temperature target",
+                        "reason": climate_decision["reason"],
                         "actual_temp": current_temp,
                         "actual_hum": current_hum,
+                        "targets": climate_decision["targets"],
                     },
                     performed_by="system",
                 )
@@ -225,7 +276,7 @@ async def run_closed_loop_once(db):
             log.error(f"[Tuya Closed-Loop] Failed to physically resume cooler: {tuya_err}")
             await db.rollback()
 
-    elif current_mode == "fan_only" and current_temp <= target_temp and current_hum <= target_hum:
+    elif current_mode == "fan_only" and climate_decision["mode"] == "stop":
         log.info(f"[Tuya Closed-Loop] Climate targets achieved for Farm {farm_id}. Turning OFF physical fan.")
         try:
             ok_fan = await asyncio.to_thread(tuya_client.control_fan, False)
@@ -252,6 +303,7 @@ async def run_closed_loop_once(db):
                         "reason": "climate targets successfully achieved",
                         "actual_temp": current_temp,
                         "actual_hum": current_hum,
+                        "targets": climate_decision["targets"],
                     },
                     performed_by="system",
                 )

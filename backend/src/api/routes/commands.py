@@ -165,6 +165,7 @@ async def control_cooling(
     farm_id_from_payload = payload.get("farm_id")
     is_auto_mode = payload.get("auto_mode", False)
     recommendation_id = payload.get("recommendation_id")
+    decision_payload = payload.get("decision") or payload.get("execution_action")
 
     # ── BOLA Protection ───────────────────────────────────────────────────────
     if farm_id_from_payload:
@@ -203,7 +204,12 @@ async def control_cooling(
     fan_cmd = DeviceCommand(
         device_id=f"fan_unit_{farm_id}",
         command="FAN_ON" if fan_state else "FAN_OFF",
-        payload=json.dumps({"fan": fan_state, "cooler": cooler_state}),
+        payload=json.dumps({
+            "fan": fan_state,
+            "cooler": cooler_state,
+            "recommendation_id": recommendation_id,
+            "decision": decision_payload,
+        }),
         status="pending",
         issued_at=datetime.now(timezone.utc)
     )
@@ -212,7 +218,12 @@ async def control_cooling(
     cooler_cmd = DeviceCommand(
         device_id=f"cooling_unit_{farm_id}",
         command="COOLER_ON" if cooler_state else "COOLER_OFF",
-        payload=json.dumps({"fan": fan_state, "cooler": cooler_state}),
+        payload=json.dumps({
+            "fan": fan_state,
+            "cooler": cooler_state,
+            "recommendation_id": recommendation_id,
+            "decision": decision_payload,
+        }),
         status="pending",
         issued_at=datetime.now(timezone.utc)
     )
@@ -228,6 +239,11 @@ async def control_cooling(
             "cooler": cooler_state,
             "mode": mode,
             "triggered_by": "automation" if is_auto_mode else "user",
+            "recommendation_id": recommendation_id,
+            "decision_source": decision_payload.get("source") if isinstance(decision_payload, dict) else None,
+            "decision_confidence": decision_payload.get("confidence") if isinstance(decision_payload, dict) else None,
+            "reason": decision_payload.get("reason") if isinstance(decision_payload, dict) else None,
+            "targets": decision_payload.get("targets") if isinstance(decision_payload, dict) else None,
         },
         performed_by="system" if is_auto_mode else "user",
     )
@@ -287,6 +303,7 @@ async def control_irrigation(
     farm_id_from_payload = payload.get("farm_id")
     is_auto_mode = payload.get("auto_mode", False)
     recommendation_id = payload.get("recommendation_id")
+    decision_payload = payload.get("decision") or payload.get("execution_action")
 
     # ── BOLA Protection ───────────────────────────────────────────────────────
     if farm_id_from_payload:
@@ -324,7 +341,12 @@ async def control_irrigation(
     valve_cmd = DeviceCommand(
         device_id=f"irrigation_valve_{farm_id}",
         command="VALVE_OPEN" if valve_state else "VALVE_CLOSE",
-        payload=json.dumps({"valve": valve_state, "duration_min": duration_min}),
+        payload=json.dumps({
+            "valve": valve_state,
+            "duration_min": duration_min,
+            "recommendation_id": recommendation_id,
+            "decision": decision_payload,
+        }),
         status="pending",
         issued_at=datetime.now(timezone.utc)
     )
@@ -338,6 +360,11 @@ async def control_irrigation(
             "valve": valve_state,
             "duration_min": duration_min,
             "triggered_by": "automation" if is_auto_mode else "user",
+            "recommendation_id": recommendation_id,
+            "decision_source": decision_payload.get("source") if isinstance(decision_payload, dict) else None,
+            "decision_confidence": decision_payload.get("confidence") if isinstance(decision_payload, dict) else None,
+            "reason": decision_payload.get("reason") if isinstance(decision_payload, dict) else None,
+            "targets": decision_payload.get("targets") if isinstance(decision_payload, dict) else None,
         },
         performed_by="system" if is_auto_mode else "user",
     )

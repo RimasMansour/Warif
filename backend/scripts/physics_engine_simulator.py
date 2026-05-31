@@ -38,6 +38,7 @@ from src.db.models.models import (
     IrrigationCommand, IrrigationEvent, IrrigationStatus, IrrigationMode,
     DeviceCommand, ActivityLog
 )
+from src.services.climate_control_policy import evaluate_climate_control
 
 
 async def log_action(db, farm_id, action_type, device_id=None,
@@ -389,103 +390,54 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
     else:
         # Check if we are in target-driven manual cooling mode
         if state.get("manual_cooling_active", False):
-            # Target-driven check: has the target been successfully met?
             target_temp = state.get("cooling_target_temp", profile.get("optimal_temp_max", 28.0))
             target_hum = state.get("cooling_target_hum", 80.0)
             hum_resume_cooling = state.get("cooling_resume_hum", 75.0)
-            cooling_completed_this_tick = False
-            
-            # Smart multi-stage cooling logic:
-            # 1. If cooler is ON: check if temperature target is reached.
-            #    If reached or humidity is already high, turn off cooler immediately
-            #    so evaporative cooling does not keep raising greenhouse humidity.
-            if state["cooler_on"]:
-                if state["internal_temp"] <= target_temp or state["internal_hum"] >= target_hum:
-                    state["cooler_on"] = False
-                    state["cooling_on"] = False
-                    reason = (
-                        "humidity limit reached, cooler turned off"
-                        if state["internal_hum"] >= target_hum
-                        else "temperature target achieved, cooler turned off"
-                    )
-                    await log_action(
-                        db, fid, "auto_cooling_fan_only", f"cooling_unit_{fid}",
-                        {
-                            "mode": "fan_only",
-                            "fan": True,
-                            "cooler": False,
-                            "reason": reason,
-                            "temp": round(state["internal_temp"], 1),
-                            "hum": round(state["internal_hum"], 1)
-                        }
-                    )
-                    print(
-                        f"[STAGE ACHIEVED] Farm {fid} | Cooler OFF -> fan-only "
-                        f"(Temp {state['internal_temp']:.1f}C / target {target_temp}C, "
-                        f"Hum {state['internal_hum']:.1f}% / target {target_hum}%)."
-                    )
-            
-            # 2. If fan is ON: check whether humidity and temperature are balanced.
-            #    If temperature is already achieved and humidity is safe, turn off the fan too!
-            if state["fan_on"]:
-                hum_ok = state["internal_hum"] <= target_hum
-                temp_ok = state["internal_temp"] <= target_temp
 
-                # If ventilation has pulled humidity back into a safer band but
-                # temperature is still high, resume full cooling. This keeps the
-                # greenhouse balanced instead of giving up on temperature control.
-                if not state["cooler_on"] and not temp_ok and state["internal_hum"] <= hum_resume_cooling:
-                    state["cooler_on"] = True
-                    state["cooling_on"] = True
-                    await log_action(
-                        db, fid, "auto_cooling_full", f"cooling_unit_{fid}",
-                        {
-                            "mode": "full",
-                            "fan": True,
-                            "cooler": True,
-                            "reason": "humidity safe again, resuming cooling until temperature target",
-                            "temp": round(state["internal_temp"], 1),
-                            "hum": round(state["internal_hum"], 1)
-                        }
-                    )
-                    print(
-                        f"[BALANCE] Farm {fid} | Humidity safe ({state['internal_hum']:.1f}% <= "
-                        f"{hum_resume_cooling}%) but temp high ({state['internal_temp']:.1f}C > "
-                        f"{target_temp}C) -> Full cooling resumed."
-                    )
-                
-                # If cooler is off (or was never on) and the climate is balanced:
-                if not state["cooler_on"] and temp_ok and hum_ok:
-                    state["fan_on"] = False
+            current_mode = "full" if state["cooler_on"] else "fan_only" if state["fan_on"] else "stop"
+            climate_decision = evaluate_climate_control(
+                current_mode=current_mode,
+                air_temperature=state["internal_temp"],
+                air_humidity=state["internal_hum"],
+                target_temperature=target_temp,
+                target_humidity=target_hum,
+                resume_cooling_humidity=hum_resume_cooling,
+            )
+            next_mode = climate_decision["mode"]
+
+            if next_mode != current_mode and climate_decision["action"] != "hold":
+                state["fan_on"] = climate_decision["fan"]
+                state["cooler_on"] = climate_decision["cooler"]
+                state["cooling_on"] = state["fan_on"] and state["cooler_on"]
+                if next_mode == "stop":
                     state["manual_cooling_active"] = False
-                    cooling_completed_this_tick = True
-                    await log_action(
-                        db, fid, "auto_cooling_stop", f"fan_unit_{fid}",
-                        {
-                            "mode": "stop",
-                            "fan": False,
-                            "cooler": False,
-                            "reason": "climate targets successfully achieved",
-                            "temp": round(state["internal_temp"], 1),
-                            "hum": round(state["internal_hum"], 1)
-                        }
-                    )
-                    print(f"[STAGE ACHIEVED] Farm {fid} | Climate achieved (Temp <= {target_temp}C and Hum <= {target_hum}%) -> Fan turned OFF.")
 
-            # 3. If both actuators are now OFF, the whole manual cooling cycle is fully complete!
-            if not cooling_completed_this_tick and not state["cooler_on"] and not state["fan_on"]:
-                state["manual_cooling_active"] = False
+                action_type = {
+                    "full": "auto_cooling_full",
+                    "fan_only": "auto_cooling_fan_only",
+                    "stop": "auto_cooling_stop",
+                }[next_mode]
+                device_id = f"cooling_unit_{fid}" if next_mode != "stop" else f"fan_unit_{fid}"
                 await log_action(
-                    db, fid, "auto_cooling_stop", f"cooling_unit_{fid}",
+                    db, fid, action_type, device_id,
                     {
-                        "mode": "stop",
-                        "fan": False,
-                        "cooler": False,
-                        "reason": "climate targets successfully achieved",
+                        "mode": next_mode,
+                        "fan": state["fan_on"],
+                        "cooler": state["cooler_on"],
+                        "reason": climate_decision["reason"],
                         "temp": round(state["internal_temp"], 1),
-                        "hum": round(state["internal_hum"], 1)
+                        "hum": round(state["internal_hum"], 1),
+                        "targets": climate_decision["targets"],
                     }
                 )
+                print(
+                    f"[CLIMATE BALANCE] Farm {fid} | {current_mode} -> {next_mode} | "
+                    f"{climate_decision['reason']} "
+                    f"(Temp {state['internal_temp']:.1f}C, Hum {state['internal_hum']:.1f}%)."
+                )
+
+            if next_mode == "stop" and not state["cooler_on"] and not state["fan_on"]:
+                state["manual_cooling_active"] = False
                 print(f"[TARGET ACHIEVED] Farm {fid} | Climate fully balanced (Temp: {state['internal_temp']:.1f}C, Hum: {state['internal_hum']:.1f}%) -> Manual cooling completed successfully.")
         else:
             # Check if still in manual STOP window (to prevent auto mode from turning devices back on immediately)
@@ -502,33 +454,40 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
             if not still_manual:
                 # Automatic mode - Only run if farm auto_mode is enabled
                 if farm_auto_mode:
-                    # Full cooling: temp >= 28 AND humidity < 85
-                    # Ref: Haifa Group Cucumber Guide - ventilation at 26°C, full cooling at 28°C
-                    if state["internal_temp"] >= 28.0 and state["internal_hum"] < 85.0:
-                        prev_fan = state["fan_on"]
-                        state["fan_on"] = True
-                        state["cooler_on"] = True
-                        state["cooling_on"] = True
-                        if not prev_fan:
-                            await log_action(db, fid, "fan_auto_on", f"fan_unit_{fid}",
-                                {"reason": "temp >= 28C", "temp": round(state["internal_temp"], 1)})
-                            await log_action(db, fid, "cooler_auto_on", f"cooling_unit_{fid}",
-                                {"reason": "full cooling mode", "temp": round(state["internal_temp"], 1)})
-                    # Ventilation only: humidity >= 70 OR temp >= 26
-                    # Ref: Haifa Group - optimal humidity 70-90%, ventilation at 26°C
-                    elif state["internal_hum"] >= 70.0 or state["internal_temp"] >= 26.0:
-                        prev_fan = state["fan_on"]
-                        state["fan_on"] = True
-                        state["cooler_on"] = False
-                        state["cooling_on"] = False
-                        if not prev_fan:
-                            await log_action(db, fid, "fan_auto_on", f"fan_unit_{fid}",
-                                {"reason": "humidity >= 70% or temp >= 26C", "humidity": round(state["internal_hum"], 1)})
-                    # All off: good conditions
-                    elif state["internal_temp"] < 26.0 and state["internal_hum"] < 70.0:
-                        state["fan_on"] = False
-                        state["cooler_on"] = False
-                        state["cooling_on"] = False
+                    # Shared climate policy balances temperature and humidity together.
+                    current_mode = "full" if state["cooler_on"] else "fan_only" if state["fan_on"] else "stop"
+                    climate_decision = evaluate_climate_control(
+                        current_mode=current_mode,
+                        air_temperature=state["internal_temp"],
+                        air_humidity=state["internal_hum"],
+                        target_temperature=profile.get("optimal_temp_max", 28.0),
+                        target_humidity=profile.get("optimal_hum_max", 70.0),
+                        resume_cooling_humidity=max(profile.get("optimal_hum_max", 70.0) - 5.0, 55.0),
+                        ventilation_humidity=profile.get("optimal_hum_max", 70.0),
+                    )
+                    next_mode = climate_decision["mode"]
+                    if next_mode != current_mode and climate_decision["action"] != "hold":
+                        state["fan_on"] = climate_decision["fan"]
+                        state["cooler_on"] = climate_decision["cooler"]
+                        state["cooling_on"] = state["fan_on"] and state["cooler_on"]
+                        action_type = {
+                            "full": "auto_cooling_full",
+                            "fan_only": "auto_cooling_fan_only",
+                            "stop": "auto_cooling_stop",
+                        }[next_mode]
+                        device_id = f"cooling_unit_{fid}" if next_mode == "full" else f"fan_unit_{fid}"
+                        await log_action(
+                            db, fid, action_type, device_id,
+                            {
+                                "mode": next_mode,
+                                "fan": state["fan_on"],
+                                "cooler": state["cooler_on"],
+                                "reason": climate_decision["reason"],
+                                "temp": round(state["internal_temp"], 1),
+                                "hum": round(state["internal_hum"], 1),
+                                "targets": climate_decision["targets"],
+                            }
+                        )
                 else:
                     # Manual mode (via auto_mode toggle): stay in current state
                     pass

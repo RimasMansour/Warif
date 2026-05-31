@@ -3,7 +3,7 @@ import { translations } from '../../i18n';
 import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer } from './DashboardShared';
 import { IrrigationActionButton, SustainabilityLineChart } from './DashboardCharts';
 import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
-import { stopFarmIrrigation, triggerAutoIrrigation } from '../../services/api';
+import { stopFarmIrrigation } from '../../services/api';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
@@ -123,22 +123,10 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
   const { data: resourceData } = useIrrigationResources(farmId, 15000);
   const { data: mlPrediction } = useIrrigationPrediction(farmId, livesensors);
 
-  const [autoTriggered, setAutoTriggered] = useState(false);
-
   // UX Improvement: Scroll to top on mount
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
-
-  useEffect(() => {
-    if (globalAutoMode && mlPrediction?.irrigation_needed && !autoTriggered && irrigationData?.status !== 'active') {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAutoTriggered(true);
-      triggerAutoIrrigation(farmId, 15)
-        .then(() => setTimeout(() => setAutoTriggered(false), 60000))
-        .catch(() => setAutoTriggered(false));
-    }
-  }, [globalAutoMode, mlPrediction, irrigationData, farmId, autoTriggered]);
   
   const currentFlow = irrigationData?.status === 'active' ? 75 : 0;
   const waterUsage  = resourceData?.water_usage_liters ?? 0;

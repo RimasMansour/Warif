@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
+from src.services.climate_control_policy import evaluate_climate_control
+
 logger = logging.getLogger(__name__)
 
 # Module-level singleton — shared by sensors, physics simulator, ml routes, etc.
@@ -29,6 +31,7 @@ class SmartRecommendation:
     category: str      # "irrigation" | "temperature" | "humidity" | "soil"
     severity: str      # "normal" | "warning" | "urgent"
     confidence: float  # 0.0 to 1.0
+    execution_action: Optional[Dict] = None
     risk_level: Optional[str] = None  # NEW: من Risk Engine
     anomalies: Optional[List[Dict]] = None  # NEW: من Anomaly Detector
 
@@ -453,6 +456,73 @@ class SmartDecisionEngine:
 
         return recommendations
 
+    def _build_irrigation_action_contract(
+        self,
+        *,
+        should_irrigate: bool,
+        soil_moisture: Optional[float],
+        optimal_min: float,
+        optimal_max: float,
+        score: float,
+        confidence: float,
+        ml_available: bool,
+        reason: str,
+    ) -> Dict:
+        if should_irrigate:
+            action = "start"
+        elif soil_moisture is not None and soil_moisture >= optimal_max:
+            action = "stop"
+        else:
+            action = "hold"
+
+        source = "ml" if ml_available else "rules_fallback"
+        return {
+            "domain": "irrigation",
+            "action": action,
+            "actuators": {"irrigation": action == "start"},
+            "source": source,
+            "confidence": confidence,
+            "score": round(score, 3),
+            "reason": reason,
+            "targets": {
+                "soil_moisture_min": optimal_min,
+                "soil_moisture_max": optimal_max,
+            },
+            "should_execute": action in {"start", "stop"},
+        }
+
+    def _build_climate_action_contract(
+        self,
+        *,
+        air_temperature: Optional[float],
+        air_humidity: Optional[float],
+    ) -> Dict:
+        policy = evaluate_climate_control(
+            current_mode="stop",
+            air_temperature=air_temperature,
+            air_humidity=air_humidity,
+            target_temperature=28.0,
+            target_humidity=70.0,
+            resume_cooling_humidity=65.0,
+            ventilation_humidity=70.0,
+        )
+        action = "cooling_full" if policy["mode"] == "full" else policy["mode"]
+
+        return {
+            "domain": "climate",
+            "action": action,
+            "actuators": {
+                "fan": action in {"cooling_full", "fan_only"},
+                "cooler": action == "cooling_full",
+            },
+            "source": "rules_fallback",
+            "confidence": 0.75,
+            "reason": policy["reason"],
+            "targets": policy["targets"],
+            "should_execute": action in {"cooling_full", "fan_only", "stop"},
+            "ml_available": False,
+        }
+
     async def analyze_with_intelligence(self, sensor_data: dict, farm_id: Optional[int] = None) -> Dict:
         """
         القرار الموحد الذكي الشامل
@@ -548,6 +618,7 @@ class SmartDecisionEngine:
         irr_score = 0.0
         irr_confidence = 0.65
         ml_actually_ran = False
+        optimal_min, optimal_max = 60, 70
         irr_reason = "لا بيانات عن رطوبة التربة"
         if soil_moisture is not None:
             ml_result = self.run_ml_prediction(sensor_data)
@@ -602,11 +673,38 @@ class SmartDecisionEngine:
             "reason": irr_reason,
             "soil_threshold_used": 45 if not ml_available else _optimal_min,
         }
+        irrigation_decision = self._build_irrigation_action_contract(
+            should_irrigate=should_irrigate,
+            soil_moisture=soil_moisture,
+            optimal_min=_optimal_min,
+            optimal_max=optimal_max,
+            score=irr_score,
+            confidence=irr_confidence,
+            ml_available=ml_available,
+            reason=irr_reason,
+        )
+        irrigation_action.update(irrigation_decision)
 
         cooling_action = {
             "should_cool": air_temperature > 32,
             "should_ventilate": air_humidity > 75,
         }
+        climate_decision = self._build_climate_action_contract(
+            air_temperature=air_temperature,
+            air_humidity=air_humidity,
+        )
+        cooling_action.update(climate_decision)
+
+        action_decisions = {
+            "irrigation": irrigation_decision,
+            "climate": climate_decision,
+        }
+
+        for rec in recommendations:
+            if rec.category == "irrigation":
+                rec.execution_action = irrigation_decision
+            elif rec.category in {"temperature", "humidity"}:
+                rec.execution_action = climate_decision
 
         return {
             "recommendations": recommendations,
@@ -615,6 +713,7 @@ class SmartDecisionEngine:
             "overall_intelligence": overall_intelligence,
             "irrigation_action": irrigation_action,
             "cooling_action": cooling_action,
+            "action_decisions": action_decisions,
         }
 
     def _determine_system_status(self, risk_assessment: Dict, recommendations: List, anomalies: List) -> str:
