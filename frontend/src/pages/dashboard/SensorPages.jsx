@@ -305,7 +305,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range, isEn]);
 
 
-  const { data: apiRecs } = useRecommendations(farmId);
+  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
@@ -323,6 +324,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
         reasoning: r.data_insight || r.reasoning || r.message,
         category: r.category || r.type || 'temperature',
         action_status: r.action_status,
+        decision_state: r.decision_state,
         feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
         severity: r.severity,
         created_at: r.created_at
@@ -393,7 +395,9 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
                         reasoning: rec.reasoning,
                         category: rec.category,
                         severity: rec.severity || 'normal',
-                        created_at: rec.created_at
+                        created_at: rec.created_at,
+                        action_status: rec.action_status,
+                        decision_state: rec.decision_state
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
@@ -758,7 +762,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range, isEn]);
 
 
-  const { data: apiRecs } = useRecommendations(farmId);
+  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];
@@ -776,6 +781,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
         reasoning: r.data_insight || r.reasoning || r.message,
         category: r.category || r.type || 'soil',
         action_status: r.action_status,
+        decision_state: r.decision_state,
         feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
         severity: r.severity,
         created_at: r.created_at
@@ -838,7 +844,9 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
                         reasoning: rec.reasoning,
                         category: rec.category,
                         severity: rec.severity || 'normal',
-                        created_at: rec.created_at
+                        created_at: rec.created_at,
+                        action_status: rec.action_status,
+                        decision_state: rec.decision_state
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}

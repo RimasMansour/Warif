@@ -7,12 +7,15 @@ Warif Digital Twin Decision Engine
 import os
 import logging
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 
 from src.services.climate_control_policy import evaluate_climate_control
 
 logger = logging.getLogger(__name__)
+RIYADH_TZ = ZoneInfo("Asia/Riyadh")
+NIGHT_IRRIGATION_CRITICAL_SOIL = 25.0
 
 # Module-level singleton — shared by sensors, physics simulator, ml routes, etc.
 _engine_instance: Optional["SmartDecisionEngine"] = None
@@ -22,6 +25,25 @@ def get_engine() -> "SmartDecisionEngine":
     if _engine_instance is None:
         _engine_instance = SmartDecisionEngine()
     return _engine_instance
+
+
+def _is_irrigation_night(weather: Dict) -> bool:
+    if "is_day" in weather and weather.get("is_day") is not None:
+        return int(weather.get("is_day") or 0) == 0
+    hour = datetime.now(RIYADH_TZ).hour
+    return hour >= 18 or hour < 6
+
+
+def _irrigation_safety_context(soil_moisture: Optional[float], weather: Dict) -> Dict:
+    is_night = _is_irrigation_night(weather)
+    is_critical = soil_moisture is not None and soil_moisture < NIGHT_IRRIGATION_CRITICAL_SOIL
+    return {
+        "blocked": is_night and not is_critical,
+        "is_night": is_night,
+        "critical_override": is_night and is_critical,
+        "reason": "ليل - خطر أمراض فطرية" if is_night and not is_critical else "",
+        "critical_soil_moisture": NIGHT_IRRIGATION_CRITICAL_SOIL,
+    }
 
 
 @dataclass
@@ -219,7 +241,7 @@ class SmartDecisionEngine:
 
         ml_result = self.run_ml_prediction(sensor_data)
 
-        hour = datetime.now(timezone.utc).hour
+        hour = datetime.now(RIYADH_TZ).hour
 
         # ─── IRRIGATION DECISION ──────────────────────────────────────────
         if soil_moisture is not None:
@@ -264,6 +286,7 @@ class SmartDecisionEngine:
 
             score = ml_vote + soil_vote + weather_vote + time_vote
             score = max(-1.0, min(1.0, score))
+            irrigation_safety = _irrigation_safety_context(soil_moisture, weather)
 
             # Build dynamic Arabic reasoning
             parts = []
@@ -296,6 +319,18 @@ class SmartDecisionEngine:
                     category="irrigation",
                     severity="urgent",
                     confidence=0.97,
+                ))
+            elif irrigation_safety["blocked"] and (score > 0.5 or soil_moisture < optimal_min):
+                recommendations.append(SmartRecommendation(
+                    message="تأجيل الري حتى الصباح",
+                    reasoning=(
+                        f"رطوبة التربة ({soil_moisture:.0f}%) أقل من المستوى المثالي، "
+                        "لكن الوقت الحالي ليل والري الآن قد يرفع خطر الأمراض الفطرية. "
+                        f"التوصية: تأجيل الري حتى الصباح، إلا إذا انخفضت الرطوبة تحت {NIGHT_IRRIGATION_CRITICAL_SOIL:.0f}%."
+                    ),
+                    category="irrigation",
+                    severity="normal",
+                    confidence=0.86,
                 ))
             elif score > 0.5:
                 severity = "urgent" if score > 0.75 else "warning"
@@ -467,13 +502,19 @@ class SmartDecisionEngine:
         confidence: float,
         ml_available: bool,
         reason: str,
+        safety_context: Optional[Dict] = None,
     ) -> Dict:
+        safety_context = safety_context or {}
         if should_irrigate:
             action = "start"
         elif soil_moisture is not None and soil_moisture >= optimal_max:
             action = "stop"
         else:
             action = "hold"
+
+        if action == "start" and safety_context.get("blocked"):
+            action = "hold"
+            reason = f"{reason} | irrigation blocked: {safety_context.get('reason')}"
 
         source = "ml" if ml_available else "rules_fallback"
         return {
@@ -488,6 +529,7 @@ class SmartDecisionEngine:
                 "soil_moisture_min": optimal_min,
                 "soil_moisture_max": optimal_max,
             },
+            "safety": safety_context,
             "should_execute": action in {"start", "stop"},
         }
 
@@ -614,6 +656,8 @@ class SmartDecisionEngine:
         soil_moisture = sensor_data.get("soil_moisture")
         air_temperature = sensor_data.get("air_temperature") or 0
         air_humidity = sensor_data.get("air_humidity") or 0
+        weather = await self.fetch_weather()
+        irrigation_safety = _irrigation_safety_context(soil_moisture, weather)
 
         irr_score = 0.0
         irr_confidence = 0.65
@@ -665,6 +709,10 @@ class SmartDecisionEngine:
             else:
                 should_irrigate = False  # Optimal range or no data
 
+        if should_irrigate and irrigation_safety["blocked"]:
+            should_irrigate = False
+            irr_reason = f"{irr_reason} | irrigation blocked: {irrigation_safety['reason']}"
+
         irrigation_action = {
             "should_irrigate": should_irrigate,
             "score": round(irr_score, 3),
@@ -682,6 +730,7 @@ class SmartDecisionEngine:
             confidence=irr_confidence,
             ml_available=ml_available,
             reason=irr_reason,
+            safety_context=irrigation_safety,
         )
         irrigation_action.update(irrigation_decision)
 

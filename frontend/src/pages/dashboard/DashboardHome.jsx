@@ -566,7 +566,8 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
     await submitRecommendationFeedback(farmId, id, type === 'up');
   };
-  const { data: apiRecs } = useRecommendations(farmId);
+  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
 
   const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs
     .filter(r => !handledRecommendationIds.includes(r.id) && !handledRecommendationIds.includes(`recommendation-${r.id}`))
@@ -583,6 +584,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
       category: r.category || 'general',
       is_read: r.is_read,
       action_status: r.action_status,
+      decision_state: r.decision_state,
       feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
       created_at: r.created_at,
     })) : [];
@@ -634,6 +636,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
                 category: rec.category,
                 severity: rec.severity || 'normal',
                 action_status: rec.action_status,
+                decision_state: rec.decision_state,
                 created_at: rec.created_at
               }}
               farmId={farmId}

@@ -831,8 +831,8 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   // Irrigation / Water
   if (c === 'irrigation' || c === 'water') {
     if (isAuto) return isEn
-      ? "Irrigation pumps activated autonomously to restore optimal soil moisture levels."
-      : "تم تفعيل مضخات الري تلقائياً لاستعادة مستويات رطوبة التربة المثالية.";
+      ? "Auto mode is monitoring irrigation and will execute only when crop need and safety conditions allow it."
+      : "الوضع التلقائي يراقب الري ولن يشغل المضخات إلا عندما تحتاج التربة وتسمح شروط السلامة بذلك.";
     return isEn
       ? "Do you want to activate the irrigation pumps to restore optimal soil moisture levels?"
       : "هل تود تفعيل مضخات الري لاستعادة مستويات رطوبة التربة المثالية؟";
@@ -1004,6 +1004,56 @@ function getRecommendationTheme(type, text = "") {
 }
 
 // ─── RECOMMENDATION CARD ────────────────────────────────────────────────────
+const DECISION_STATE_STYLES = {
+  pending: {
+    bg: 'bg-sky-50/80',
+    border: 'border-sky-100',
+    text: 'text-sky-800',
+    dot: 'bg-sky-500',
+  },
+  executing: {
+    bg: 'bg-emerald-50/80',
+    border: 'border-emerald-100',
+    text: 'text-emerald-800',
+    dot: 'bg-emerald-500',
+  },
+  blocked: {
+    bg: 'bg-amber-50/80',
+    border: 'border-amber-100',
+    text: 'text-amber-800',
+    dot: 'bg-amber-500',
+  },
+  completed: {
+    bg: 'bg-teal-50/80',
+    border: 'border-teal-100',
+    text: 'text-teal-800',
+    dot: 'bg-teal-500',
+  },
+  failed: {
+    bg: 'bg-red-50/80',
+    border: 'border-red-100',
+    text: 'text-red-800',
+    dot: 'bg-red-500',
+  },
+  hold: {
+    bg: 'bg-gray-50/80',
+    border: 'border-gray-100',
+    text: 'text-gray-700',
+    dot: 'bg-gray-400',
+  },
+};
+
+function decisionStateCopy(decisionState, isEn) {
+  const state = decisionState?.state || 'hold';
+  const label = isEn ? decisionState?.label_en : decisionState?.label;
+  const reason = isEn ? decisionState?.reason_en : decisionState?.reason;
+  return {
+    state,
+    label: label || (isEn ? 'No active action' : 'لا يوجد إجراء نشط'),
+    reason: reason || '',
+  };
+}
+
 export function RecommendationCard({
   rec,
   farmId,
@@ -1083,6 +1133,8 @@ export function RecommendationCard({
   const localizedCopy = localizedRecommendationCopy(rec, isEn);
   const rawReasoning = extractSafeText(localizedCopy.reasoning || rec.reasoning);
   const safeTitle = extractSafeText(localizedCopy.title || rec.title || rec.message);
+  const decisionState = decisionStateCopy(rec.decision_state, isEn);
+  const decisionStyle = DECISION_STATE_STYLES[decisionState.state] || DECISION_STATE_STYLES.hold;
 
   const domainCategory = isEn
     ? (rec.category === 'irrigation' || rec.category === 'water' ? 'Irrigation & Water'
@@ -1146,6 +1198,21 @@ export function RecommendationCard({
 
       {/* Unified Footer Area */}
       <div className="pt-1.5 flex flex-col gap-2 mt-auto w-full">
+        {rec.decision_state && (
+          <div className={`flex items-start gap-2 p-2.5 rounded-xl border ${decisionStyle.bg} ${decisionStyle.border} w-full`}>
+            <div className={`shrink-0 w-2.5 h-2.5 rounded-full ${decisionStyle.dot} mt-1 ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
+            <div className="min-w-0 flex-1 text-start">
+              <div className={`font-black text-[11px] md:text-[12px] leading-tight ${decisionStyle.text}`}>
+                {decisionState.label}
+              </div>
+              {decisionState.reason && (
+                <p className={`font-medium text-[11px] md:text-[12px] leading-snug mt-0.5 ${decisionStyle.text}`}>
+                  {decisionState.reason}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         {!globalAutoMode && !actionResult ? (
           <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 w-full">
             <div className="flex items-start gap-2">

@@ -316,6 +316,25 @@ async def ingest_sensor_reading(
                     if sr.category not in ("irrigation", "temperature", "humidity", "soil"):
                         continue
 
+                    if sr.category in ("irrigation", "temperature", "humidity"):
+                        from src.services.recommendation_suppression import get_recommendation_suppression
+                        suppression = await get_recommendation_suppression(
+                            db=db,
+                            farm_id=farm_id,
+                            category=sr.category,
+                            message=sr.message,
+                            decision=getattr(sr, "execution_action", None),
+                        )
+                        if suppression.get("suppress"):
+                            logger.info(
+                                "[Recommendation Suppressed] farm_id=%s category=%s state=%s reason=%s",
+                                farm_id,
+                                sr.category,
+                                suppression.get("state"),
+                                suppression.get("reason"),
+                            )
+                            continue
+
                     sev_lower = (sr.severity or "normal").lower()
 
                     rec_severity = RecommendationSeverity.normal
@@ -359,7 +378,7 @@ async def ingest_sensor_reading(
                                 Alert.message == sr.message,
                                 Alert.status == AlertStatus.open,
                                 Alert.created_at >= cooldown
-                            )
+                            ).limit(1)
                         )
                         if existing.scalar_one_or_none() is None:
                             category_value = full_sensor_data.get(sr.category)

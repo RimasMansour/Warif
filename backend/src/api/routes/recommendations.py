@@ -31,6 +31,7 @@ from src.api.schemas.schemas import RecommendationOut
 from src.core.security import get_current_user
 from src.services import tuya_client
 from src.services.decision_engine import get_engine
+from src.services.recommendation_suppression import get_current_decision_state
 # PresentationFormatter removed — formatting is handled inline per endpoint
 
 
@@ -130,6 +131,24 @@ async def list_recommendations(
             # Safely extract enum string values for category and severity
             category_value = rec.category.value if hasattr(rec.category, 'value') else str(rec.category)
             severity_value = rec.severity.value if hasattr(rec.severity, 'value') else str(rec.severity)
+            normalized_category = normalize_category(category_value)
+            action_status = rec.mode if rec.mode in ("executed", "ignored") else action_status_by_id.get(rec.id)
+            decision_state = await get_current_decision_state(
+                db=db,
+                farm_id=farm_id,
+                category=normalized_category,
+                message=rec.message,
+                created_at=rec.created_at,
+            )
+            if action_status == "executed" and decision_state.get("state") == "hold":
+                decision_state = {
+                    **decision_state,
+                    "state": "completed",
+                    "label": "تم التنفيذ",
+                    "label_en": "Completed",
+                    "reason": "تم تنفيذ التوصية ولا يوجد إجراء نشط حاليا.",
+                    "reason_en": "The recommendation was executed and no action is active now.",
+                }
 
             professional_recs.append({
                 "id": rec.id,
@@ -137,13 +156,14 @@ async def list_recommendations(
                 "title": rec.message[:60] if rec.message else "توصية",
                 "message": rec.message,
                 "reasoning": rec.reasoning,
-                "category": normalize_category(category_value),
+                "category": normalized_category,
                 "severity": severity_value,
                 "is_read": rec.is_read,
                 "is_alert": rec.is_alert,
                 "helpful": rec.helpful,
                 "feedback_at": rec.feedback_at.isoformat() if rec.feedback_at else None,
-                "action_status": rec.mode if rec.mode in ("executed", "ignored") else action_status_by_id.get(rec.id),
+                "action_status": action_status,
+                "decision_state": decision_state,
                 "created_at": rec.created_at.isoformat() if rec.created_at else None,
             })
         except Exception as e:

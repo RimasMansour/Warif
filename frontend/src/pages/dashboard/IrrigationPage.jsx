@@ -20,6 +20,22 @@ const getReportMinuteKey = (timestamp) => {
   return makkahTime.toISOString();
 };
 
+const usageDiffBadge = (value, isEn) => {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return {
+      label: isEn ? 'Not enough yesterday data' : 'لا توجد بيانات كافية من أمس',
+      className: 'text-gray-600 bg-gray-50 border-gray-100',
+    };
+  }
+
+  return {
+    label: `${value > 0 ? '+' : ''}${value}% ${isEn ? 'vs same period yesterday' : 'مقارنة بالفترة نفسها أمس'}`,
+    className: value <= 0
+      ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
+      : 'text-red-700 bg-red-50 border-red-100',
+  };
+};
+
 const downloadCsvReport = ({ title, fileName, rows }) => {
   const csv = `\ufeff${title}\n${rows.map(row => row.map(csvValue).join(',')).join('\n')}`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -83,12 +99,11 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     totalDailyPower: isEn ? "Daily Power Consumption" : "الاستهلاك اليومي للكهرباء",
     dailyWaterSub: isEn ? "Cumulative water draw since start of day" : "إجمالي سحب المياه التراكمي منذ بداية اليوم",
     dailyPowerSub: isEn ? "Total energy draw since start of day" : "إجمالي سحب الطاقة منذ بداية اليوم",
-    fromYesterday: isEn ? "from yesterday" : "من أمس",
     liters: isEn ? "Liters" : "لتر",
-    kwh: isEn ? "Wh" : "واط",
-    trendTitle: isEn ? "Resource Consumption Analysis" : "تحليل استهلاك الموارد",
-    waterLabel: isEn ? "Water Consumption" : "استهلاك المياه",
-    powerLabel: isEn ? "Power Consumption" : "استهلاك الكهرباء",
+    kwh: isEn ? "Wh" : "واط-ساعة",
+    trendTitle: isEn ? "Average Resource Consumption Trend" : "اتجاه متوسط استهلاك الموارد",
+    waterLabel: isEn ? "Avg. Water Use" : "متوسط استهلاك المياه",
+    powerLabel: isEn ? "Avg. Power Use" : "متوسط استهلاك الكهرباء",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
     noRecsTitle: isEn ? "Irrigation Under Control" : "عمليات الري تحت السيطرة.",
@@ -131,6 +146,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
   const currentFlow = irrigationData?.status === 'active' ? 75 : 0;
   const waterUsage  = resourceData?.water_usage_liters ?? 0;
   const powerUsage  = resourceData?.power_usage_kwh ?? 0;
+  const waterDiffBadge = usageDiffBadge(resourceData?.water_diff_percent, isEn);
+  const powerDiffBadge = usageDiffBadge(resourceData?.power_diff_percent, isEn);
 
   const irrigationSince = (() => {
     const now = new Date();
@@ -167,7 +184,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     return () => clearTimeout(id);
   }, [refetchWater, refetchPower]);
 
-  const { data: apiRecs } = useRecommendations(farmId);
+  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs
@@ -186,6 +204,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
         suggestion: r.suggestion,
         benefit: r.benefit,
         action_status: r.action_status,
+        decision_state: r.decision_state,
         feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null
       }));
   }, [apiRecs, handledRecommendationIds]);
@@ -213,6 +232,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
       water: 0,
       power: 0,
       value: 0,
+      waterCount: 0,
+      powerCount: 0,
       hasData: false
     }));
 
@@ -234,7 +255,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
       return -1;
     };
 
-    // Fill data into the fixed slots with cumulative summing (accumulation)
+    // Fill fixed slots, then average each slot to keep the trend readable.
     const todayStr = new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Riyadh' });
 
     rawWater?.forEach(item => {
@@ -246,6 +267,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
       if (idx >= 0 && idx < targetLen) {
         points[idx].water = Number((points[idx].water + (item.value || 0)).toFixed(2));
         points[idx].value = Number((points[idx].value + (item.value || 0)).toFixed(2));
+        points[idx].waterCount += 1;
         points[idx].hasData = true;
       }
     });
@@ -258,11 +280,17 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
       const idx = getIndex(item.timestamp);
       if (idx >= 0 && idx < targetLen) {
         points[idx].power = Number((points[idx].power + (item.value || 0)).toFixed(3));
+        points[idx].powerCount += 1;
         points[idx].hasData = true;
       }
     });
 
-    return points;
+    return points.map(({ waterCount, powerCount, ...point }) => ({
+      ...point,
+      water: waterCount > 0 ? Number((point.water / waterCount).toFixed(2)) : 0,
+      power: powerCount > 0 ? Number((point.power / powerCount).toFixed(3)) : 0,
+      value: waterCount > 0 ? Number((point.water / waterCount).toFixed(2)) : 0,
+    }));
   }, [rawWater, rawPower, range, isEn]);
 
 
@@ -305,8 +333,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
                 ])
               ),
               ...sectionRows(
-                isEn ? 'Complete Historical Chart Data' : 'بيانات الرسم التاريخية الكاملة',
-                isEn ? ['Timestamp', 'Water Usage', 'Power Usage'] : ['الوقت', 'استهلاك المياه', 'استهلاك الكهرباء'],
+                isEn ? 'Average Historical Chart Data' : 'بيانات متوسط الرسم التاريخية',
+                isEn ? ['Timestamp', 'Average Water Usage', 'Average Power Usage'] : ['الوقت', 'متوسط استهلاك المياه', 'متوسط استهلاك الكهرباء'],
                 buildHistoryRows([
                   { label: 'water', data: allRawWater },
                   { label: 'power', data: allRawPower }
@@ -391,7 +419,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
                         category: rec.type || 'irrigation',
                         severity: rec.severity || 'normal',
                         created_at: rec.created_at,
-                        action_status: rec.action_status
+                        action_status: rec.action_status,
+                        decision_state: rec.decision_state
                       }}
                       farmId={farmId}
                       globalAutoMode={globalAutoMode}
@@ -473,8 +502,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
               </div>
               <div className="flex items-center justify-between">
                  <div className="text-4xl font-black text-blue-600 tracking-tight">{waterUsage} <span className="text-sm font-bold text-gray-400">{T.liters}</span></div>
-                 <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.water_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
-                   {resourceData?.water_diff_percent !== undefined ? `${resourceData.water_diff_percent > 0 ? '+' : ''}${resourceData.water_diff_percent}%` : '0%'} {T.fromYesterday}
+                 <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${waterDiffBadge.className}`}>
+                   {waterDiffBadge.label}
                  </div>
               </div>
               <div className="mt-6">
@@ -496,8 +525,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
               </div>
               <div className="flex items-center justify-between">
                  <div className="text-4xl font-black text-yellow-600 tracking-tight">{(powerUsage * 1000).toFixed(0)} <span className="text-sm font-bold text-gray-400">{T.kwh}</span></div>
-                 <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${ (resourceData?.power_diff_percent || 0) <= 0 ? 'text-emerald-700 bg-emerald-50 border-emerald-100' : 'text-red-700 bg-red-50 border-red-100'}`}>
-                   {resourceData?.power_diff_percent !== undefined ? `${resourceData.power_diff_percent > 0 ? '+' : ''}${resourceData.power_diff_percent}%` : '0%'} {T.fromYesterday}
+                 <div className={`text-xs font-black px-2.5 py-1 rounded-lg border shadow-sm ${powerDiffBadge.className}`}>
+                   {powerDiffBadge.label}
                  </div>
               </div>
               <div className="mt-6">

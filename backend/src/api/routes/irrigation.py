@@ -309,7 +309,7 @@ async def stop_farm_irrigation(
     return {"stopped": stopped, "farm_id": farm_id}
 
 
-# Returns today's water and power usage compared to yesterday
+# Returns today's water and power usage compared to the same elapsed period yesterday
 # Fan status is inferred from the latest air temperature reading (>= 30°C = active)
 @router.get("/resources/{farm_id}", response_model=dict)
 async def get_irrigation_resources(
@@ -326,7 +326,9 @@ async def get_irrigation_resources(
     saudi_tz = timezone(timedelta(hours=3))
     now_saudi = datetime.now(saudi_tz)
     today_start = datetime(now_saudi.year, now_saudi.month, now_saudi.day, tzinfo=saudi_tz).astimezone(timezone.utc).replace(tzinfo=None)
+    now_utc = now_saudi.astimezone(timezone.utc).replace(tzinfo=None)
     yesterday_start = today_start - timedelta(days=1)
+    yesterday_same_time = yesterday_start + (now_utc - today_start)
 
     # Today's water usage
     water_today_res = await db.execute(
@@ -334,19 +336,20 @@ async def get_irrigation_resources(
         .where(
             SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "water_usage",
-            SensorReading.timestamp >= today_start
+            SensorReading.timestamp >= today_start,
+            SensorReading.timestamp < now_utc,
         )
     )
     water_today = water_today_res.scalar() or 0.0
 
-    # Yesterday's water usage
+    # Yesterday's water usage for the same elapsed day period
     water_yest_res = await db.execute(
         select(func.sum(SensorReading.value))
         .where(
             SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "water_usage",
             SensorReading.timestamp >= yesterday_start,
-            SensorReading.timestamp < today_start
+            SensorReading.timestamp < yesterday_same_time,
         )
     )
     water_yesterday = water_yest_res.scalar() or 0.0
@@ -357,34 +360,31 @@ async def get_irrigation_resources(
         .where(
             SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "power_usage",
-            SensorReading.timestamp >= today_start
+            SensorReading.timestamp >= today_start,
+            SensorReading.timestamp < now_utc,
         )
     )
     power_today_wh = power_today_res.scalar() or 0.0
 
-    # Yesterday's power usage
+    # Yesterday's power usage for the same elapsed day period
     power_yest_res = await db.execute(
         select(func.sum(SensorReading.value))
         .where(
             SensorReading.farm_id == farm_id,
             SensorReading.sensor_type == "power_usage",
             SensorReading.timestamp >= yesterday_start,
-            SensorReading.timestamp < today_start
+            SensorReading.timestamp < yesterday_same_time,
         )
     )
     power_yesterday_wh = power_yest_res.scalar() or 0.0
 
-    water_diff = 0
+    water_diff = None
     if water_yesterday > 0:
         water_diff = round(((water_today - water_yesterday) / water_yesterday) * 100)
-    elif water_today > 0:
-        water_diff = 100
 
-    power_diff = 0
+    power_diff = None
     if power_yesterday_wh > 0:
         power_diff = round(((power_today_wh - power_yesterday_wh) / power_yesterday_wh) * 100)
-    elif power_today_wh > 0:
-        power_diff = 100
 
     # Get fan status from latest air_temperature reading context
     fan_result = await db.execute(
@@ -404,6 +404,9 @@ async def get_irrigation_resources(
         "power_usage_kwh": round(power_today_wh / 1000, 3),
         "water_diff_percent": water_diff,
         "power_diff_percent": power_diff,
+        "water_yesterday_liters": round(water_yesterday, 2),
+        "power_yesterday_kwh": round(power_yesterday_wh / 1000, 3),
+        "comparison_window": "same_elapsed_period_yesterday",
         "fan_active": fan_active,
         "farm_id": farm_id,
     }

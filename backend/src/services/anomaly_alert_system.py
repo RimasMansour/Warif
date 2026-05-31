@@ -90,7 +90,7 @@ class AnomalyAlertSystem:
                         Alert.sensor_type == sensor_type,
                         Alert.status == "open"
                     )
-                )
+                ).limit(1)
             )
             if existing_alert.scalar_one_or_none():
                 # Redundant alert check - skip logging duplicates
@@ -131,6 +131,8 @@ class AnomalyAlertSystem:
         sensor_data: dict,
         farm_id: int,
         db: AsyncSession,
+        source_device_id: str | None = None,
+        source_sensor_type: str | None = None,
     ) -> Alert | None:
         """
         Runs KNN and Isolation Forest on a full multi-sensor snapshot.
@@ -181,7 +183,7 @@ class AnomalyAlertSystem:
                         Alert.status == AlertStatus.open,
                         Alert.created_at >= cooldown,
                     )
-                )
+                ).limit(1)
             )
             if existing.scalar_one_or_none():
                 logger.info(f"[ML] Duplicate alert suppressed for farm {farm_id}")
@@ -199,7 +201,8 @@ class AnomalyAlertSystem:
 
             alert = Alert(
                 farm_id=farm_id,
-                sensor_type=rule_violated.split("=")[0].strip() if rule_violated else "multi_sensor",
+                device_id=source_device_id,
+                sensor_type=source_sensor_type or (rule_violated.split("=")[0].strip() if rule_violated else "multi_sensor"),
                 severity=severity,
                 status=AlertStatus.open,
                 message=message,

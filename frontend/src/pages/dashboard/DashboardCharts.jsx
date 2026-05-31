@@ -347,7 +347,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           <text x={40} y={pTop + (h - pTop - pBottom) / 2}
             transform={`rotate(-90, 40, ${pTop + (h - pTop - pBottom) / 2})`}
             textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
-            {isRtl ? 'الاستهلاك' : 'Usage'}
+            {isRtl ? 'متوسط الاستهلاك' : 'Average Usage'}
           </text>
 
           {/* Area fills */}
@@ -395,7 +395,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
                     </text>
                     <text x={Math.max(pLeft, Math.min(w - pRight - 130, xx - 65)) + 65}
                       y={pTop + 64} textAnchor="middle" fontSize="14" fill="#f59e0b" fontWeight="900">
-                      {d.power.toFixed(3)} kWh
+                      {d.power.toFixed(3)} Wh
                     </text>
                   </g>
                 )}
