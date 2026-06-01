@@ -125,6 +125,20 @@ async def list_recommendations(
         return raw
 
     # Serialize recommendations — safely extract enum values for frontend
+    def infer_source_sensor_type(category_value: str, message: Optional[str], reasoning: Optional[str]) -> Optional[str]:
+        text = f"{message or ''} {reasoning or ''}".lower()
+        if category_value == "temperature":
+            return "air_temperature"
+        if category_value == "humidity":
+            return "air_humidity"
+        if category_value == "soil":
+            return "soil_temperature"
+        if category_value == "irrigation":
+            if "soil" in text or "تربة" in text or "رطوبة التربة" in text:
+                return "soil_moisture"
+            return "water_usage"
+        return None
+
     professional_recs = []
     for rec in recommendations:
         try:
@@ -157,6 +171,7 @@ async def list_recommendations(
                 "message": rec.message,
                 "reasoning": rec.reasoning,
                 "category": normalized_category,
+                "source_sensor_type": infer_source_sensor_type(normalized_category, rec.message, rec.reasoning),
                 "severity": severity_value,
                 "is_read": rec.is_read,
                 "is_alert": rec.is_alert,

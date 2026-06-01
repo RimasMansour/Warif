@@ -297,19 +297,6 @@ async def ingest_sensor_reading(
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)
                 smart_recs = intelligence_report.get('recommendations', [])
 
-                try:
-                    from src.services.automation_executor import execute_auto_decisions
-                    automation_result = await execute_auto_decisions(
-                        db=db,
-                        farm_id=farm_id,
-                        sensor_data=full_sensor_data,
-                        action_decisions=intelligence_report.get("action_decisions", {}),
-                    )
-                    if automation_result.get("executed"):
-                        logger.info("[Automation] Executed auto decision for farm_id=%s: %s", farm_id, automation_result)
-                except Exception as auto_err:
-                    logger.warning("[Automation] Auto execution failed for farm_id=%s: %s", farm_id, auto_err)
-
                 cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
 
                 for sr in smart_recs:
@@ -391,6 +378,19 @@ async def ingest_sensor_reading(
                                 farm_id=farm_id,
                                 actual_value=category_value,
                             ))
+
+                try:
+                    from src.services.automation_executor import execute_auto_decisions
+                    automation_result = await execute_auto_decisions(
+                        db=db,
+                        farm_id=farm_id,
+                        sensor_data=full_sensor_data,
+                        action_decisions=intelligence_report.get("action_decisions", {}),
+                    )
+                    if automation_result.get("executed"):
+                        logger.info("[Automation] Executed auto decision for farm_id=%s: %s", farm_id, automation_result)
+                except Exception as auto_err:
+                    logger.warning("[Automation] Auto execution failed for farm_id=%s: %s", farm_id, auto_err)
 
             except Exception as rec_err:
                 logger.warning(f"Smart recommendation generation failed: {rec_err}")

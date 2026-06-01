@@ -565,6 +565,55 @@ class SmartDecisionEngine:
             "ml_available": False,
         }
 
+    def _build_climate_policy_recommendation(
+        self,
+        *,
+        decision: Dict,
+        air_temperature: Optional[float],
+        air_humidity: Optional[float],
+    ) -> Optional[SmartRecommendation]:
+        action = decision.get("action")
+        if action not in {"cooling_full", "fan_only"}:
+            return None
+
+        targets = decision.get("targets") or {}
+        temp_target = float(targets.get("air_temperature_max") or 28.0)
+        hum_target = float(targets.get("air_humidity_max") or 70.0)
+        ventilation_humidity = float(targets.get("ventilation_humidity") or 70.0)
+        temp = float(air_temperature or 0.0)
+        hum = float(air_humidity or 0.0)
+
+        if hum >= ventilation_humidity and action == "fan_only":
+            return SmartRecommendation(
+                message="تحسين التهوية",
+                reasoning=(
+                    f"رطوبة الهواء داخل المحمية ({hum:.0f}%) أعلى من هدف التشغيل الآمن "
+                    f"({hum_target:.0f}%). التوصية: تشغيل التهوية لتقليل الرطوبة وحماية المحصول "
+                    "من مخاطر الأمراض الفطرية."
+                ),
+                category="humidity",
+                severity="normal",
+                confidence=0.78,
+                execution_action=decision,
+            )
+
+        if temp > temp_target:
+            action_text = "تشغيل التبريد والتهوية" if action == "cooling_full" else "تشغيل التهوية"
+            return SmartRecommendation(
+                message="تحسين التبريد والتهوية",
+                reasoning=(
+                    f"درجة الحرارة الداخلية ({temp:.1f}°C) أعلى من هدف التشغيل المناسب "
+                    f"({temp_target:.0f}°C). التوصية: {action_text} حتى تعود حرارة المحمية "
+                    "إلى النطاق المناسب للمحصول."
+                ),
+                category="temperature",
+                severity="normal",
+                confidence=0.80,
+                execution_action=decision,
+            )
+
+        return None
+
     async def analyze_with_intelligence(self, sensor_data: dict, farm_id: Optional[int] = None) -> Dict:
         """
         القرار الموحد الذكي الشامل
@@ -743,6 +792,21 @@ class SmartDecisionEngine:
             air_humidity=air_humidity,
         )
         cooling_action.update(climate_decision)
+
+        climate_rec = self._build_climate_policy_recommendation(
+            decision=climate_decision,
+            air_temperature=air_temperature,
+            air_humidity=air_humidity,
+        )
+        if climate_rec and not any(rec.category == climate_rec.category for rec in recommendations):
+            recommendations.append(climate_rec)
+            overall_intelligence["recommendation_count"] = len(recommendations)
+            overall_intelligence["urgent_count"] = len([r for r in recommendations if r.severity == "urgent"])
+            overall_intelligence["status"] = self._determine_system_status(
+                risk_assessment,
+                recommendations,
+                anomalies,
+            )
 
         action_decisions = {
             "irrigation": irrigation_decision,
