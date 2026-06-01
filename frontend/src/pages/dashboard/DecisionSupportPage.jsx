@@ -10,23 +10,33 @@ import {
 import { useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 import { markRecommendationRead } from '../../services/api';
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 function recommendationTime(rec) {
   const time = new Date(rec.created_at || 0).getTime();
   return Number.isFinite(time) ? time : 0;
 }
 
-function isHandledRecommendation(rec) {
+function recommendationDayKey(rec) {
+  const time = recommendationTime(rec);
+  if (!time) return '';
+  return new Date(time).toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
+}
+
+function dayKeyFromDate(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
+}
+
+function recommendationStatus(rec) {
   const actionStatus = rec.action_status;
   const decisionState = rec.decision_state?.state;
-  return actionStatus === 'executed' || actionStatus === 'ignored' || decisionState === 'completed';
+  if (actionStatus === 'executed' || decisionState === 'completed') return 'completed';
+  if (actionStatus === 'ignored' || decisionState === 'blocked') return 'blocked';
+  return 'pending';
 }
 
 export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
   const [showThanksIds, setShowThanksIds] = useState([]);
   const [decisionFilter, setDecisionFilter] = useState('all');
-  const [scopeFilter, setScopeFilter] = useState('active');
+  const [scopeFilter, setScopeFilter] = useState(() => dayKeyFromDate(new Date()));
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
   const isEn = lang === 'en';
@@ -95,61 +105,48 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
     }
   };
 
-  const scopeFilters = useMemo(() => [
-    { key: 'active', label: isEn ? 'Active' : 'النشطة' },
-    { key: '24h', label: isEn ? 'Last 24h' : 'آخر 24 ساعة' },
-    { key: 'archive', label: isEn ? 'Archive' : 'الأرشيف' },
-  ], [isEn]);
+  const scopeFilters = useMemo(() => {
+    const weekdaysAr = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+    const weekdaysEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date();
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - index);
+      return {
+        key: dayKeyFromDate(date),
+        label: isEn ? weekdaysEn[date.getDay()] : weekdaysAr[date.getDay()],
+      };
+    });
+  }, [isEn]);
 
   const decisionFilters = useMemo(() => [
     { key: 'all', label: isEn ? 'All' : 'الكل' },
-    { key: 'executing', label: isEn ? 'Executing' : 'قيد التنفيذ' },
     { key: 'blocked', label: isEn ? 'Deferred' : 'مؤجل' },
-    { key: 'completed', label: isEn ? 'Completed' : 'مكتمل' },
+    { key: 'completed', label: isEn ? 'Executed' : 'تم التنفيذ' },
   ], [isEn]);
   const stateStyles = {
     all: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    executing: 'border-emerald-100 bg-emerald-50 text-emerald-700',
     blocked: 'border-amber-100 bg-amber-50 text-amber-700',
     completed: 'border-teal-100 bg-teal-50 text-teal-700',
   };
-  const scopeStyles = {
-    active: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    '24h': 'border-sky-100 bg-sky-50 text-sky-700',
-    archive: 'border-gray-200 bg-gray-50 text-gray-600',
-  };
   const scopeCounts = useMemo(() => {
-    const now = Date.now();
     const counts = Object.fromEntries(scopeFilters.map(item => [item.key, 0]));
     localRecs.forEach(rec => {
-      const age = now - recommendationTime(rec);
-      const within24h = age >= 0 && age <= DAY_MS;
-      const within7d = age >= 0 && age <= 7 * DAY_MS;
-      const handled = isHandledRecommendation(rec);
-      if (!handled && within7d) counts.active += 1;
-      if (within24h) counts['24h'] += 1;
-      if (handled || !within7d) counts.archive += 1;
+      const key = recommendationDayKey(rec);
+      if (key in counts) counts[key] += 1;
     });
     return counts;
   }, [localRecs, scopeFilters]);
   const scopedRecs = useMemo(() => {
-    const now = Date.now();
     return localRecs.filter(rec => {
-      const age = now - recommendationTime(rec);
-      const within24h = age >= 0 && age <= DAY_MS;
-      const within7d = age >= 0 && age <= 7 * DAY_MS;
-      const handled = isHandledRecommendation(rec);
-      if (scopeFilter === 'active') return !handled && within7d;
-      if (scopeFilter === '24h') return within24h;
-      if (scopeFilter === 'archive') return handled || !within7d;
-      return true;
+      return recommendationDayKey(rec) === scopeFilter;
     });
   }, [localRecs, scopeFilter]);
   const decisionCounts = useMemo(() => {
     const counts = Object.fromEntries(decisionFilters.map(item => [item.key, 0]));
     counts.all = scopedRecs.length;
     scopedRecs.forEach(rec => {
-      const state = rec.decision_state?.state || 'hold';
+      const state = recommendationStatus(rec);
       counts[state] = (counts[state] || 0) + 1;
     });
     return counts;
@@ -157,7 +154,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
   const visibleRecs = useMemo(() => (
     decisionFilter === 'all'
       ? scopedRecs
-      : scopedRecs.filter(rec => (rec.decision_state?.state || 'hold') === decisionFilter)
+      : scopedRecs.filter(rec => recommendationStatus(rec) === decisionFilter)
   ), [decisionFilter, scopedRecs]);
   const currentScopeLabel = scopeFilters.find(filter => filter.key === scopeFilter)?.label || (isEn ? 'Recommendations' : 'التوصيات');
 
@@ -178,10 +175,10 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
         <div className="animate-fade-in-up delay-1">
           <div className="bg-white/80 backdrop-blur-md p-4 rounded-[24px] border border-emerald-100 flex items-center gap-4 w-full md:w-fit min-w-[280px] shadow-sm">
              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-100/50 shadow-sm font-black text-lg">
-                {scopeCounts.active}
+                {scopeFilters.reduce((total, filter) => total + (scopeCounts[filter.key] || 0), 0)}
              </div>
              <div>
-                <div className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">{isEn ? "Active Recommendations" : "التوصيات النشطة"}</div>
+                <div className="text-[12px] font-bold text-gray-400 uppercase tracking-wider">{isEn ? "Last 7 Days" : "توصيات آخر 7 أيام"}</div>
              </div>
           </div>
         </div>
@@ -194,7 +191,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
                 key={filter.key}
                 type="button"
                 onClick={() => setScopeFilter(filter.key)}
-                className={`px-3 py-1.5 rounded-xl border text-[11px] font-black transition-all ${active ? scopeStyles[filter.key] : 'bg-white/80 border-gray-100 text-gray-500 hover:bg-gray-50'}`}
+                className={`px-3 py-1.5 rounded-xl border text-[11px] font-black transition-all ${active ? 'border-sky-100 bg-sky-50 text-sky-700' : 'bg-white/80 border-gray-100 text-gray-500 hover:bg-gray-50'}`}
               >
                 {filter.label}
                 <span className="ms-1 opacity-70">{scopeCounts[filter.key] || 0}</span>

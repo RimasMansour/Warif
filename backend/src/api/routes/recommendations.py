@@ -61,7 +61,7 @@ async def list_recommendations(
     type: Optional[str] = Query(None, description="urgent | improvement"),
     since: Optional[datetime] = Query(None, description="Return recommendations created at or after this UTC timestamp"),
     unread_only: bool = Query(False),
-    limit: int = Query(50, le=1000),
+    limit: int = Query(50, le=5000),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
