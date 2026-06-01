@@ -81,8 +81,11 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 
   useEffect(() => {
     if (coolingStatus) {
-      setFanRunning(coolingStatus.fan);
-      setCoolerRunning(coolingStatus.cooler);
+      const id = window.setTimeout(() => {
+        setFanRunning(coolingStatus.fan);
+        setCoolerRunning(coolingStatus.cooler);
+      }, 0);
+      return () => window.clearTimeout(id);
     }
   }, [coolingStatus]);
 
@@ -306,7 +309,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range, isEn]);
 
 
-  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), []);
+  const [recentRecommendationsSince] = useState(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const recommendations = useMemo(() => {
@@ -775,7 +778,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range, isEn]);
 
 
-  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), []);
+  const [recentRecommendationsSince] = useState(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const soilRecs = useMemo(() => {

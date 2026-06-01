@@ -389,7 +389,7 @@ async def run_irrigation_closed_loop_once(db):
         try:
             ok = await asyncio.to_thread(tuya_client.control_irrigation, False)
             if not ok:
-                log.warning(f"[Tuya Closed-Loop] Physical irrigation stop returned false")
+                log.warning("[Tuya Closed-Loop] Physical irrigation stop returned false")
         except Exception as tuya_err:
             log.error(f"[Tuya Closed-Loop] Failed to physically stop irrigation: {tuya_err}")
             return

@@ -184,7 +184,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     return () => clearTimeout(id);
   }, [refetchWater, refetchPower]);
 
-  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const [recentRecommendationsSince] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000));
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];

@@ -69,6 +69,11 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
   const apiSoilTemp  = livesensors?.soil_temperature ?? null;
 
   const [resourceRange, _setResourceRange] = useState("D");
+  const [hiddenAlertIds, setHiddenAlertIds] = useState([]);
+  const visibleAlerts = useMemo(
+    () => alerts.filter(alert => !hiddenAlertIds.includes(alert.id)),
+    [alerts, hiddenAlertIds]
+  );
 
   const { data: rawWater } = useSensorHistory('water_usage', 12);
   const { data: rawPower } = useSensorHistory('power_usage', 12);
@@ -120,7 +125,7 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
 
         {/* Top Section: Digital Twin Command Center */}
         <div className="animate-fade-in-up delay-1">
-          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={alerts.length} counts={counts} crops={crops} />
+          <DigitalTwinCommandCenterCard onOpenAssets={onOpenAssets} alertsCount={visibleAlerts.length} counts={counts} crops={crops} />
         </div>
 
 
@@ -137,10 +142,11 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
           <div className="animate-fade-in-up delay-4 flex flex-col row-span-2 lg:h-[610px] rounded-[24px] overflow-hidden">
             <DashboardAlertsCard
                onGo={onGo}
-               alerts={alerts}
+               alerts={visibleAlerts}
                onAccept={onAlertAccept}
                onReject={onAlertReject}
                onFeedback={onAlertFeedback}
+               onAlertHidden={(id) => setHiddenAlertIds(prev => prev.includes(id) ? prev : [...prev, id])}
                isEn={isEn}
                globalAutoMode={globalAutoMode}
             />
@@ -169,10 +175,9 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
   );
 }
 
-function DashboardAlertsCard({ alerts, onAccept, isEn, globalAutoMode }) {
+function DashboardAlertsCard({ alerts, onAccept, onAlertHidden, isEn, globalAutoMode }) {
   const [alertFeedback, setAlertFeedback] = useState({});
   const [showAlertThanks, setShowAlertThanks] = useState([]);
-  const [hiddenAlertIds, setHiddenAlertIds] = useState([]);
 
   const handleAlertFeedback = async (id, type) => {
     // Update the local UI immediately
@@ -180,7 +185,7 @@ function DashboardAlertsCard({ alerts, onAccept, isEn, globalAutoMode }) {
     setShowAlertThanks(prev => [...prev, id]);
     setTimeout(() => {
       setShowAlertThanks(prev => prev.filter(i => i !== id));
-      setHiddenAlertIds(prev => prev.includes(id) ? prev : [...prev, id]);
+      onAlertHidden?.(id);
     }, 1200);
 
     // Send feedback to the Backend for alerts (not recommendations)
@@ -188,26 +193,25 @@ function DashboardAlertsCard({ alerts, onAccept, isEn, globalAutoMode }) {
     await submitAlertFeedback(id, helpful);
   };
 
-  const visibleAlerts = alerts.filter(alert => !hiddenAlertIds.includes(alert.id));
   // Categorize alerts by severity
-  const urgentAlerts = visibleAlerts.filter(a => a.severity === 'high' || a.severity === 'critical');
-  const warningAlerts = visibleAlerts.filter(a => a.severity === 'warning' || a.severity === 'info');
+  const urgentAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
+  const warningAlerts = alerts.filter(a => a.severity === 'warning' || a.severity === 'info');
 
   return (
     <CardShell className="h-full flex flex-col bg-white p-4 md:p-5">
       <CardTopRow
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
-        iconBg={visibleAlerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
-        iconColor={visibleAlerts.length > 0 ? "text-red-500" : "text-emerald-600"}
+        iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
+        iconColor={alerts.length > 0 ? "text-red-500" : "text-emerald-600"}
         title={isEn ? "System Alerts" : "تنبيهات النظام"}
         subtitle={
-          visibleAlerts.length > 0
-            ? `${visibleAlerts.length} ${isEn ? 'Active' : 'نشطة'}`
+          alerts.length > 0
+            ? `${alerts.length} ${isEn ? 'Active' : 'نشطة'}`
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
       <div className="mt-4 flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 scrollbar-neutral pr-1 pb-3">
-        {visibleAlerts.length === 0 ? (
+        {alerts.length === 0 ? (
           <EmptyState
             compact={true}
             variant="success"
@@ -571,7 +575,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
     await submitRecommendationFeedback(farmId, id, type === 'up');
   };
-  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const [recentRecommendationsSince] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000));
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
 
   const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs

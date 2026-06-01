@@ -39,16 +39,16 @@ const alertTitleForSensor = (sensorType, lang) => {
 
 const ALERT_ANOMALY_TEXT = {
   sensor_stuck: {
-    ar: (s, v, title, alert) => `${title}: قراءة ${s} ثابتة عند ${v} - قد يكون الحساس عالقًا، تحقق منه أو أعد تشغيله.`,
-    en: (s, v, title, alert) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
+    ar: (s, v, title) => `${title}: قراءة ${s} ثابتة عند ${v} - قد يكون الحساس عالقًا، تحقق منه أو أعد تشغيله.`,
+    en: (s, v, title) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
   },
   unrealistic_jump: {
-    ar: (s, v, title, alert) => `${title}: سجّلت قراءة ${s} تغيرًا مفاجئًا ووصلت إلى ${v} - افحص الحساس وقناة الإرسال.`,
-    en: (s, v, title, alert) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
+    ar: (s, v, title) => `${title}: سجّلت قراءة ${s} تغيرًا مفاجئًا ووصلت إلى ${v} - افحص الحساس وقناة الإرسال.`,
+    en: (s, v, title) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
   },
   pattern_break: {
-    ar: (s, v, title, alert) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
-    en: (s, v, title, alert) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
+    ar: (s, v, title) => `${title}: ${s} (${v}) سجل انحرافاً ملحوظاً عن النمط الطبيعي للقراءات.`,
+    en: (s, v, title) => `${title}: ${s} (${v}) shows a clear deviation from the normal reading pattern.`,
   },
   threshold_violation: {
     ar: (s, v, title, alert) => {
@@ -1071,7 +1071,6 @@ export function RecommendationCard({
   onActionChange,
   onDismiss,
   feedbackState = {},
-  showThanks = [],
   compact = false,
   autoDismissOnAction = false,
   autoDismissOnFeedback = true
@@ -1082,9 +1081,13 @@ export function RecommendationCard({
   const [isLoading, setIsLoading] = React.useState(false);
   const [actionResult, setActionResult] = React.useState(rec.action_status || null);
   const [feedbackNotice, setFeedbackNotice] = React.useState(null);
+  const [nowMs] = React.useState(() => Date.now());
 
   React.useEffect(() => {
-    setActionResult(rec.action_status || null);
+    const id = window.setTimeout(() => {
+      setActionResult(rec.action_status || null);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [rec.id, rec.action_status]);
 
   const scheduleDismiss = (delay = 2200) => {
@@ -1164,10 +1167,9 @@ export function RecommendationCard({
   const formatRecMeta = () => {
     const raw = rec.created_at || rec.createdAt || rec.timestamp;
     if (!raw) return null;
-    // eslint-disable-next-line react-hooks/purity
     const time = new Date(raw).getTime();
     if (!Number.isFinite(time)) return null;
-    const diffMs = Math.max(0, Date.now() - time);
+    const diffMs = Math.max(0, nowMs - time);
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
     if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
@@ -1350,6 +1352,7 @@ export function AlertCard({
   const isRtl = !isEn;
   const [isLoading, setIsLoading] = React.useState(false);
   const [executionSuccess, setExecutionSuccess] = React.useState(false);
+  const [nowMs] = React.useState(() => Date.now());
 
   const severity = alert.severity || 'info';
   const severityConfig = {
@@ -1416,8 +1419,7 @@ export function AlertCard({
   const formatAlertMeta = () => {
     const raw = alert.created_at || alert.timestamp;
     if (!raw) return null;
-    // eslint-disable-next-line react-hooks/purity
-    const diffMs = Date.now() - new Date(raw).getTime();
+    const diffMs = nowMs - new Date(raw).getTime();
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
     if (diffMin < 1) return isEn ? 'Just now' : 'الآن';

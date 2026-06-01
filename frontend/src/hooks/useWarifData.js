@@ -252,19 +252,29 @@ export function useAutoMode(farmId) {
   // Load auto_mode from backend on mount
   useEffect(() => {
     if (!farmId) return;
-    setLoading(true);
-    const token = getStoredToken();
-    fetch(`${API_BASE}/api/v1/farms/${farmId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
-      .then(data => {
+    let cancelled = false;
+    const loadAutoMode = async () => {
+      setLoading(true);
+      const token = getStoredToken();
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/farms/${farmId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (cancelled) return;
         if (typeof data.auto_mode === 'boolean') {
           setAutoMode(data.auto_mode);
         }
-      })
-      .catch(() => { })
-      .finally(() => setLoading(false));
+      } catch {
+        // Keep the current local mode if the backend value is unavailable.
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadAutoMode();
+    return () => {
+      cancelled = true;
+    };
   }, [farmId]);
 
   // Save auto_mode to backend
@@ -895,10 +905,13 @@ export function useCoolingStatus(farmId, intervalMs = 5000) {
   }, [farmId]);
 
   useEffect(() => {
-    fetchStatus();
-    if (intervalMs <= 0) return;
+    const initial = window.setTimeout(fetchStatus, 0);
+    if (intervalMs <= 0) return () => window.clearTimeout(initial);
     const id = setInterval(fetchStatus, intervalMs);
-    return () => clearInterval(id);
+    return () => {
+      window.clearTimeout(initial);
+      clearInterval(id);
+    };
   }, [fetchStatus, intervalMs]);
 
   return { status, loading, refetch: fetchStatus };
