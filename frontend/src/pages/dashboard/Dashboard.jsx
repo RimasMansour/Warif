@@ -366,14 +366,19 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
   const { alerts: activeAlerts, dismissAlert } = useAutoAlerts(liveSensors, globalAutoMode, currentFarmId);
   const [_showAlertsPanel, _setShowAlertsPanel] = useState(false);
 
-  const handleAlertAccept = (id, actionType) => {
-    if (actionType === 'cool') {
-      triggerManualCooling('full', currentFarmId);
-    } else if (actionType === 'irrigate') {
-      if (valveDeviceId) startManualIrrigation(valveDeviceId, 20, currentFarmId).catch(e => console.error(e));
+  const handleAlertAccept = async (id, actionType) => {
+    try {
+      if (actionType === 'cool') {
+        await triggerManualCooling('full', currentFarmId);
+      } else if (actionType === 'irrigate') {
+        const deviceId = valveDeviceId || `irrigation_${currentFarmId}`;
+        await startManualIrrigation(deviceId, 20, currentFarmId);
+      }
+      // Dismiss after action
+      dismissAlert(id);
+    } catch (e) {
+      console.error("Alert action failed", e);
     }
-    // Dismiss after action
-    dismissAlert(id);
   };
 
   const handleAlertReject = (id) => {

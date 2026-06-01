@@ -1147,6 +1147,7 @@ export function RecommendationCard({
   const safeTitle = extractSafeText(localizedCopy.title || rec.title || rec.message);
   const decisionState = decisionStateCopy(rec.decision_state, isEn);
   const decisionStyle = DECISION_STATE_STYLES[decisionState.state] || DECISION_STATE_STYLES.hold;
+  const autoActionExplanation = getActionExplanation(rec.category || rec.type, isEn, true);
 
   const domainCategory = isEn
     ? (rec.category === 'irrigation' || rec.category === 'water' ? 'Irrigation & Water'
@@ -1212,7 +1213,7 @@ export function RecommendationCard({
 
       {/* Unified Footer Area */}
       <div className="pt-1.5 flex flex-col gap-2 mt-auto w-full">
-        {rec.decision_state && (
+        {rec.decision_state && !globalAutoMode && (
           <div className={`flex items-start gap-2 p-2.5 rounded-xl border ${decisionStyle.bg} ${decisionStyle.border} w-full`}>
             <div className={`shrink-0 w-2.5 h-2.5 rounded-full ${decisionStyle.dot} mt-1 ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
             <div className="min-w-0 flex-1 text-start">
@@ -1259,6 +1260,26 @@ export function RecommendationCard({
               >
                 {isEn ? 'Ignore' : 'تجاهل'}
               </button>
+            </div>
+          </div>
+        ) : globalAutoMode ? (
+          <div className={`flex items-start gap-2 p-3 rounded-xl border w-full ${rec.decision_state ? `${decisionStyle.bg} ${decisionStyle.border}` : 'border-emerald-100 bg-emerald-50/80'}`}>
+            <div className={`shrink-0 w-2.5 h-2.5 rounded-full mt-1 ${rec.decision_state ? decisionStyle.dot : 'bg-emerald-500'} ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
+            <div className="min-w-0 flex-1 text-start">
+              <div className={`font-bold text-[12px] md:text-[13px] leading-snug ${rec.decision_state ? decisionStyle.text : 'text-emerald-800'}`}>
+                {autoActionExplanation}
+              </div>
+              {decisionState.reason && (
+                <p className={`font-medium text-[11px] md:text-[12px] leading-snug mt-1 ${decisionStyle.text}`}>
+                  {decisionState.reason}
+                </p>
+              )}
+              {rec.decision_state && (
+                <div className={`font-black text-[11px] md:text-[12px] leading-tight mt-1.5 ${decisionStyle.text}`}>
+                  <span className="opacity-75">{isEn ? 'Decision status: ' : 'حالة القرار: '}</span>
+                  {decisionState.label}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -1377,6 +1398,7 @@ export function AlertCard({
     : 'system';
 
   const actionType = category === 'climate' ? 'cool' : category === 'irrigation' ? 'irrigate' : 'general';
+  const autoAlertExplanation = getActionExplanation(category, isEn, true, sensorType);
   const primaryActionLabel = category === 'system' || category === 'power'
     ? (isEn ? 'Review' : 'راجع')
     : (isEn ? 'Execute' : 'نفذ');
@@ -1486,20 +1508,33 @@ export function AlertCard({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-100 bg-emerald-50/80 w-full">
-            <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
-              <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+          <div
+            className="flex items-start gap-2 p-3 rounded-xl border w-full"
+            style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
+          >
+            <div
+              className="shrink-0 w-2.5 h-2.5 rounded-full mt-1 animate-pulse"
+              style={{ backgroundColor: cfg.dot }}
+            />
+            <div className="min-w-0 flex-1 text-start">
+              <div className="font-bold text-[12px] md:text-[13px] leading-snug" style={{ color: cfg.dot }}>
+                {autoAlertExplanation}
+              </div>
+              <p className="font-medium text-[11px] md:text-[12px] leading-snug mt-1" style={{ color: cfg.dot }}>
+                {displayMessage}
+              </p>
+              <div className="font-black text-[11px] md:text-[12px] leading-tight mt-1.5" style={{ color: cfg.dot }}>
+                <span className="opacity-75">{isEn ? 'Alert status: ' : 'حالة التنبيه: '}</span>
+                {cfg.label}
+              </div>
             </div>
-            <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
-              {getActionExplanation(category, isEn, true)}
-            </p>
           </div>
         )}
 
         <div className="flex items-center justify-end w-full">
           <div className="flex items-center gap-2">
             <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
-              {isEn ? 'Appropriate?' : 'هل التنبيه دقيق؟'}
+              {isEn ? 'Helpful?' : 'مفيدة؟'}
             </span>
             <button
               onClick={() => onFeedback?.(alert.id, 'down')}

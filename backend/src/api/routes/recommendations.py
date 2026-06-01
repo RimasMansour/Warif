@@ -267,11 +267,15 @@ async def execute_recommendation(
     engine = get_engine()
     report = await engine.analyze_with_intelligence(sensor_data, farm_id)
     category = _normalize_category(rec.category.value if hasattr(rec.category, "value") else str(rec.category))
-    if category not in {"irrigation", "temperature", "humidity"}:
+    execution = _recommendation_execution_intent(rec, category)
+    executable_category = execution["category"] if execution else category
+    if executable_category not in {"irrigation", "temperature", "humidity"}:
         raise HTTPException(status_code=422, detail=f"Recommendation category '{category}' is not directly executable")
 
-    domain = "irrigation" if category == "irrigation" else "climate"
+    domain = "irrigation" if executable_category == "irrigation" else "climate"
     decision = report.get("action_decisions", {}).get(domain)
+    if (not decision or decision.get("action") == "hold") and execution:
+        decision = execution["decision"]
     if not decision:
         raise HTTPException(status_code=422, detail="No executable decision is available for this recommendation")
     if decision.get("action") == "hold":
@@ -323,6 +327,7 @@ async def execute_recommendation(
 
     return {
         "success": True,
+        "executed": True,
         "recommendation_id": recommendation_id,
         "domain": domain,
         "decision": decision,
@@ -500,6 +505,66 @@ def _normalize_category(value: Optional[str]) -> str:
     if raw in ("soil_moisture", "irrigation", "water"):
         return "irrigation"
     return raw
+
+
+def _recommendation_execution_intent(rec: Recommendation, category: str) -> Optional[dict]:
+    text = f"{rec.message or ''} {rec.reasoning or ''}".lower()
+
+    if category in {"irrigation", "soil"}:
+        has_irrigation_intent = (
+            category == "irrigation"
+            or "ري" in text
+            or "irrigat" in text
+            or "رطوبة التربة" in text
+            or "soil moisture" in text
+        )
+        if not has_irrigation_intent:
+            return None
+
+        if any(token in text for token in ("مؤجل", "السلامة", "لا تسمح", "deferred", "safety")):
+            return {
+                "category": "irrigation",
+                "decision": {
+                    "action": "hold",
+                    "reason": "Recommendation is safety-blocked and should not be executed manually.",
+                    "source": "recommendation_intent",
+                },
+            }
+
+        stop_tokens = ("تقليل", "إيقاف", "ايقاف", "أوقف", "اوقف", "reduce", "stop", "above", "أعلى")
+        action = "stop" if any(token in text for token in stop_tokens) else "start"
+        return {
+            "category": "irrigation",
+            "decision": {
+                "action": action,
+                "reason": rec.reasoning or rec.message,
+                "source": "recommendation_intent",
+            },
+        }
+
+    if category == "temperature":
+        if any(token in text for token in ("تبريد", "حرارة", "cool", "temperature")):
+            return {
+                "category": "temperature",
+                "decision": {
+                    "action": "cooling_full",
+                    "reason": rec.reasoning or rec.message,
+                    "source": "recommendation_intent",
+                },
+            }
+
+    if category == "humidity":
+        if any(token in text for token in ("تهوية", "رطوبة", "fan", "ventilat", "humidity")):
+            return {
+                "category": "humidity",
+                "decision": {
+                    "action": "fan_only",
+                    "reason": rec.reasoning or rec.message,
+                    "source": "recommendation_intent",
+                },
+            }
+
+    return None
 
 
 async def _latest_sensor_snapshot(farm_id: int, db: AsyncSession) -> dict:

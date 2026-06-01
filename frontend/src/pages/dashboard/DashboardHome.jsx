@@ -594,7 +594,7 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
       created_at: r.created_at,
     })) : [];
 
-  const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات مدروسة لتحسين أداء المزرعة";
+  const T_Subtitle = isEn ? "Data-driven actions to optimize farm performance" : "إجراءات لتحسين أداء المزرعة";
 
   return (
     <CardShell className="p-4 md:p-5 h-full cursor-pointer card-interactive group flex flex-col justify-between" onClick={() => onGo("dss")}>
