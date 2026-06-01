@@ -44,7 +44,6 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
 
   const allRecommendations = useMemo(() => {
     if (apiRecs && apiRecs.length > 0) {
-      const sevenDaysAgo = Date.now() - (7 * DAY_MS);
       return apiRecs.map(r => ({
         id: `${r.source || 'recommendation'}-${r.id}`,
         rawId: r.id,
@@ -59,7 +58,6 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
         feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
         created_at: r.created_at,
         status: r.is_read ? 'accepted' : 'pending',
-        week: recommendationTime(r) >= sevenDaysAgo ? (isEn ? 'This Week' : 'هذا الأسبوع') : (isEn ? 'Last Week' : 'الأسبوع الماضي'),
         farmIndices: [0, 1, 2],
       }));
     }
@@ -97,45 +95,32 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
     }
   };
 
-  const sections = isEn ? ["This Week", "Last Week"] : ["هذا الأسبوع", "الأسبوع الماضي"];
-
   const scopeFilters = useMemo(() => [
     { key: 'active', label: isEn ? 'Active' : 'النشطة' },
-    { key: '24h', label: isEn ? '24h' : '24 ساعة' },
-    { key: '7d', label: isEn ? '7d' : '7 أيام' },
+    { key: '24h', label: isEn ? 'Last 24h' : 'آخر 24 ساعة' },
     { key: 'archive', label: isEn ? 'Archive' : 'الأرشيف' },
-    { key: 'all', label: isEn ? 'All' : 'الكل' },
   ], [isEn]);
 
   const decisionFilters = useMemo(() => [
     { key: 'all', label: isEn ? 'All' : 'الكل' },
-    { key: 'pending', label: isEn ? 'Pending' : 'قيد الإرسال' },
     { key: 'executing', label: isEn ? 'Executing' : 'قيد التنفيذ' },
     { key: 'blocked', label: isEn ? 'Deferred' : 'مؤجل' },
     { key: 'completed', label: isEn ? 'Completed' : 'مكتمل' },
-    { key: 'failed', label: isEn ? 'Review' : 'يحتاج مراجعة' },
-    { key: 'hold', label: isEn ? 'No Action' : 'بدون إجراء' },
   ], [isEn]);
   const stateStyles = {
     all: 'border-emerald-100 bg-emerald-50 text-emerald-700',
-    pending: 'border-sky-100 bg-sky-50 text-sky-700',
     executing: 'border-emerald-100 bg-emerald-50 text-emerald-700',
     blocked: 'border-amber-100 bg-amber-50 text-amber-700',
     completed: 'border-teal-100 bg-teal-50 text-teal-700',
-    failed: 'border-red-100 bg-red-50 text-red-700',
-    hold: 'border-gray-100 bg-gray-50 text-gray-600',
   };
   const scopeStyles = {
     active: 'border-emerald-100 bg-emerald-50 text-emerald-700',
     '24h': 'border-sky-100 bg-sky-50 text-sky-700',
-    '7d': 'border-indigo-100 bg-indigo-50 text-indigo-700',
     archive: 'border-gray-200 bg-gray-50 text-gray-600',
-    all: 'border-teal-100 bg-teal-50 text-teal-700',
   };
   const scopeCounts = useMemo(() => {
     const now = Date.now();
     const counts = Object.fromEntries(scopeFilters.map(item => [item.key, 0]));
-    counts.all = localRecs.length;
     localRecs.forEach(rec => {
       const age = now - recommendationTime(rec);
       const within24h = age >= 0 && age <= DAY_MS;
@@ -143,7 +128,6 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
       const handled = isHandledRecommendation(rec);
       if (!handled && within7d) counts.active += 1;
       if (within24h) counts['24h'] += 1;
-      if (within7d) counts['7d'] += 1;
       if (handled || !within7d) counts.archive += 1;
     });
     return counts;
@@ -151,14 +135,12 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
   const scopedRecs = useMemo(() => {
     const now = Date.now();
     return localRecs.filter(rec => {
-      if (scopeFilter === 'all') return true;
       const age = now - recommendationTime(rec);
       const within24h = age >= 0 && age <= DAY_MS;
       const within7d = age >= 0 && age <= 7 * DAY_MS;
       const handled = isHandledRecommendation(rec);
       if (scopeFilter === 'active') return !handled && within7d;
       if (scopeFilter === '24h') return within24h;
-      if (scopeFilter === '7d') return within7d;
       if (scopeFilter === 'archive') return handled || !within7d;
       return true;
     });
@@ -177,6 +159,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
       ? scopedRecs
       : scopedRecs.filter(rec => (rec.decision_state?.state || 'hold') === decisionFilter)
   ), [decisionFilter, scopedRecs]);
+  const currentScopeLabel = scopeFilters.find(filter => filter.key === scopeFilter)?.label || (isEn ? 'Recommendations' : 'التوصيات');
 
   return (
     <div className="w-full px-4 md:px-8 py-5 page-enter" dir={isRtl ? 'rtl' : 'ltr'}>
@@ -243,50 +226,44 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
             subtitle={recsError ? (isEn ? "Try refreshing" : "حاول إعادة التحميل") : (isEn ? "No actions needed right now. Everything is running perfectly." : "لا توجد توصيات الآن - كل شيء يعمل بشكل مثالي ومتوازن.")}
           />
         ) : (
-          sections.map((week, sIdx) => {
-            const weekRecs = visibleRecs.filter(r => r.week === week);
-            if (weekRecs.length === 0) return null;
+          <div className="flex flex-col gap-4 animate-fade-in-up delay-2">
+            <div className={`text-[14px] font-bold text-gray-800 flex items-center gap-3 mt-2`}>
+              <span className="text-xs font-black text-emerald-700 bg-emerald-50/50 px-3 py-1 rounded-xl border border-emerald-100/30 uppercase tracking-widest">{currentScopeLabel}</span>
+              <div className="h-px bg-gray-100 flex-1" />
+            </div>
 
-            return (
-              <div key={week} className={`flex flex-col gap-4 animate-fade-in-up delay-${sIdx + 2}`}>
-                <div className={`text-[14px] font-bold text-gray-800 flex items-center gap-3 mt-2`}>
-                  <span className="text-xs font-black text-emerald-700 bg-emerald-50/50 px-3 py-1 rounded-xl border border-emerald-100/30 uppercase tracking-widest">{week}</span>
-                  <div className="h-px bg-gray-100 flex-1" />
-                </div>
-    
-                <div className="flex flex-col gap-4">
-                  {weekRecs.map((item) => (
-                    <RecommendationCard
-                      key={item.id}
-                      rec={{
-                        id: item.id,
-                        rawId: item.rawId,
-                        title: item.title,
-                        message: item.suggestion || item.title,
-                        reasoning: item.reasoning,
-                        category: item.type || 'irrigation',
-                        severity: item.severity || 'normal',
-                        action_status: item.action_status,
-                        decision_state: item.decision_state,
-                        created_at: item.created_at,
-                        source: item.source
-                      }}
-                      farmId={farmId}
-                      globalAutoMode={globalAutoMode}
-                      isEn={isEn}
-                      onExecute={executeRecommendation}
-                      onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
-                      onIgnore={() => {}}
-                      onFeedback={handleFeedback}
-                      feedbackState={feedbackState}
-                      showThanks={showThanksIds}
-                      compact={false}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })
+            <div className="flex flex-col gap-4">
+              {visibleRecs.map((item) => (
+                <RecommendationCard
+                  key={item.id}
+                  rec={{
+                    id: item.id,
+                    rawId: item.rawId,
+                    title: item.title,
+                    message: item.suggestion || item.title,
+                    reasoning: item.reasoning,
+                    category: item.type || 'irrigation',
+                    severity: item.severity || 'normal',
+                    action_status: item.action_status,
+                    decision_state: item.decision_state,
+                    created_at: item.created_at,
+                    source: item.source
+                  }}
+                  farmId={farmId}
+                  globalAutoMode={globalAutoMode}
+                  isEn={isEn}
+                  onExecute={executeRecommendation}
+                  onActionChange={(id, status) => submitRecommendationAction(farmId, id, status)}
+                  onIgnore={() => {}}
+                  onDismiss={(id) => setLocalRecs(prev => prev.filter(rec => rec.id !== id))}
+                  onFeedback={handleFeedback}
+                  feedbackState={feedbackState}
+                  showThanks={showThanksIds}
+                  compact={false}
+                />
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

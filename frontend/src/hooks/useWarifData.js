@@ -61,7 +61,7 @@ const fallbackAlertMessage = (backendAlert, isEn) => {
   const value = backendAlert.actual_value != null ? ` ${Number(backendAlert.actual_value).toFixed(1)}` : "";
   return isEn
     ? `Alert for ${sensorName}${value}. Review the current condition and take the appropriate action.`
-    : `تنبيه ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
+    : `تنبيه في ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
 };
 
 const mlAnomalyAlertMessage = (backendAlert, isEn) => {
@@ -78,15 +78,15 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
     ar: {
       air_temperature: "تحقق من قراءة الحساس واتصال الجهاز، وتأكد من أن نظام التبريد والتهوية يعمل بشكل طبيعي.",
       temperature: "تحقق من قراءة الحساس واتصال الجهاز، وتأكد من أن نظام التبريد والتهوية يعمل بشكل طبيعي.",
-      soil_temperature: "تحقق من حساس حرارة التربة وقارن القراءة مع حالة التربة الفعلية.",
+      soil_temperature: "تحقق من حساس حرارة التربة وقارِن القراءة بحالة التربة الفعلية.",
       air_humidity: "تحقق من قراءة حساس رطوبة الهواء واضبط التهوية عند الحاجة.",
       humidity: "تحقق من قراءة حساس رطوبة الهواء واضبط التهوية عند الحاجة.",
       soil_moisture: "تحقق من حساس رطوبة التربة ونظام الري، وقارن القراءة بحالة التربة الفعلية.",
       irrigation: "تحقق من حساس رطوبة التربة ونظام الري، وقارن القراءة بحالة التربة الفعلية.",
       light_intensity: "تحقق من حساس الإضاءة ومصدر القراءة، وتأكد من عدم وجود عائق أو فصل في الاتصال.",
       water_tank: "تحقق من حساس خزان المياه ومستوى الخزان الفعلي.",
-      water_usage: "تحقق من المضخة ومحابس الري وقراءة استهلاك المياه.",
-      power_usage: "تحقق من استهلاك الطاقة واتصال الأجهزة المرتبطة.",
+      water_usage: "تحقق من المضخة، ومحابس الري، وقراءة استهلاك المياه.",
+      power_usage: "تحقق من استهلاك الأجهزة للطاقة واتصال الأجهزة المرتبطة.",
       energy_kwh: "تحقق من قراءة استهلاك الطاقة واتصال الجهاز.",
     },
     en: {
@@ -107,7 +107,7 @@ const mlAnomalyAlertMessage = (backendAlert, isEn) => {
 
   const action = actions[isEn ? "en" : "ar"][sensorType] || (isEn
     ? "Check the sensor reading, device connection, and related equipment."
-    : "تحقق من قراءة الحساس واتصال الجهاز والمعدات المرتبطة.");
+    : "تحقق من قراءة الحساس، واتصال الجهاز، والمعدات المرتبطة.");
 
   return isEn
     ? `Alert: Unusual reading in ${sensorName}. ${action}`
@@ -413,7 +413,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
           if (sensorType === 'soil_moisture') return isEn ? "Check irrigation system and soil sensors." : "تحقق من نظام الري وحساسات التربة.";
           if (sensorType === 'water_tank') return isEn ? "Refill water tank immediately." : "أعد تعبئة خزان المياه فوراً.";
           if (sensorType === 'water_usage') return isEn ? "Check pump and irrigation valves." : "تحقق من المضخة ومحابس الري.";
-          if (sensorType === 'power_usage' || sensorType === 'energy_kwh') return isEn ? "Check power consumption of devices." : "تحقق من استهلاك الطاقة للأجهزة.";
+          if (sensorType === 'power_usage' || sensorType === 'energy_kwh') return isEn ? "Check power consumption of devices." : "تحقق من استهلاك الأجهزة للطاقة.";
           return isEn ? "Review system status and take action." : "راجع حالة النظام واتخذ الإجراء المناسب.";
         };
 

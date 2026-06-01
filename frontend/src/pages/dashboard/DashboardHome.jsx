@@ -542,7 +542,7 @@ function IrrigationGlanceCard({ onGo, dashboardData, water, power }) {
                 {energyKwh < 1 ? (energyKwh * 1000).toFixed(0) : energyKwh.toFixed(2)}
               </span>
               <span className="text-[11px] text-gray-400">
-                {energyKwh < 1 ? (isEn ? 'Wh' : 'واط') : (isEn ? 'kWh' : 'ك.واط')}
+                {energyKwh < 1 ? (isEn ? 'Wh' : 'واط-ساعة') : (isEn ? 'kWh' : 'كيلوواط-ساعة')}
               </span>
             </div>
           </div>

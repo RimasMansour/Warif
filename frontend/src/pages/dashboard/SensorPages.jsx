@@ -107,7 +107,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-    await submitRecommendationFeedback(farmId, id, type === 'up');
+    const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
+    await submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -139,7 +140,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     lightY: isEn ? "Lux" : "لوكس",
     lastUpdateAr: "آخر تحديث",
     lastUpdateEn: "Last Update",
-    noRecsTitle: isEn ? "All Systems Stable" : "كافة الأنظمة مستقرة.",
+    noRecsTitle: isEn ? "All Systems Stable" : "جميع الأنظمة مستقرة.",
     noRecsSub: isEn ? "No specific recommendations at the moment." : "لا توجد توصيات محددة حالياً.",
   };
 
@@ -576,7 +577,8 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-    await submitRecommendationFeedback(farmId, id, type === 'up');
+    const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
+    await submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -762,13 +764,20 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilMoistSeries = useMemo(() => formatPoints(rawSoilMoist), [rawSoilMoist, range, isEn]);
 
 
-  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), []);
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs
-      .filter(r => ['soil', 'soil_moisture'].includes(String(r.category || r.type || '').toLowerCase()))
+      .filter(r => {
+        const category = String(r.category || r.type || '').toLowerCase();
+        const sourceSensor = String(r.source_sensor_type || r.sensor_type || '').toLowerCase();
+        const text = `${r.message || ''} ${r.data_insight || ''} ${r.reasoning || ''}`.toLowerCase();
+        return ['soil', 'soil_moisture', 'soil_temperature', 'irrigation'].includes(category)
+          || ['soil_moisture', 'soil_temperature'].includes(sourceSensor)
+          || (category === 'irrigation' && (sourceSensor.includes('soil') || text.includes('soil') || text.includes('تربة')));
+      })
       .filter(r => {
         const itemId = `${r.source || 'recommendation'}-${r.id}`;
         return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);

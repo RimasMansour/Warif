@@ -240,6 +240,10 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   const yMax = Math.ceil(Math.max(...allValues, 2) / 5) * 5; 
   const getY = (v) => h - pBottom - (v / (yMax || 1)) * (h - pTop - pBottom);
   const getX = (i) => pLeft + i * segmentW;
+  const latestItem = [...data].reverse().find(item => item.hasData);
+  const chartSummary = range === 'D'
+    ? ((latestItem?.water || 0) + (latestItem?.power || 0)) / 2
+    : data.reduce((sum, item) => sum + ((item.water || 0) + (item.power || 0)) / 2, 0) / (n || 1);
 
   const getPath = (key) => {
     if (n < 2) return "";
@@ -279,7 +283,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
         <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[100px]">
           <div className="flex items-baseline gap-1">
             <span className="text-xl font-black text-gray-800 tracking-tight">
-              {(data.reduce((a, b) => a + (b.water + b.power)/2, 0) / n).toFixed(1)}
+              {chartSummary.toFixed(1)}
             </span>
             <span className="text-[12px] font-black text-gray-400">avg</span>
           </div>

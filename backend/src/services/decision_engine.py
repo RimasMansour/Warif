@@ -306,8 +306,8 @@ class SmartDecisionEngine:
             if soil_moisture >= 90:
                 sev = "urgent" if soil_moisture >= 95 else "warning"
                 recommendations.append(SmartRecommendation(
-                    message="تقليل فترات الري فوراً",
-                    reasoning=f"رطوبة التربة ({soil_moisture:.0f}%) بلغت مستوى حرجاً يتجاوز الحد الأقصى. الإجراء: إيقاف الري فوراً وتحسين الصرف لتجنب تعفن الجذور وفقدان المحصول.",
+                    message="إيقاف الري فوراً",
+                    reasoning=f"رطوبة التربة ({soil_moisture:.0f}%) بلغت مستوى حرجاً يتجاوز الحد الآمن. الإجراء: إيقاف الري فوراً وتحسين تصريف المياه لتجنب تعفن الجذور وحماية المحصول.",
                     category="irrigation",
                     severity=sev,
                     confidence=0.95,
@@ -315,7 +315,7 @@ class SmartDecisionEngine:
             elif soil_moisture < 25:
                 recommendations.append(SmartRecommendation(
                     message="ري طارئ مطلوب",
-                    reasoning=f"رطوبة التربة ({soil_moisture:.0f}%) انخفضت إلى مستوى حرج جداً يهدد المحصول. الإجراء: تفعيل الري الفوري لإنقاذ النبات.",
+                    reasoning=f"رطوبة التربة ({soil_moisture:.0f}%) انخفضت إلى مستوى حرج جداً قد يسبب إجهاداً شديداً للنبات. الإجراء: تفعيل الري الفوري لحماية المحصول.",
                     category="irrigation",
                     severity="urgent",
                     confidence=0.97,
@@ -325,8 +325,8 @@ class SmartDecisionEngine:
                     message="تأجيل الري حتى الصباح",
                     reasoning=(
                         f"رطوبة التربة ({soil_moisture:.0f}%) أقل من المستوى المثالي، "
-                        "لكن الوقت الحالي ليل والري الآن قد يرفع خطر الأمراض الفطرية. "
-                        f"التوصية: تأجيل الري حتى الصباح، إلا إذا انخفضت الرطوبة تحت {NIGHT_IRRIGATION_CRITICAL_SOIL:.0f}%."
+                        "لكن الوقت الحالي فترة ليلية، وقد يزيد الري الآن خطر الأمراض الفطرية. "
+                        f"التوصية: تأجيل الري حتى الصباح، إلا إذا انخفضت رطوبة التربة إلى أقل من {NIGHT_IRRIGATION_CRITICAL_SOIL:.0f}%."
                     ),
                     category="irrigation",
                     severity="normal",
@@ -335,11 +335,11 @@ class SmartDecisionEngine:
             elif score > 0.5:
                 severity = "urgent" if score > 0.75 else "warning"
                 if score > 0.75:
-                    message = "تحسين إدارة الري"
-                    rec_text = f"رطوبة التربة الحالية ({soil_moisture:.0f}%) انخفضت عن الحد الأدنى المتوقع لنمو الخيار (70%). الإجراء: تفعيل الري الفوري لتجنب إجهاد النبات."
+                    message = "تفعيل الري الفوري"
+                    rec_text = f"رطوبة التربة الحالية ({soil_moisture:.0f}%) انخفضت إلى أقل من الحد الأدنى المناسب للمحصول (70%). الإجراء: تفعيل الري الفوري لتجنب إجهاد النبات."
                 else:
-                    message = "زيادة فترات الري"
-                    rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض نحو الحد الحرج (70%). التوصية: زيادة تكرار الري تدريجياً للحفاظ على الإنتاجية."
+                    message = "زيادة تكرار الري"
+                    rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض مقتربة من الحد الأدنى المناسب (70%). التوصية: زيادة تكرار الري تدريجياً للحفاظ على صحة النبات واستقرار الإنتاجية."
 
                 if ml_result:
                     recommendation_conf = ml_result.get("confidence", 0.65)
@@ -355,8 +355,8 @@ class SmartDecisionEngine:
                 ))
             elif score < -0.2:
                 recommendations.append(SmartRecommendation(
-                    message="تقليل فترات الري",
-                    reasoning=f"رطوبة التربة الحالية ({soil_moisture:.0f}%) فوق المستوى المثالي للخيار (80%). التوصية: تقليل عدد فترات الري لتوفير المياه وتجنب أمراض الجذور.",
+                    message="تقليل تكرار الري",
+                    reasoning=f"رطوبة التربة الحالية ({soil_moisture:.0f}%) أعلى من المستوى المناسب للمحصول (80%). التوصية: تقليل تكرار الري لتوفير المياه وتجنب تعفن الجذور.",
                     category="irrigation",
                     severity="normal",
                     confidence=max(0.7, min(0.9, abs(score) + 0.3)),
@@ -374,7 +374,7 @@ class SmartDecisionEngine:
             if air_temperature >= 36:
                 recommendations.append(SmartRecommendation(
                     message="تفعيل نظام التبريد الطارئ",
-                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) تجاوزت الحد الحرج. الإجراء: تشغيل أنظمة التبريد فوراً وفتح جميع فتحات التهوية لإنقاذ المحصول.",
+                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) تجاوزت الحد الحرج. الإجراء: تشغيل أنظمة التبريد فوراً وتعزيز التهوية للحد من الإجهاد الحراري وحماية المحصول.",
                     category="temperature",
                     severity="urgent",
                     confidence=0.95,
@@ -383,7 +383,7 @@ class SmartDecisionEngine:
                 conf = 0.82 if ext_temp and ext_temp > 28 else 0.75
                 recommendations.append(SmartRecommendation(
                     message="تحسين التهوية والتبريد",
-                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) مرتفعة عن الحد المثالي (28°C). التوصية: زيادة التهوية والتأكد من سريان الهواء لتجنب إجهاد النبات.",
+                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) أعلى من الحد المثالي (28°C). التوصية: زيادة التهوية والتأكد من تدفق الهواء لتجنب إجهاد النبات.",
                     category="temperature",
                     severity="warning",
                     confidence=conf,
@@ -400,7 +400,7 @@ class SmartDecisionEngine:
                 # Combined (indoor+outdoor) confirms extreme heat under clear sky
                 recommendations.append(SmartRecommendation(
                     message="تفعيل نظام التبريد الطارئ",
-                    reasoning=f"الحرارة المدمجة ({combined_temp:.0f}°C) تجاوزت الحد الحرج وسماء صافية تزيد الضغط الحراري. الإجراء: تشغيل أنظمة التبريد فوراً.",
+                    reasoning=f"مؤشر الحرارة داخل المحمية ({combined_temp:.0f}°C) تجاوز الحد الحرج، كما أن صفاء السماء يزيد الضغط الحراري. الإجراء: تشغيل أنظمة التبريد فوراً.",
                     category="temperature",
                     severity="urgent",
                     confidence=0.93,
@@ -409,7 +409,7 @@ class SmartDecisionEngine:
                 conf = 0.82 if ext_temp and ext_temp > 30 else 0.75
                 recommendations.append(SmartRecommendation(
                     message="تحسين التهوية والتبريد",
-                    reasoning=f"الحرارة المدمجة ({combined_temp:.0f}°C) مرتفعة. التوصية: زيادة التهوية لتجنب إجهاد النبات.",
+                    reasoning=f"مؤشر الحرارة داخل المحمية ({combined_temp:.0f}°C) مرتفع. التوصية: زيادة التهوية لتجنب إجهاد النبات.",
                     category="temperature",
                     severity="warning",
                     confidence=conf,
@@ -425,11 +425,11 @@ class SmartDecisionEngine:
             if air_humidity > 85:
                 severity = "urgent" if (ext_humidity or 0) > 80 else "warning"
                 if severity == "urgent":
-                    msg = "تحسين التهوية الطارئ"
-                    rec_text = f"رطوبة الهواء الحالية ({air_humidity:.0f}%) والخارجية ({ext_humidity or 0:.0f}%) مرتفعة جداً. الإجراء: فتح جميع فتحات التهوية فوراً لتجنب الأمراض الفطرية."
+                    msg = "تهوية طارئة مطلوبة"
+                    rec_text = f"رطوبة الهواء داخل المحمية ({air_humidity:.0f}%) وخارجها ({ext_humidity or 0:.0f}%) مرتفعة جداً. الإجراء: تعزيز التهوية فوراً لتقليل خطر الأمراض الفطرية."
                 else:
                     msg = "زيادة التهوية"
-                    rec_text = f"رطوبة الهواء الحالية ({air_humidity:.0f}%) مرتفعة عن الحد المثالي (60-70%). التوصية: تحسين التهوية لتقليل مخاطر الإصابة بالأمراض."
+                    rec_text = f"رطوبة الهواء الحالية ({air_humidity:.0f}%) أعلى من الحد المثالي (60-70%). التوصية: تحسين التهوية لتقليل خطر الأمراض الفطرية."
                 conf = 0.91 if severity == "urgent" else 0.86
                 recommendations.append(SmartRecommendation(
                     message=msg,
@@ -441,7 +441,7 @@ class SmartDecisionEngine:
             elif air_humidity < 30:
                 recommendations.append(SmartRecommendation(
                     message="تفعيل نظام الترطيب",
-                    reasoning=f"رطوبة الهواء الحالية ({air_humidity:.0f}%) منخفضة جداً عن الحد الأدنى (40%). التوصية: تفعيل نظام الرش لزيادة الرطوبة وتجنب الإجهاد المائي للنبات.",
+                    reasoning=f"رطوبة الهواء الحالية ({air_humidity:.0f}%) أقل بكثير من الحد الأدنى (40%). التوصية: تفعيل نظام الترطيب لرفع الرطوبة وتجنب الإجهاد المائي للنبات.",
                     category="humidity",
                     severity="normal",
                     confidence=0.80,
@@ -453,15 +453,15 @@ class SmartDecisionEngine:
             if soil_temperature > 35:
                 recommendations.append(SmartRecommendation(
                     message="تحسين حماية التربة من الحرارة",
-                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) مرتفعة جداً وتعيق امتصاص الجذور للعناصر الغذائية. الإجراء: استخدام الظلل أو تغطية التربة لتقليل درجة الحرارة.",
+                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) مرتفعة جداً وتعيق قدرة الجذور على امتصاص العناصر الغذائية. الإجراء: استخدام التظليل أو تغطية التربة لخفض درجة حرارتها.",
                     category="soil",
                     severity="warning",
                     confidence=0.82,
                 ))
             elif soil_temperature < 10:
                 recommendations.append(SmartRecommendation(
-                    message="تقليل الري في فترة البرودة",
-                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) منخفضة جداً وتبطئ نشاط الكائنات الدقيقة. التوصية: تقليل عدد فترات الري لتجنب تعفن الجذور.",
+                    message="تقليل الري أثناء انخفاض حرارة التربة",
+                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) منخفضة جداً وتبطئ النشاط الميكروبي. التوصية: تقليل تكرار الري لتجنب تعفن الجذور.",
                     category="soil",
                     severity="warning",
                     confidence=0.79,

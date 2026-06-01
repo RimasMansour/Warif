@@ -39,11 +39,11 @@ const alertTitleForSensor = (sensorType, lang) => {
 
 const ALERT_ANOMALY_TEXT = {
   sensor_stuck: {
-    ar: (s, v, title, alert) => `${title}: ${s} ثابت عند ${v} - قد يكون الحساس عالقاً، تحقق منه أو أعد تشغيله.`,
+    ar: (s, v, title, alert) => `${title}: قراءة ${s} ثابتة عند ${v} - قد يكون الحساس عالقًا، تحقق منه أو أعد تشغيله.`,
     en: (s, v, title, alert) => `${title}: ${s} is fixed at ${v} - the sensor may be stuck. Reboot or recalibrate it.`,
   },
   unrealistic_jump: {
-    ar: (s, v, title, alert) => `${title}: ${s} وصلت إلى ${v} بشكل مفاجئ - افحص الحساس وقناة الإرسال.`,
+    ar: (s, v, title, alert) => `${title}: سجّلت قراءة ${s} تغيرًا مفاجئًا ووصلت إلى ${v} - افحص الحساس وقناة الإرسال.`,
     en: (s, v, title, alert) => `${title}: ${s} jumped suddenly to ${v} - inspect the sensor and telemetry channel.`,
   },
   pattern_break: {
@@ -55,9 +55,9 @@ const ALERT_ANOMALY_TEXT = {
       const threshold = formatAlertValue(alert.sensor_type, alert.threshold, 'ar');
       const value = formatAlertValue(alert.sensor_type, alert.actual_value ?? alert.value, 'ar') || v;
       if (threshold) {
-        return `${s} (${value}) بدأت تتجه نحو الحد الحرج (${threshold}). التوصية: زيادة تكرار الري تدريجياً أو اتخاذ الإجراء المناسب للحفاظ على الإنتاجية.`;
+        return `${s} (${value}) اقتربت من الحد الذي يتطلب الانتباه (${threshold}). التوصية: راجع الحالة الحالية واتخذ الإجراء المناسب للحفاظ على استقرار المحصول.`;
       }
-      return `${title}: ${s} وصلت إلى ${value} - تجاوزت الحد المسموح ومطلوب تدخل فوري.`;
+      return `${title}: سجّلت ${s} قراءة قدرها ${value} - تجاوزت الحد المسموح، ويجب التدخل فوراً.`;
     },
     en: (s, v, title, alert) => {
       const threshold = formatAlertValue(alert.sensor_type, alert.threshold, 'en');
@@ -88,8 +88,8 @@ const ALERT_SENSOR_UNITS = {
   water_tank: { ar: '%', en: '%' },
   light_intensity: { ar: 'لوكس', en: 'lux' },
   water_usage: { ar: 'لتر', en: 'L' },
-  power_usage: { ar: 'واط', en: 'W' },
-  energy_kwh: { ar: 'ك.واط', en: 'kWh' },
+  power_usage: { ar: 'واط-ساعة', en: 'Wh' },
+  energy_kwh: { ar: 'كيلوواط-ساعة', en: 'kWh' },
 };
 
 const formatAlertValue = (sensorType, value, lang) => {
@@ -112,7 +112,7 @@ const localizedGenericAlertMessage = (alert, isEn, sensorName) => {
 
   return isEn
     ? `Alert for ${sensorName}${value}. Review the current condition and take the appropriate action.`
-    : `تنبيه ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
+    : `تنبيه في ${sensorName}${value}. راجع الحالة الحالية واتخذ الإجراء المناسب.`;
 };
 
 const localizedRecommendationCopy = (rec, isEn) => {
@@ -169,19 +169,19 @@ const localizedRecommendationCopy = (rec, isEn) => {
   const AR = {
     general: {
       title: 'الحالة العامة للنظام',
-      reasoning: 'جميع المؤشرات ضمن النطاق المثالي. استمر في مراقبة ظروف المزرعة.',
+      reasoning: 'جميع المؤشرات ضمن النطاق المثالي. استمر في مراقبة ظروف المحمية.',
     },
     irrigation_increase: {
-      title: 'زيادة فترات الري',
-      reasoning: `رطوبة التربة (${value}) بدأت تتجه نحو الحد الحرج (70%). التوصية: زيادة تكرار الري تدريجيًا للحفاظ على الإنتاجية.`,
+      title: 'زيادة تكرار الري',
+      reasoning: `رطوبة التربة (${value}) بدأت تنخفض مقتربة من الحد الأدنى المناسب (70%). التوصية: زيادة تكرار الري تدريجيًا للحفاظ على صحة النبات واستقرار الإنتاجية.`,
     },
     irrigation_reduce: {
       title: 'تقليل الري',
-      reasoning: `رطوبة التربة (${value}) فوق المدى المثالي للمحصول (80%). التوصية: تقليل تكرار الري لتوفير المياه وحماية الجذور.`,
+      reasoning: `رطوبة التربة (${value}) أعلى من المدى المناسب للمحصول (80%). التوصية: تقليل تكرار الري لتوفير المياه وتجنب تعفن الجذور.`,
     },
     temperature_high: {
       title: 'تفعيل التبريد',
-      reasoning: `درجة الحرارة الحالية (${value}) تجاوزت الحد الحرج (38°م). التوصية: تشغيل أنظمة التبريد فورًا وفتح جميع فتحات التهوية.`,
+      reasoning: `درجة الحرارة الحالية (${value}) تجاوزت الحد الحرج (38°م). التوصية: تشغيل أنظمة التبريد فورًا وتعزيز التهوية للحد من الإجهاد الحراري.`,
     },
     temperature_moderate: {
       title: 'تحسين التبريد والتهوية',
@@ -189,22 +189,22 @@ const localizedRecommendationCopy = (rec, isEn) => {
     },
     temperature_low: {
       title: 'تفعيل التدفئة',
-      reasoning: `درجة الحرارة الحالية (${value}) انخفضت تحت الحد الأدنى (15°م). التوصية: تشغيل التدفئة تدريجيًا لتجنب صدمة حرارية للمحصول.`,
+      reasoning: `درجة الحرارة الحالية (${value}) انخفضت إلى أقل من الحد الأدنى (15°م). التوصية: تشغيل التدفئة تدريجيًا لتجنب صدمة حرارية للمحصول.`,
     },
     humidity_high: {
       title: 'تحسين التهوية',
       reasoning: `رطوبة الهواء الحالية (${value}) مرتفعة جدًا. التوصية: تحسين التهوية لتقليل خطر الأمراض الفطرية.`,
     },
     humidity_low: {
-      title: 'تفعيل الرش',
-      reasoning: `رطوبة الهواء الحالية (${value}) أقل من الحد الأدنى (40%). التوصية: تشغيل نظام الرش لرفع الرطوبة وتقليل الإجهاد المائي.`,
+      title: 'تفعيل الترطيب',
+      reasoning: `رطوبة الهواء الحالية (${value}) أقل من الحد الأدنى (40%). التوصية: تشغيل نظام الترطيب لرفع الرطوبة وتقليل الإجهاد المائي.`,
     },
     soil_hot: {
       title: 'حماية التربة من الحرارة',
-      reasoning: `درجة حرارة التربة الحالية (${value}) مرتفعة جدًا وقد تقلل امتصاص الجذور للعناصر الغذائية. التوصية: استخدام التظليل أو تغطية التربة لخفض الحرارة.`,
+      reasoning: `درجة حرارة التربة الحالية (${value}) مرتفعة جدًا وقد تقلل قدرة الجذور على امتصاص العناصر الغذائية. التوصية: استخدام التظليل أو تغطية التربة لخفض الحرارة.`,
     },
     soil_cold: {
-      title: 'تقليل الري في البرودة',
+      title: 'تقليل الري أثناء انخفاض حرارة التربة',
       reasoning: `درجة حرارة التربة الحالية (${value}) منخفضة جدًا وتبطئ النشاط الميكروبي. التوصية: تقليل تكرار الري لتجنب تعفن الجذور.`,
     },
   };
@@ -774,42 +774,42 @@ function getMlAnomalyActionExplanation(sensorType, isEn, isAuto) {
   if (s.includes('water') || s.includes('irrigation')) {
     if (isAuto) return isEn
       ? "The system logged this irrigation anomaly automatically. Review the irrigation valve, pump status, water flow reading, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في الري تلقائياً. راجع صمام الري، حالة المضخة، قراءة تدفق المياه، واتصال الجهاز.";
+      : "سجّل النظام نمطًا غير طبيعي في الري تلقائيًا. راجع صمام الري، وحالة المضخة، وقراءة تدفق المياه، واتصال الجهاز.";
     return isEn
       ? "Do you want to review the irrigation valve, pump status, water flow reading, and device connection?"
-      : "هل تود مراجعة صمام الري، حالة المضخة، قراءة تدفق المياه، واتصال الجهاز؟";
+      : "هل تود مراجعة صمام الري، وحالة المضخة، وقراءة تدفق المياه، واتصال الجهاز؟";
   }
 
   if (s.includes('power') || s.includes('energy')) {
     if (isAuto) return isEn
       ? "The system logged this energy anomaly automatically. Review the energy meter reading, connected equipment, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في الطاقة تلقائياً. راجع قراءة عداد الطاقة، الأجهزة المرتبطة، واتصال الجهاز.";
+      : "سجّل النظام نمطًا غير طبيعي في الطاقة تلقائيًا. راجع قراءة عداد الطاقة، والأجهزة المرتبطة، واتصال الجهاز.";
     return isEn
       ? "Do you want to review the energy meter reading, connected equipment, and device connection?"
-      : "هل تود مراجعة قراءة عداد الطاقة، الأجهزة المرتبطة، واتصال الجهاز؟";
+      : "هل تود مراجعة قراءة عداد الطاقة، والأجهزة المرتبطة، واتصال الجهاز؟";
   }
 
   if (s.includes('soil')) {
     if (isAuto) return isEn
       ? "The system logged this soil sensor anomaly automatically. Review soil moisture, soil temperature, the soil sensor, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في حساسات التربة تلقائياً. راجع رطوبة التربة، حرارة التربة، حساس التربة، واتصال الجهاز.";
+      : "سجّل النظام نمطًا غير طبيعي في حساسات التربة تلقائيًا. راجع رطوبة التربة، وحرارة التربة، وحساس التربة، واتصال الجهاز.";
     return isEn
       ? "Do you want to review soil moisture, soil temperature, the soil sensor, and device connection?"
-      : "هل تود مراجعة رطوبة التربة، حرارة التربة، حساس التربة، واتصال الجهاز؟";
+      : "هل تود مراجعة رطوبة التربة، وحرارة التربة، وحساس التربة، واتصال الجهاز؟";
   }
 
   if (s.includes('temperature') || s.includes('humidity') || s.includes('light')) {
     if (isAuto) return isEn
       ? "The system logged this climate sensor anomaly automatically. Review air temperature, humidity, light reading, the climate sensor, and device connection."
-      : "سجّل النظام نمطاً غير طبيعي في حساسات المناخ تلقائياً. راجع حرارة الهواء، الرطوبة، قراءة الإضاءة، حساس المناخ، واتصال الجهاز.";
+      : "سجّل النظام نمطًا غير طبيعي في حساسات المناخ تلقائيًا. راجع حرارة الهواء، والرطوبة، وقراءة الإضاءة، وحساس المناخ، واتصال الجهاز.";
     return isEn
       ? "Do you want to review air temperature, humidity, light reading, the climate sensor, and device connection?"
-      : "هل تود مراجعة حرارة الهواء، الرطوبة، قراءة الإضاءة، حساس المناخ، واتصال الجهاز؟";
+      : "هل تود مراجعة حرارة الهواء، والرطوبة، وقراءة الإضاءة، وحساس المناخ، واتصال الجهاز؟";
   }
 
   if (isAuto) return isEn
     ? "The system logged this anomaly automatically. Review the mentioned device if shown, related readings, and sensor connectivity."
-    : "سجّل النظام هذا النمط غير الطبيعي تلقائياً. راجع الجهاز المذكور إن وجد، والقراءات المرتبطة، واتصال الحساسات.";
+    : "سجّل النظام هذا النمط غير الطبيعي تلقائيًا. راجع الجهاز المذكور إن وجد، والقراءات المرتبطة، واتصال الحساسات.";
   return isEn
     ? "Do you want to review the mentioned device, related readings, and sensor connectivity?"
     : "هل تود مراجعة الجهاز المذكور، والقراءات المرتبطة، واتصال الحساسات؟";
@@ -822,27 +822,27 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   if (c === 'climate' || c === 'temperature') {
     if (isAuto) return isEn
       ? "Greenhouse cooling and fans activated autonomously to lower temperature and stabilize the crop environment."
-      : "تم تشغيل التبريد والمراوح تلقائياً لتخفيف درجة الحرارة وتلطيف أجواء الصوبة لضمان استقرار المحصول.";
+      : "تم تشغيل التبريد والمراوح تلقائيًا لخفض درجة الحرارة وتحسين أجواء المحمية حفاظًا على استقرار المحصول.";
     return isEn
       ? "Do you want to turn on cooling and fans to lower the temperature and stabilize the crop environment?"
-      : "هل تود تشغيل التبريد والمراوح لتخفيف درجة الحرارة وتلطيف أجواء الصوبة؟";
+      : "هل تود تشغيل التبريد والمراوح لخفض درجة الحرارة وتحسين أجواء المحمية؟";
   }
 
   // Irrigation / Water
   if (c === 'irrigation' || c === 'water') {
     if (isAuto) return isEn
       ? "Auto mode is monitoring irrigation and will execute only when crop need and safety conditions allow it."
-      : "الوضع التلقائي يراقب الري ولن يشغل المضخات إلا عندما تحتاج التربة وتسمح شروط السلامة بذلك.";
+      : "يراقب الوضع التلقائي حالة الري، ولن يشغّل المضخات إلا عندما تحتاج التربة وتسمح شروط السلامة بذلك.";
     return isEn
       ? "Do you want to activate the irrigation pumps to restore optimal soil moisture levels?"
-      : "هل تود تفعيل مضخات الري لاستعادة مستويات رطوبة التربة المثالية؟";
+      : "هل تود تفعيل مضخات الري لاستعادة المستوى المناسب لرطوبة التربة؟";
   }
 
   // Humidity
   if (c === 'humidity') {
     if (isAuto) return isEn
       ? "Ventilation fans activated autonomously to exhaust excess humidity and protect crop health."
-      : "تم تشغيل نظام التهوية والمراوح تلقائياً لتصريف الرطوبة الزائدة وحماية صحة المحصول.";
+      : "تم تشغيل نظام التهوية والمراوح تلقائيًا لتصريف الرطوبة الزائدة وحماية المحصول.";
     return isEn
       ? "Do you want to activate the ventilation fans to exhaust excess humidity and protect crop health?"
       : "هل تود تشغيل نظام التهوية والمراوح لتصريف الرطوبة الزائدة وحماية المحصول؟";
@@ -882,7 +882,7 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   if (c === 'power' || c === 'energy') {
     if (isAuto) return isEn
       ? "The system logged the power sensor alert automatically. Please verify the sensor reading and device connection."
-      : "سجّل النظام تنبيه الطاقة تلقائياً. يرجى التحقق من قراءة الحساس واتصال الجهاز.";
+      : "سجّل النظام تنبيه الطاقة تلقائيًا. يرجى التحقق من قراءة الحساس واتصال الجهاز.";
     return isEn
       ? "Do you want to review the power sensor reading and device connection?"
       : "هل تود مراجعة قراءة حساس الطاقة واتصال الجهاز؟";
@@ -896,7 +896,7 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   // General / Default — still descriptive
   if (isAuto) return isEn
     ? "The system logged this alert automatically. Please review the related sensor or connection status."
-    : "سجّل النظام هذا التنبيه تلقائياً. يرجى مراجعة الحساس أو حالة الاتصال المرتبطة.";
+    : "سجّل النظام هذا التنبيه تلقائيًا. يرجى مراجعة الحساس أو حالة الاتصال المرتبطة.";
   return isEn
     ? "Do you want to review the related sensor or connection status?"
     : "هل تود مراجعة الحساس أو حالة الاتصال المرتبطة؟";
@@ -912,7 +912,7 @@ function getManualCompletionExplanation(category, isEn) {
 function getIgnoredRecommendationMessage(isEn) {
   return isEn
     ? "Recommendation ignored. It will remain available in the recommendations page for later review."
-    : "تم تجاهل التوصية. ستبقى متاحة في صفحة التوصيات للمراجعة لاحقاً.";
+    : "تم تجاهل التوصية. ستبقى متاحة في صفحة التوصيات للمراجعة لاحقًا.";
 }
 
 // ─── THEME & ICONS ──────────────────────────────────────────────────────────
@@ -1067,7 +1067,8 @@ export function RecommendationCard({
   feedbackState = {},
   showThanks = [],
   compact = false,
-  autoDismissOnAction = false
+  autoDismissOnAction = false,
+  autoDismissOnFeedback = true
 }) {
   const isRtl = !isEn;
   const theme = getRecommendationTheme(rec.category || rec.type, extractSafeText(rec.title || rec.message));
@@ -1080,14 +1081,14 @@ export function RecommendationCard({
     setActionResult(rec.action_status || null);
   }, [rec.id, rec.action_status]);
 
-  const scheduleDismiss = () => {
-    if (!autoDismissOnAction) return;
+  const scheduleDismiss = (delay = 2200) => {
     window.setTimeout(() => {
       onDismiss?.(rec.id);
-    }, 2200);
+    }, delay);
   };
 
-  const handleExecute = async () => {
+  const handleExecute = async (event) => {
+    event?.stopPropagation();
     if (isLoading || actionResult) return;
     setIsLoading(true);
     try {
@@ -1097,7 +1098,7 @@ export function RecommendationCard({
         setActionResult(null);
       } else {
         setActionResult('executed');
-        scheduleDismiss();
+        if (autoDismissOnAction) scheduleDismiss();
       }
     } catch (err) {
       console.error('Execution failed:', err);
@@ -1107,7 +1108,8 @@ export function RecommendationCard({
     }
   };
 
-  const handleIgnore = async () => {
+  const handleIgnore = async (event) => {
+    event?.stopPropagation();
     setActionResult('ignored');
     if (autoDismissOnAction) {
       scheduleDismiss();
@@ -1116,14 +1118,18 @@ export function RecommendationCard({
     onIgnore?.(rec.id);
   };
 
-  const handleFeedbackClick = (type) => {
-    onFeedback?.(rec.id, type);
+  const handleFeedbackClick = async (type, event) => {
+    event?.stopPropagation();
+    await onFeedback?.(rec.id, type);
     setFeedbackNotice(
       type === 'up'
         ? (isEn ? 'Thanks, your rating was saved.' : 'شكراً، تم حفظ تقييمك.')
         : (isEn ? 'Thanks, we will use your feedback to improve.' : 'شكراً، سنستخدم ملاحظتك للتحسين.')
     );
-    window.setTimeout(() => setFeedbackNotice(null), 2200);
+    window.setTimeout(() => {
+      setFeedbackNotice(null);
+      if (autoDismissOnFeedback) onDismiss?.(rec.id);
+    }, 1600);
   };
 
   const severityColor =
@@ -1149,10 +1155,12 @@ export function RecommendationCard({
       : 'تحسين النظام');
 
   const formatRecMeta = () => {
-    const raw = rec.created_at || rec.timestamp;
+    const raw = rec.created_at || rec.createdAt || rec.timestamp;
     if (!raw) return null;
     // eslint-disable-next-line react-hooks/purity
-    const diffMs = Date.now() - new Date(raw).getTime();
+    const time = new Date(raw).getTime();
+    if (!Number.isFinite(time)) return null;
+    const diffMs = Math.max(0, Date.now() - time);
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
     if (diffMin < 1) return isEn ? 'Just now' : 'الآن';
@@ -1268,7 +1276,7 @@ export function RecommendationCard({
               {isEn ? 'Helpful?' : 'مفيدة؟'}
             </span>
             <button
-              onClick={() => handleFeedbackClick('down')}
+              onClick={(event) => handleFeedbackClick('down', event)}
               className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
                 ${feedbackState[rec.id] === 'down'
                   ? 'bg-red-50 border-red-300 text-red-600 scale-110'
@@ -1279,7 +1287,7 @@ export function RecommendationCard({
               </svg>
             </button>
             <button
-              onClick={() => handleFeedbackClick('up')}
+              onClick={(event) => handleFeedbackClick('up', event)}
               className={`w-8 h-8 flex items-center justify-center rounded-xl border transition-all
                 ${feedbackState[rec.id] === 'up'
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-600 scale-110'
@@ -1484,7 +1492,7 @@ export function AlertCard({
         <div className="flex items-center justify-end w-full">
           <div className="flex items-center gap-2">
             <span className="font-medium text-[12px] text-gray-400 whitespace-nowrap">
-              {isEn ? 'Appropriate?' : 'مفيدة؟'}
+              {isEn ? 'Appropriate?' : 'هل التنبيه دقيق؟'}
             </span>
             <button
               onClick={() => onFeedback?.(alert.id, 'down')}

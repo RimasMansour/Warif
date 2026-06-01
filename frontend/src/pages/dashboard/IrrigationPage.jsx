@@ -93,7 +93,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     flowManagement: isEn ? "Irrigation Control" : "التحكم في الري",
     controlSub: isEn ? "Direct manual control of pumps." : "تحكم يدوي مباشر بالمضخات",
     startManual: isEn ? "Start Manual Irrigation" : "بدء الري اليدوي الآن",
-    stopAll: isEn ? "Stop All Valves" : "إيقاف كافة المحابس",
+    stopAll: isEn ? "Stop All Valves" : "إيقاف جميع المحابس",
     flushNetwork: isEn ? "Flush Drip Network" : "غسيل شبكة التنقيط",
     totalDailyWater: isEn ? "Total Daily Water Usage" : "الاستهلاك اليومي للمياه",
     totalDailyPower: isEn ? "Daily Power Consumption" : "الاستهلاك اليومي للكهرباء",
@@ -205,7 +205,8 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
         benefit: r.benefit,
         action_status: r.action_status,
         decision_state: r.decision_state,
-        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null
+        feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
+        created_at: r.created_at
       }));
   }, [apiRecs, handledRecommendationIds]);
 
@@ -481,7 +482,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
                   </IrrigationActionButton>
                   {showSuccess === "stop" && (
                     <div className="mt-2 px-4 py-2.5 rounded-2xl border text-xs font-black flex items-center gap-2 animate-pulse bg-red-50 text-red-700 border-red-100">
-                      <span>{isEn ? "All Valves Closed" : "تم إغلاق كافة المحابس"}</span>
+                      <span>{isEn ? "All Valves Closed" : "تم إغلاق جميع المحابس"}</span>
                     </div>
                   )}
                 </div>
