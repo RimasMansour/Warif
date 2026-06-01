@@ -106,11 +106,11 @@ export const getIrrigationStatus = async (farm_id) => {
   })
 }
 
-export const startManualIrrigation = async (device_id, duration_min) => {
+export const startManualIrrigation = async (device_id, duration_min, farm_id = null) => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/irrigation/manual`, {
     method: "POST",
     headers: getAuthHeaders(),
-    body: JSON.stringify({ device_id, duration_min })
+    body: JSON.stringify({ farm_id, device_id, duration_min })
   })
 }
 

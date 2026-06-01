@@ -149,7 +149,7 @@ export async function triggerManualIrrigation(action = 'start', farmId = null, d
     const res = await fetch(`${API_BASE}/api/v1/irrigation/manual`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ device_id: `irrigation_${farmId}`, duration_min: durationMin, recommendation_id: recommendationId })
+      body: JSON.stringify({ farm_id: farmId, device_id: `irrigation_${farmId}`, duration_min: durationMin, recommendation_id: recommendationId })
     });
     if (!res.ok) throw new Error('Irrigation API failed');
     const data = await res.json();
@@ -527,7 +527,7 @@ export function useRecommendations(farm_id, options = {}) {
       json = json.filter(rec => {
         const text = (rec.title || '') + ' ' + (rec.message || '') + ' ' + (rec.reasoning || '');
         const isPerfect = text.includes('النظام يعمل بشكل مثالي') || text.includes('ضمن النطاق المثالي');
-        return !isPerfect && (includeAlerts || rec.is_alert === false);
+        return !isPerfect && (includeAlerts || rec.is_alert !== true);
       });
 
       globalCache.recommendations[cacheKey] = json;

@@ -11,12 +11,14 @@ from src.db.models.models import (
     ActivityLog,
     Actuator,
     CommandStatus,
+    Device,
     DeviceCommand,
     IrrigationCommand,
     IrrigationEvent,
     IrrigationStatus,
     Recommendation,
 )
+from src.services import tuya_client
 
 
 PENDING_WINDOW = timedelta(minutes=2)
@@ -83,11 +85,7 @@ async def _irrigation_suppression(
             "reason": (decision.get("safety") or {}).get("reason") or decision.get("reason"),
         }
 
-    pending = await _recent_pending_command(
-        db,
-        [f"irrigation_valve_{farm_id}", f"irrigation_{farm_id}"],
-        PENDING_WINDOW,
-    )
+    pending = await _recent_pending_command(db, _irrigation_device_ids(farm_id), PENDING_WINDOW)
     if pending:
         return {
             "suppress": True,
@@ -122,11 +120,7 @@ async def _irrigation_decision_state(
     message: Optional[str],
     created_at: Optional[datetime],
 ) -> Dict:
-    pending = await _recent_pending_command(
-        db,
-        [f"irrigation_valve_{farm_id}", f"irrigation_{farm_id}"],
-        PENDING_WINDOW,
-    )
+    pending = await _recent_pending_command(db, _irrigation_device_ids(farm_id), PENDING_WINDOW)
     if pending:
         return _state_payload(
             "pending",
@@ -288,21 +282,16 @@ async def _recent_pending_command(
 
 
 async def _active_irrigation_event(db: AsyncSession, farm_id: int) -> Optional[IrrigationEvent]:
-    result = await db.execute(
-        select(Actuator)
-        .where(Actuator.device_id == f"irrigation_{farm_id}")
-        .limit(1)
-    )
-    actuator = result.scalar_one_or_none()
-    if actuator is None:
-        return None
-
+    device_ids = _irrigation_device_ids(farm_id)
     result = await db.execute(
         select(IrrigationEvent)
         .join(IrrigationCommand)
+        .join(Actuator)
+        .join(Device, Device.device_id == Actuator.device_id)
         .options(selectinload(IrrigationEvent.command))
         .where(
-            IrrigationCommand.actuator_id == actuator.id,
+            Device.farm_id == farm_id,
+            Actuator.device_id.in_(device_ids),
             IrrigationEvent.status == IrrigationStatus.active,
         )
         .order_by(desc(IrrigationEvent.timestamp), desc(IrrigationEvent.id))
@@ -383,6 +372,15 @@ def _normalize_category(category: Optional[str]) -> str:
     if raw in {"irrigation", "soil_moisture", "water"}:
         return "irrigation"
     return raw
+
+
+def _irrigation_device_ids(farm_id: int) -> list[str]:
+    ids = [f"irrigation_valve_{farm_id}", f"irrigation_{farm_id}"]
+    if tuya_client.is_tuya_farm(farm_id):
+        tuya_id = tuya_client.get_tuya_actuator_device_id("irrigation")
+        if tuya_id:
+            ids.insert(0, tuya_id)
+    return ids
 
 
 def _mode_from_action(action_type: str) -> str:

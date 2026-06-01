@@ -122,7 +122,15 @@ async def seed_tuya_devices():
                     continue
 
                 existing = await db.execute(select(Device).where(Device.device_id == device_id))
-                if existing.scalar_one_or_none():
+                existing_device = existing.scalar_one_or_none()
+                if existing_device:
+                    if existing_device.farm_id != farm_id:
+                        existing_device.farm_id = farm_id
+                        print(f"[Seed] Reassigned Tuya device: {device_id} -> farm {farm_id}")
+
+                    actuator_result = await db.execute(select(Actuator).where(Actuator.device_id == device_id))
+                    if actuator_result.scalar_one_or_none() is None:
+                        db.add(Actuator(device_id=device_id, actuator_type=actuator_type, state="off"))
                     continue
 
                 db.add(Device(farm_id=farm_id, device_id=device_id, name=name, type="actuator"))

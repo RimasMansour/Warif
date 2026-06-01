@@ -614,6 +614,64 @@ class SmartDecisionEngine:
 
         return None
 
+    def _build_irrigation_policy_recommendation(
+        self,
+        *,
+        decision: Dict,
+        soil_moisture: Optional[float],
+    ) -> Optional[SmartRecommendation]:
+        action = decision.get("action")
+        targets = decision.get("targets") or {}
+        optimal_min = float(targets.get("soil_moisture_min") or 60.0)
+        optimal_max = float(targets.get("soil_moisture_max") or 70.0)
+        moisture_text = f"{soil_moisture:.0f}%" if soil_moisture is not None else "غير متوفرة"
+        confidence = max(0.50, min(0.95, float(decision.get("confidence") or 0.70)))
+
+        if action == "start":
+            return SmartRecommendation(
+                message="تفعيل الري",
+                reasoning=(
+                    f"رطوبة التربة الحالية ({moisture_text}) أقل من النطاق المناسب "
+                    f"({optimal_min:.0f}-{optimal_max:.0f}%). التوصية: تشغيل الري لاستعادة "
+                    "رطوبة التربة المناسبة قبل أن يتأثر نمو النبات."
+                ),
+                category="irrigation",
+                severity="normal",
+                confidence=confidence,
+                execution_action=decision,
+            )
+
+        if action == "stop" and soil_moisture is not None and soil_moisture >= optimal_max:
+            return SmartRecommendation(
+                message="إيقاف الري",
+                reasoning=(
+                    f"رطوبة التربة الحالية ({moisture_text}) وصلت إلى النطاق المناسب أو تجاوزته "
+                    f"({optimal_min:.0f}-{optimal_max:.0f}%). التوصية: إيقاف الري لتجنب تشبع التربة "
+                    "وتقليل خطر تعفن الجذور."
+                ),
+                category="irrigation",
+                severity="normal",
+                confidence=confidence,
+                execution_action=decision,
+            )
+
+        safety = decision.get("safety") or {}
+        if action == "hold" and safety.get("blocked"):
+            return SmartRecommendation(
+                message="تأجيل الري حتى الصباح",
+                reasoning=(
+                    f"رطوبة التربة الحالية ({moisture_text}) تحتاج إلى متابعة، لكن الري مؤجل حاليًا "
+                    "بسبب شرط السلامة الليلي لتقليل خطر الأمراض الفطرية. التوصية: إعادة تقييم الري "
+                    "صباحًا أو التدخل فقط إذا انخفضت الرطوبة إلى مستوى حرج."
+                ),
+                category="irrigation",
+                severity="normal",
+                confidence=confidence,
+                execution_action=decision,
+            )
+
+        return None
+
     async def analyze_with_intelligence(self, sensor_data: dict, farm_id: Optional[int] = None) -> Dict:
         """
         القرار الموحد الذكي الشامل
@@ -782,6 +840,20 @@ class SmartDecisionEngine:
             safety_context=irrigation_safety,
         )
         irrigation_action.update(irrigation_decision)
+
+        irrigation_rec = self._build_irrigation_policy_recommendation(
+            decision=irrigation_decision,
+            soil_moisture=soil_moisture,
+        )
+        if irrigation_rec and not any(rec.category == "irrigation" for rec in recommendations):
+            recommendations.append(irrigation_rec)
+            overall_intelligence["recommendation_count"] = len(recommendations)
+            overall_intelligence["urgent_count"] = len([r for r in recommendations if r.severity == "urgent"])
+            overall_intelligence["status"] = self._determine_system_status(
+                risk_assessment,
+                recommendations,
+                anomalies,
+            )
 
         cooling_action = {
             "should_cool": air_temperature > 32,

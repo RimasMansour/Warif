@@ -215,6 +215,11 @@ async def ingest_sensor_reading(
         # Auto-register unknown actuator devices when farm_id is provided in payload
         # (used by tuya_bridge.py to register irrigation/fan/cooling actuators)
         payload_farm_id = payload.get("farm_id")
+        if device_obj is not None and payload_farm_id and device_obj.farm_id != int(payload_farm_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Device belongs to a different farm",
+            )
         if device_obj is None and payload_farm_id:
             device_obj = Device(
                 farm_id=int(payload_farm_id),

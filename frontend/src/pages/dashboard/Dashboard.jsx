@@ -370,7 +370,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     if (actionType === 'cool') {
       triggerManualCooling('full', currentFarmId);
     } else if (actionType === 'irrigate') {
-      if (valveDeviceId) startManualIrrigation(valveDeviceId, 20).catch(e => console.error(e));
+      if (valveDeviceId) startManualIrrigation(valveDeviceId, 20, currentFarmId).catch(e => console.error(e));
     }
     // Dismiss after action
     dismissAlert(id);
@@ -1091,7 +1091,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
                         setIrrigationError(null);
                         try {
                           const deviceId = valveDeviceId || `irrigation_${currentFarmId}`;
-                          await startManualIrrigation(deviceId, manualDuration);
+                          await startManualIrrigation(deviceId, manualDuration, currentFarmId);
                           setIrrigationProcessing(false);
                           setIrrigationSuccess(true);
                           setTimeout(() => {

@@ -150,6 +150,7 @@ class DashboardOut(BaseModel):
 
 class IrrigationManualIn(BaseModel):
     device_id:     str
+    farm_id:       Optional[int] = None
     duration_min:  Optional[int] = Field(None, gt=0, le=120)
     target_volume: Optional[float] = Field(None, gt=0)  # liters
 

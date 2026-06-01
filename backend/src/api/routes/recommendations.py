@@ -599,7 +599,7 @@ async def _execute_irrigation_decision(
 ) -> dict:
     action = decision.get("action")
     valve_state = action == "start"
-    device_id = f"irrigation_{farm_id}"
+    device_id = _irrigation_device_id_for_farm(farm_id)
     actuator = await _get_or_create_irrigation_actuator(farm_id, device_id, db)
     actuator.state = "on" if valve_state else "off"
 
@@ -637,7 +637,7 @@ async def _execute_irrigation_decision(
     }
 
     db.add(DeviceCommand(
-        device_id=f"irrigation_valve_{farm_id}",
+        device_id=device_id,
         command="VALVE_OPEN" if valve_state else "VALVE_CLOSE",
         payload=json.dumps(command_payload),
         status="pending",
@@ -646,7 +646,7 @@ async def _execute_irrigation_decision(
     db.add(ActivityLog(
         farm_id=farm_id,
         action_type=f"{'auto' if is_auto else 'manual'}_irrigation_{'start' if valve_state else 'stop'}",
-        device_id=f"irrigation_valve_{farm_id}",
+        device_id=device_id,
         details={
             "valve": valve_state,
             "duration_min": duration_min,
@@ -684,6 +684,8 @@ async def _get_or_create_irrigation_actuator(farm_id: int, device_id: str, db: A
         )
         db.add(device)
         await db.flush()
+    elif device.farm_id != farm_id:
+        raise HTTPException(status_code=409, detail="Device belongs to a different farm")
 
     result = await db.execute(select(Actuator).where(Actuator.device_id == device_id).limit(1))
     actuator = result.scalar_one_or_none()
@@ -698,3 +700,9 @@ async def _get_or_create_irrigation_actuator(farm_id: int, device_id: str, db: A
         await db.flush()
 
     return actuator
+
+
+def _irrigation_device_id_for_farm(farm_id: int) -> str:
+    if tuya_client.is_tuya_farm(farm_id):
+        return tuya_client.get_tuya_actuator_device_id("irrigation") or f"tuya_irrigation_{farm_id}"
+    return f"irrigation_{farm_id}"

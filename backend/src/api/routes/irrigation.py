@@ -85,7 +85,9 @@ async def start_manual_irrigation(
     current_user: dict = Depends(get_current_user),
 ):
     """Trigger manual irrigation for a specific device."""
-    actuator = await _get_or_create_actuator(body.device_id, db)
+    farm_id = await _resolve_manual_irrigation_farm_id(body, db, int(current_user["sub"]))
+    device_id = _irrigation_device_id_for_farm(farm_id, body.device_id)
+    actuator = await _get_or_create_actuator(device_id, db, farm_id=farm_id)
 
     command = IrrigationCommand(
         actuator_id=actuator.id,
@@ -102,13 +104,13 @@ async def start_manual_irrigation(
     db.add(event)
 
     dev_result = await db.execute(
-        select(Device).where(Device.device_id == body.device_id).limit(1)
+        select(Device).where(Device.device_id == device_id).limit(1)
     )
     dev = dev_result.scalar_one_or_none()
     activity = ActivityLog(
         farm_id=dev.farm_id if dev else None,
         action_type="manual_irrigation_start",
-        device_id=body.device_id,
+        device_id=device_id,
         details={"duration_min": body.duration_min},
         performed_by="user",
     )
@@ -463,8 +465,33 @@ async def _latest_sensor_snapshot(farm_id: int, db: AsyncSession) -> dict:
     return snapshot
 
 
-async def _get_or_create_actuator(device_id: str, db: AsyncSession) -> Actuator:
+async def _resolve_manual_irrigation_farm_id(body: IrrigationManualIn, db: AsyncSession, user_id: int) -> int:
+    if body.farm_id is not None:
+        await _get_farm_or_404(int(body.farm_id), user_id, db)
+        return int(body.farm_id)
+
+    device_result = await db.execute(select(Device).where(Device.device_id == body.device_id).limit(1))
+    device = device_result.scalar_one_or_none()
+    if device is None:
+        raise HTTPException(status_code=422, detail="farm_id is required for unknown irrigation devices")
+
+    await _get_farm_or_404(device.farm_id, user_id, db)
+    return device.farm_id
+
+
+def _irrigation_device_id_for_farm(farm_id: int, requested_device_id: str | None = None) -> str:
+    if tuya_client.is_tuya_farm(farm_id):
+        return tuya_client.get_tuya_actuator_device_id("irrigation") or f"tuya_irrigation_{farm_id}"
+    return requested_device_id or f"irrigation_{farm_id}"
+
+
+async def _get_or_create_actuator(device_id: str, db: AsyncSession, farm_id: int | None = None) -> Actuator:
     """Get actuator by device_id, or create Device + Actuator if neither exists."""
+    dev_result = await db.execute(select(Device).where(Device.device_id == device_id))
+    device = dev_result.scalar_one_or_none()
+    if device is not None and farm_id is not None and device.farm_id != farm_id:
+        raise HTTPException(status_code=409, detail="Device belongs to a different farm")
+
     result = await db.execute(
         select(Actuator).where(Actuator.device_id == device_id)
     )
@@ -472,34 +499,9 @@ async def _get_or_create_actuator(device_id: str, db: AsyncSession) -> Actuator:
 
     if not actuator:
         # Make sure the Device row exists first (FK requirement)
-        dev_result = await db.execute(
-            select(Device).where(Device.device_id == device_id)
-        )
-        device = dev_result.scalar_one_or_none()
-
         if not device:
-            # Determine farm_id from device naming convention.
-            # Handles "valve_farm_<id>_xx" and "irrigation_<id>" formats.
-            farm_id = 1
-            parts = device_id.split("_")
-            for i, p in enumerate(parts):
-                if p == "farm" and i + 1 < len(parts):
-                    try:
-                        farm_id = int(parts[i + 1])
-                    except ValueError:
-                        pass
-            if farm_id == 1:  # fallback: try last segment (e.g. "irrigation_22")
-                try:
-                    farm_id = int(parts[-1])
-                except (ValueError, IndexError):
-                    pass
-            # Check if farm exists, get first farm if not
-            farm_res = await db.execute(select(Farm).where(Farm.id == farm_id))
-            farm = farm_res.scalar_one_or_none()
-            if not farm:
-                any_farm = await db.execute(select(Farm).limit(1))
-                farm = any_farm.scalar_one_or_none()
-                farm_id = farm.id if farm else 1
+            if farm_id is None:
+                raise HTTPException(status_code=422, detail="farm_id is required to create an irrigation actuator")
 
             device = Device(
                 farm_id=farm_id,

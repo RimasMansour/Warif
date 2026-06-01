@@ -186,8 +186,9 @@ async def _execute_auto_irrigation(db: AsyncSession, farm_id: int, decision: Dic
         "decision": decision,
         "triggered_by": "automation",
     }
+    command_device_id = _irrigation_device_id(farm_id)
     db.add(DeviceCommand(
-        device_id=f"irrigation_valve_{farm_id}",
+        device_id=command_device_id,
         command="VALVE_OPEN" if valve_state else "VALVE_CLOSE",
         payload=json.dumps(payload),
         status="pending",
@@ -196,7 +197,7 @@ async def _execute_auto_irrigation(db: AsyncSession, farm_id: int, decision: Dic
     db.add(ActivityLog(
         farm_id=farm_id,
         action_type=f"auto_irrigation_{'start' if valve_state else 'stop'}",
-        device_id=f"irrigation_valve_{farm_id}",
+        device_id=command_device_id,
         details={
             "valve": valve_state,
             "duration_min": 15,
@@ -254,13 +255,15 @@ async def _active_irrigation_event(db: AsyncSession, actuator_id: int) -> Irriga
 
 
 async def _get_or_create_irrigation_actuator(db: AsyncSession, farm_id: int) -> Actuator:
-    device_id = f"irrigation_{farm_id}"
+    device_id = _irrigation_device_id(farm_id)
     result = await db.execute(select(Device).where(Device.device_id == device_id).limit(1))
     device = result.scalar_one_or_none()
     if device is None:
         device = Device(farm_id=farm_id, device_id=device_id, name="Irrigation Valve", type="actuator")
         db.add(device)
         await db.flush()
+    elif device.farm_id != farm_id:
+        raise ValueError(f"Device {device_id} belongs to farm {device.farm_id}, not farm {farm_id}")
 
     result = await db.execute(select(Actuator).where(Actuator.device_id == device_id).limit(1))
     actuator = result.scalar_one_or_none()
@@ -269,3 +272,9 @@ async def _get_or_create_irrigation_actuator(db: AsyncSession, farm_id: int) -> 
         db.add(actuator)
         await db.flush()
     return actuator
+
+
+def _irrigation_device_id(farm_id: int) -> str:
+    if tuya_client.is_tuya_farm(farm_id):
+        return tuya_client.get_tuya_actuator_device_id("irrigation") or f"tuya_irrigation_{farm_id}"
+    return f"irrigation_{farm_id}"

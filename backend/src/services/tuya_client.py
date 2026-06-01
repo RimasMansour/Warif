@@ -93,6 +93,11 @@ def is_tuya_farm(farm_id: int) -> bool:
     return farm_id == get_tuya_farm_id()
 
 
+def get_tuya_actuator_device_id(kind: str) -> Optional[str]:
+    """Return the Warif device_id for a configured Tuya actuator."""
+    return _get_config().get("actuators", {}).get(kind, {}).get("warif_device_id")
+
+
 # ── Public control functions ──────────────────────────────────────────────────
 
 def control_irrigation(on: bool) -> bool:
