@@ -348,7 +348,7 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, s
   return { data, loading, refetch: fetch_data }
 }
 
-export function useAutoAlerts(sensors, globalAutoMode) {
+export function useAutoAlerts(sensors, globalAutoMode, farmIdOverride = null) {
   const [alerts, setAlerts] = useState([]);
   const [_loading, setLoading] = useState(true);
 
@@ -356,9 +356,9 @@ export function useAutoAlerts(sensors, globalAutoMode) {
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
       const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
-      const farmId = sessionFarms.length > 0
+      const farmId = farmIdOverride || (sessionFarms.length > 0
         ? sessionFarms[0].id
-        : (userData.farmId || null);
+        : (userData.farmId || null));
       if (!farmId) return;
       const token = getStoredToken();
       const url = `${API_BASE}/api/v1/alerts?farm_id=${farmId}&status=open`;
@@ -444,7 +444,7 @@ export function useAutoAlerts(sensors, globalAutoMode) {
     } finally {
       setLoading(false);
     }
-  }, [globalAutoMode]);
+  }, [globalAutoMode, farmIdOverride]);
 
   const dismissAlert = useCallback(async (id) => {
     try {

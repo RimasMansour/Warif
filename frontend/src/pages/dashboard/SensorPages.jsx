@@ -306,13 +306,23 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const lightSeries = useMemo(() => formatPoints(rawLight), [rawLight, range, isEn]);
 
 
-  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 24 * 60 * 60 * 1000), []);
+  const recentRecommendationsSince = useMemo(() => new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), []);
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs
-      .filter(r => ['temperature', 'humidity', 'climate', 'air_temperature', 'air_humidity'].includes(String(r.category || r.type || '').toLowerCase()))
+      .filter(r => {
+        const category = String(r.category || r.type || '').toLowerCase();
+        const text = `${r.message || ''} ${r.data_insight || ''} ${r.reasoning || ''}`.toLowerCase();
+        return ['temperature', 'humidity', 'climate', 'air_temperature', 'air_humidity'].includes(category)
+          || text.includes('temperature')
+          || text.includes('humidity')
+          || text.includes('حرارة')
+          || text.includes('رطوبة الهواء')
+          || text.includes('التهوية')
+          || text.includes('التبريد');
+      })
       .filter(r => {
         const itemId = `${r.source || 'recommendation'}-${r.id}`;
         return !handledRecommendationIds.includes(itemId) && !handledRecommendationIds.includes(r.id);
@@ -774,9 +784,15 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
         const category = String(r.category || r.type || '').toLowerCase();
         const sourceSensor = String(r.source_sensor_type || r.sensor_type || '').toLowerCase();
         const text = `${r.message || ''} ${r.data_insight || ''} ${r.reasoning || ''}`.toLowerCase();
-        return ['soil', 'soil_moisture', 'soil_temperature', 'irrigation'].includes(category)
+        return ['soil', 'soil_moisture', 'soil_temperature'].includes(category)
           || ['soil_moisture', 'soil_temperature'].includes(sourceSensor)
-          || (category === 'irrigation' && (sourceSensor.includes('soil') || text.includes('soil') || text.includes('تربة')));
+          || (category === 'irrigation' && (
+            sourceSensor.includes('soil')
+            || text.includes('soil')
+            || text.includes('تربة')
+            || text.includes('رطوبة التربة')
+            || text.includes('حرارة التربة')
+          ));
       })
       .filter(r => {
         const itemId = `${r.source || 'recommendation'}-${r.id}`;

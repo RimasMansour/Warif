@@ -172,37 +172,42 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
 function DashboardAlertsCard({ alerts, onAccept, isEn, globalAutoMode }) {
   const [alertFeedback, setAlertFeedback] = useState({});
   const [showAlertThanks, setShowAlertThanks] = useState([]);
+  const [hiddenAlertIds, setHiddenAlertIds] = useState([]);
 
   const handleAlertFeedback = async (id, type) => {
     // Update the local UI immediately
     setAlertFeedback(prev => ({ ...prev, [id]: type }));
     setShowAlertThanks(prev => [...prev, id]);
-    setTimeout(() => setShowAlertThanks(prev => prev.filter(i => i !== id)), 2000);
+    setTimeout(() => {
+      setShowAlertThanks(prev => prev.filter(i => i !== id));
+      setHiddenAlertIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    }, 1200);
 
     // Send feedback to the Backend for alerts (not recommendations)
     const helpful = type === 'up';
     await submitAlertFeedback(id, helpful);
   };
 
+  const visibleAlerts = alerts.filter(alert => !hiddenAlertIds.includes(alert.id));
   // Categorize alerts by severity
-  const urgentAlerts = alerts.filter(a => a.severity === 'high' || a.severity === 'critical');
-  const warningAlerts = alerts.filter(a => a.severity === 'warning' || a.severity === 'info');
+  const urgentAlerts = visibleAlerts.filter(a => a.severity === 'high' || a.severity === 'critical');
+  const warningAlerts = visibleAlerts.filter(a => a.severity === 'warning' || a.severity === 'info');
 
   return (
     <CardShell className="h-full flex flex-col bg-white p-4 md:p-5">
       <CardTopRow
         icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>}
-        iconBg={alerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
-        iconColor={alerts.length > 0 ? "text-red-500" : "text-emerald-600"}
+        iconBg={visibleAlerts.length > 0 ? "bg-red-50" : "bg-emerald-50"}
+        iconColor={visibleAlerts.length > 0 ? "text-red-500" : "text-emerald-600"}
         title={isEn ? "System Alerts" : "تنبيهات النظام"}
         subtitle={
-          alerts.length > 0
-            ? `${alerts.length} ${isEn ? 'Active' : 'نشطة'}`
+          visibleAlerts.length > 0
+            ? `${visibleAlerts.length} ${isEn ? 'Active' : 'نشطة'}`
             : isEn ? "System Stable" : "النظام مستقر تماماً"
         }
       />
       <div className="mt-4 flex-1 min-h-0 overflow-y-auto flex flex-col gap-3 scrollbar-neutral pr-1 pb-3">
-        {alerts.length === 0 ? (
+        {visibleAlerts.length === 0 ? (
           <EmptyState
             compact={true}
             variant="success"

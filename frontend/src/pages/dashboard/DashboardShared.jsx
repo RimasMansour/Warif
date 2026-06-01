@@ -698,13 +698,19 @@ export function AlertsPanel({ alerts = [], isOpen, onAccept, onFeedback }) {
   const isEn = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language === 'en');
   const [feedbackState, setFeedbackState] = React.useState({});
   const [showThanks, setShowThanks] = React.useState([]);
+  const [hiddenAlertIds, setHiddenAlertIds] = React.useState([]);
 
   const handleFeedback = (id, type) => {
     setFeedbackState(prev => ({ ...prev, [id]: type }));
     setShowThanks(prev => [...prev, id]);
-    setTimeout(() => setShowThanks(prev => prev.filter(item => item !== id)), 2000);
+    setTimeout(() => {
+      setShowThanks(prev => prev.filter(item => item !== id));
+      setHiddenAlertIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    }, 1200);
     onFeedback?.(id, type === 'up');
   };
+
+  const visibleAlerts = alerts.filter(alert => !hiddenAlertIds.includes(alert.id));
   
   if (!isOpen) return null;
 
@@ -713,7 +719,7 @@ export function AlertsPanel({ alerts = [], isOpen, onAccept, onFeedback }) {
       <div className="flex items-center justify-between p-4 border-b border-gray-50 bg-gray-50/50">
         <div className="font-black text-gray-800">{isEn ? 'System Alerts' : 'تنبيهات النظام'}</div>
         <div className="text-xs font-bold px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full">
-          {alerts.length} {isEn ? 'Active' : 'نشط'}
+          {visibleAlerts.length} {isEn ? 'Active' : 'نشط'}
         </div>
       </div>
       
@@ -724,13 +730,13 @@ export function AlertsPanel({ alerts = [], isOpen, onAccept, onFeedback }) {
           scrollbarColor: '#d1d5db transparent'
         }}
       >
-        {alerts.length === 0 ? (
+        {visibleAlerts.length === 0 ? (
           <EmptyState 
             compact={true}
             title={isEn ? 'No active alerts' : 'لا توجد تنبيهات حالية'}
           />
         ) : (
-          alerts.map((alert, i) => (
+          visibleAlerts.map((alert, i) => (
             <AlertCard
               key={alert.id || i}
               alert={alert}
@@ -1317,6 +1323,7 @@ export function AlertCard({
   onAccept,
   onFeedback,
   feedbackState = {},
+  showThanks = [],
   compact = false
 }) {
   const isRtl = !isEn;
@@ -1518,6 +1525,11 @@ export function AlertCard({
             </button>
           </div>
         </div>
+        {showThanks.includes(alert.id) && (
+          <div className="self-end px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-bold animate-fade-in">
+            {isEn ? 'Thanks, your rating was saved.' : 'شكراً، تم حفظ تقييمك.'}
+          </div>
+        )}
       </div>
     </div>
   );

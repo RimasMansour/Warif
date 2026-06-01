@@ -363,7 +363,7 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
 
   // ── Real sensor data from API ──────────────────────────────
   const { data: liveSensors } = useLatestSensors(3000, currentFarmId);
-  const { alerts: activeAlerts, dismissAlert } = useAutoAlerts(liveSensors, globalAutoMode);
+  const { alerts: activeAlerts, dismissAlert } = useAutoAlerts(liveSensors, globalAutoMode, currentFarmId);
   const [_showAlertsPanel, _setShowAlertsPanel] = useState(false);
 
   const handleAlertAccept = (id, actionType) => {
