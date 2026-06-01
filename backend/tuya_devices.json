@@ -42,7 +42,7 @@
       "tuya_device_id":  "bf2d54577d8ffd6885rukf",
       "warif_device_id": "tuya_irrigation_001",
       "warif_name":      "Tuya Irrigation Valve",
-      "switch_code":     "switch"
+      "switch_code":     "start"
     },
     "fan": {
       "tuya_device_id":  "bfccd86ffbd8ec78aboefq",
