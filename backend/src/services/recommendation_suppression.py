@@ -174,7 +174,7 @@ async def _climate_suppression(
 ) -> Dict:
     pending = await _recent_pending_command(
         db,
-        [f"fan_unit_{farm_id}", f"cooling_unit_{farm_id}"],
+        _climate_device_ids(farm_id),
         PENDING_WINDOW,
     )
     if pending:
@@ -220,7 +220,7 @@ async def _climate_suppression(
 async def _climate_decision_state(db: AsyncSession, farm_id: int, category: str) -> Dict:
     pending = await _recent_pending_command(
         db,
-        [f"fan_unit_{farm_id}", f"cooling_unit_{farm_id}"],
+        _climate_device_ids(farm_id),
         PENDING_WINDOW,
     )
     if pending:
@@ -380,6 +380,15 @@ def _irrigation_device_ids(farm_id: int) -> list[str]:
         tuya_id = tuya_client.get_tuya_actuator_device_id("irrigation")
         if tuya_id:
             ids.insert(0, tuya_id)
+    return ids
+
+
+def _climate_device_ids(farm_id: int) -> list[str]:
+    ids = [f"fan_unit_{farm_id}", f"cooling_unit_{farm_id}"]
+    if tuya_client.is_tuya_farm(farm_id):
+        fan_id = tuya_client.get_tuya_actuator_device_id("fan")
+        cooling_id = tuya_client.get_tuya_actuator_device_id("cooling")
+        return [device_id for device_id in [fan_id, cooling_id, *ids] if device_id]
     return ids
 
 

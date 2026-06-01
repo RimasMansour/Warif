@@ -25,6 +25,7 @@ from src.db.session import get_db
 from src.db.models.models import Farm, Device, ActivityLog
 from src.api.schemas.schemas import FarmIn, FarmOut, DeviceIn, DeviceOut, FarmResourceUpdateIn
 from src.core.security import get_current_user
+from src.services import tuya_client
 
 router = APIRouter()
 
@@ -180,6 +181,11 @@ async def register_device(
 ):
     """Register a sensor/actuator device under a farm."""
     await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+    if _is_reserved_simulator_device_for_farm(farm_id, body.device_id):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Simulator device IDs cannot be registered on the Tuya farm",
+        )
 
     # Check device_id not already registered
     result = await db.execute(
@@ -215,6 +221,20 @@ async def list_devices(
         select(Device).where(Device.farm_id == farm_id)
     )
     return result.scalars().all()
+
+
+def _is_reserved_simulator_device_for_farm(farm_id: int, device_id: str) -> bool:
+    if not tuya_client.is_tuya_farm(farm_id):
+        return False
+    reserved_ids = {
+        f"soil_sensor_{farm_id}",
+        f"climate_sensor_{farm_id}",
+        f"irrigation_{farm_id}",
+        f"irrigation_valve_{farm_id}",
+        f"fan_unit_{farm_id}",
+        f"cooling_unit_{farm_id}",
+    }
+    return device_id in reserved_ids
 
 
 async def _get_farm_or_404(farm_id: int, user_id: int, db: AsyncSession) -> Farm:

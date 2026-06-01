@@ -535,16 +535,18 @@ async def _execute_climate_decision(
         "recommendation_id": recommendation_id,
         "decision": decision,
     }
+    fan_device_id = _climate_device_id(farm_id, "fan")
+    cooling_device_id = _climate_device_id(farm_id, "cooling")
 
     db.add(DeviceCommand(
-        device_id=f"fan_unit_{farm_id}",
+        device_id=fan_device_id,
         command="FAN_ON" if fan_state else "FAN_OFF",
         payload=json.dumps(command_payload),
         status="pending",
         issued_at=datetime.now(timezone.utc),
     ))
     db.add(DeviceCommand(
-        device_id=f"cooling_unit_{farm_id}",
+        device_id=cooling_device_id,
         command="COOLER_ON" if cooler_state else "COOLER_OFF",
         payload=json.dumps(command_payload),
         status="pending",
@@ -553,7 +555,7 @@ async def _execute_climate_decision(
     db.add(ActivityLog(
         farm_id=farm_id,
         action_type=f"{'auto' if is_auto else 'manual'}_cooling_{mode}",
-        device_id=f"fan_unit_{farm_id}",
+        device_id=cooling_device_id if cooler_state else fan_device_id,
         details={
             "mode": mode,
             "fan": fan_state,
@@ -706,3 +708,8 @@ def _irrigation_device_id_for_farm(farm_id: int) -> str:
     if tuya_client.is_tuya_farm(farm_id):
         return tuya_client.get_tuya_actuator_device_id("irrigation") or f"tuya_irrigation_{farm_id}"
     return f"irrigation_{farm_id}"
+
+
+def _climate_device_id(farm_id: int, kind: str) -> str:
+    simulator_id = f"fan_unit_{farm_id}" if kind == "fan" else f"cooling_unit_{farm_id}"
+    return tuya_client.get_farm_actuator_device_id(farm_id, kind, simulator_id)

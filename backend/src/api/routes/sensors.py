@@ -26,6 +26,7 @@ from src.db.session import get_db
 from src.db.models.models import SensorReading, SensorThreshold, Device
 from src.api.schemas.schemas import SensorReadingOut, SensorLatestOut
 from src.core.security import get_current_user
+from src.services import tuya_client
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,11 @@ async def ingest_sensor_reading(
         # Auto-register unknown actuator devices when farm_id is provided in payload
         # (used by tuya_bridge.py to register irrigation/fan/cooling actuators)
         payload_farm_id = payload.get("farm_id")
+        if payload_farm_id and _is_reserved_simulator_device_for_farm(int(payload_farm_id), device_id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Simulator device IDs cannot be registered on the Tuya farm",
+            )
         if device_obj is not None and payload_farm_id and device_obj.farm_id != int(payload_farm_id):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -407,7 +413,6 @@ async def ingest_sensor_reading(
             "value": value,
             "alert_generated": False,
         }
-
     except HTTPException:
         raise
     except IntegrityError as e:
@@ -431,6 +436,20 @@ async def ingest_sensor_reading(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process sensor reading"
         )
+
+
+def _is_reserved_simulator_device_for_farm(farm_id: int, device_id: str) -> bool:
+    if not tuya_client.is_tuya_farm(farm_id):
+        return False
+    reserved_ids = {
+        f"soil_sensor_{farm_id}",
+        f"climate_sensor_{farm_id}",
+        f"irrigation_{farm_id}",
+        f"irrigation_valve_{farm_id}",
+        f"fan_unit_{farm_id}",
+        f"cooling_unit_{farm_id}",
+    }
+    return device_id in reserved_ids
 
 
 def _compute_status(value: float, threshold) -> str:

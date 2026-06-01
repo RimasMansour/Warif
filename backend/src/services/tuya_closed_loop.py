@@ -56,6 +56,8 @@ async def run_closed_loop_once(db):
     farm_id = tuya_client.get_tuya_farm_id()
     if farm_id <= 0:
         return
+    fan_device_id = tuya_client.get_tuya_actuator_device_id("fan") or f"tuya_fan_{farm_id}"
+    cooling_device_id = tuya_client.get_tuya_actuator_device_id("cooling") or f"tuya_cooling_{farm_id}"
 
     # 1. Fetch latest cooling activity log for the Tuya farm
     latest_log_q = await db.execute(
@@ -136,7 +138,7 @@ async def run_closed_loop_once(db):
             ok_fan = await asyncio.to_thread(tuya_client.control_fan, False)
             if ok_cooling or ok_fan:
                 stop_cmd = DeviceCommand(
-                    device_id=f"cooling_unit_{farm_id}",
+                    device_id=cooling_device_id,
                     command="COOLING_OFF",
                     payload=json.dumps({"fan": False, "cooler": False, "reason": climate_decision["reason"]}),
                     status="completed",
@@ -148,7 +150,7 @@ async def run_closed_loop_once(db):
                 stop_log = ActivityLog(
                     farm_id=farm_id,
                     action_type="auto_cooling_stop",
-                    device_id=f"cooling_unit_{farm_id}",
+                    device_id=cooling_device_id,
                     details={
                         "fan": False,
                         "cooler": False,
@@ -183,7 +185,7 @@ async def run_closed_loop_once(db):
                 if ok_cooler:
                     # Log stage transition to fan_only in DB
                     cooler_cmd = DeviceCommand(
-                        device_id=f"cooling_unit_{farm_id}",
+                        device_id=cooling_device_id,
                         command="COOLER_OFF",
                         payload=json.dumps({"fan": True, "cooler": False}),
                         status="completed",
@@ -195,7 +197,7 @@ async def run_closed_loop_once(db):
                     stage_log = ActivityLog(
                         farm_id=farm_id,
                         action_type="auto_cooling_fan_only",
-                        device_id=f"cooling_unit_{farm_id}",
+                        device_id=cooling_device_id,
                         details={
                             "fan": True,
                             "cooler": False,
@@ -245,7 +247,7 @@ async def run_closed_loop_once(db):
             ok_cooler = await asyncio.to_thread(tuya_client.control_cooler_only, True)
             if ok_cooler:
                 cooler_cmd = DeviceCommand(
-                    device_id=f"cooling_unit_{farm_id}",
+                    device_id=cooling_device_id,
                     command="COOLER_ON",
                     payload=json.dumps({"fan": True, "cooler": True}),
                     status="completed",
@@ -257,7 +259,7 @@ async def run_closed_loop_once(db):
                 full_log = ActivityLog(
                     farm_id=farm_id,
                     action_type="auto_cooling_full",
-                    device_id=f"cooling_unit_{farm_id}",
+                    device_id=cooling_device_id,
                     details={
                         "fan": True,
                         "cooler": True,
@@ -282,7 +284,7 @@ async def run_closed_loop_once(db):
             ok_fan = await asyncio.to_thread(tuya_client.control_fan, False)
             if ok_fan:
                 fan_cmd = DeviceCommand(
-                    device_id=f"fan_unit_{farm_id}",
+                    device_id=fan_device_id,
                     command="FAN_OFF",
                     payload=json.dumps({"fan": False, "cooler": False}),
                     status="completed",
@@ -294,7 +296,7 @@ async def run_closed_loop_once(db):
                 stop_log = ActivityLog(
                     farm_id=farm_id,
                     action_type="auto_cooling_stop",
-                    device_id=f"fan_unit_{farm_id}",
+                    device_id=fan_device_id,
                     details={
                         "fan": False,
                         "cooler": False,
