@@ -55,6 +55,27 @@ function deferredReason(rec, isEn) {
 function inferredDecisionState(rec, isEn) {
   if (rec.decision_state) return rec.decision_state;
   const category = String(rec.category || rec.type || '').toLowerCase();
+  if (rec.action_status === 'stale') {
+    const isIrrigation = category === 'irrigation' || category === 'water' || category === 'soil_moisture';
+    const isHumidity = category === 'humidity' || category === 'air_humidity';
+    const isTemperature = category === 'temperature' || category === 'air_temperature' || category === 'climate';
+    const reason = isEn
+      ? 'The relevant sensor reading changed after this recommendation was created. No device command is needed from this record; the system will rely on the latest recommendation when new readings arrive.'
+      : isIrrigation
+        ? 'لم يتم تشغيل الري لأن قراءة رطوبة التربة تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.'
+        : isHumidity
+          ? 'لم يتم تشغيل التهوية لأن قراءة رطوبة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.'
+          : isTemperature
+            ? 'لم يتم تشغيل التبريد لأن قراءة حرارة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.'
+            : 'تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.';
+    return {
+      state: 'stale',
+      label: isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن',
+      label_en: 'No Action Needed Now',
+      reason,
+      reason_en: 'The relevant sensor reading changed after this recommendation was created. No device command is needed from this record; the system will rely on the latest recommendation when new readings arrive.',
+    };
+  }
   if (rec.action_status === 'deferred') {
     const reason = deferredReason(rec, isEn);
     return {
@@ -347,6 +368,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
                   feedbackState={feedbackState}
                   showThanks={showThanksIds}
                   compact={false}
+                  autoDismissOnFeedback={false}
                 />
               ))}
             </div>

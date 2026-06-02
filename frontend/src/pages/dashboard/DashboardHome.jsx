@@ -226,7 +226,18 @@ function DashboardAlertsCard({ alerts, onAccept, onReject, onAlertHidden, onFeed
           <>
             {/* All alerts sorted by severity */}
             {[...urgentAlerts, ...warningAlerts].map((alert, i) => (
-              <AlertCard key={alert.id || i} alert={alert} isEn={isEn} globalAutoMode={globalAutoMode} onAccept={onAccept} onReject={onReject} onFeedback={handleAlertFeedback} feedbackState={alertFeedback} showThanks={showAlertThanks} compact={true} />
+              <AlertCard
+                key={alert.id || i}
+                alert={alert}
+                isEn={isEn}
+                globalAutoMode={globalAutoMode}
+                onAccept={onAccept}
+                onReject={onReject}
+                onFeedback={handleAlertFeedback}
+                feedbackState={alertFeedback}
+                showThanks={showAlertThanks}
+                compact={true}
+              />
             ))}
           </>
         )}

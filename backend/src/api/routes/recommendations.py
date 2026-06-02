@@ -52,6 +52,7 @@ class ExecuteRecommendationRequest(BaseModel):
 
 router = APIRouter()
 AUTO_RECOMMENDATION_STATUS_ROLLOUT = datetime(2026, 6, 2, 0, 0, tzinfo=timezone.utc)
+STALE_DISPLAY_GRACE = timedelta(minutes=5)
 
 
 # Returns filtered recommendations for a farm — supports category, severity, type, and unread filters
@@ -124,6 +125,7 @@ async def list_recommendations(
     latest_sensor_data = await _latest_sensor_snapshot(farm_id, db)
     professional_recs = []
     status_changed = False
+    executing_domains = set()
     for rec in recommendations:
         try:
             # Safely extract enum string values for category and severity
@@ -132,6 +134,12 @@ async def list_recommendations(
             normalized_category = normalize_category(category_value)
             action_status = rec.mode if rec.mode in ("executed", "ignored", "deferred", "auto", "legacy", "stale", "executing") else None
             action_status = await _resolve_live_recommendation_status(db, farm_id, rec, normalized_category, action_status)
+            if action_status == "executing":
+                domain = _recommendation_domain(normalized_category)
+                if domain in executing_domains:
+                    action_status = "executed"
+                elif domain:
+                    executing_domains.add(domain)
             if action_status == "executed" and rec.mode != "executed":
                 rec.mode = "executed"
                 status_changed = True
@@ -142,11 +150,26 @@ async def list_recommendations(
             ):
                 action_status = "legacy"
             decision_state = None
-            reading_mismatch_reason = _recommendation_reading_mismatch_reason(rec, latest_sensor_data, normalized_category)
+            if action_status == "stale" and _within_stale_display_grace(rec.created_at):
+                action_status = None
+                rec.mode = None
+                status_changed = True
+            reading_mismatch_reason = None
+            if not _within_stale_display_grace(rec.created_at):
+                reading_mismatch_reason = _recommendation_reading_mismatch_reason(rec, latest_sensor_data, normalized_category)
             if reading_mismatch_reason and action_status not in {"executed", "ignored"}:
                 action_status = "stale"
+                if rec.mode != "stale":
+                    rec.mode = "stale"
+                    status_changed = True
                 decision_state = _stale_recommendation_state(reading_mismatch_reason)
-            if include_state:
+            elif action_status == "stale":
+                decision_state = _stale_recommendation_state(
+                    reading_mismatch_reason
+                    or _recommendation_stale_fallback_reason(normalized_category, rec.message, rec.reasoning)
+                )
+            should_resolve_state = include_state or (not action_status and getattr(farm, "auto_mode", False))
+            if should_resolve_state:
                 decision_state = decision_state or await get_current_decision_state(
                     db=db,
                     farm_id=farm_id,
@@ -154,6 +177,37 @@ async def list_recommendations(
                     message=rec.message,
                     created_at=rec.created_at,
                 )
+                if (
+                    not action_status
+                    and getattr(farm, "auto_mode", False)
+                    and decision_state
+                    and decision_state.get("state") == "blocked"
+                ):
+                    action_status = "deferred"
+                    rec.mode = "deferred"
+                    status_changed = True
+                elif (
+                    not action_status
+                    and getattr(farm, "auto_mode", False)
+                    and decision_state
+                    and decision_state.get("state") in {"hold", "monitoring"}
+                ):
+                    action_status = "legacy"
+                    rec.mode = "legacy"
+                    status_changed = True
+            if action_status == "executing" and decision_state:
+                state = decision_state.get("state")
+                if state == "blocked":
+                    action_status = "deferred"
+                    if rec.mode != "deferred":
+                        rec.mode = "deferred"
+                        status_changed = True
+                elif state == "stale":
+                    action_status = "stale"
+                elif state == "legacy":
+                    action_status = "legacy"
+                elif state == "completed":
+                    action_status = "executed"
             if action_status == "executed" and decision_state and decision_state.get("state") == "hold":
                 decision_state = {
                     **decision_state,
@@ -200,6 +254,21 @@ def _is_before_auto_status_rollout(value: Optional[datetime]) -> bool:
         return False
     utc_value = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
     return utc_value < AUTO_RECOMMENDATION_STATUS_ROLLOUT
+
+
+def _within_stale_display_grace(value: Optional[datetime]) -> bool:
+    if value is None:
+        return False
+    utc_value = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    return datetime.now(timezone.utc) - utc_value < STALE_DISPLAY_GRACE
+
+
+def _recommendation_domain(category: str) -> Optional[str]:
+    if category == "irrigation":
+        return "irrigation"
+    if category in {"temperature", "humidity", "climate"}:
+        return "climate"
+    return None
 
 
 async def _resolve_live_recommendation_status(
@@ -331,14 +400,31 @@ def _decision_state_from_action_status(action_status: str, category: str, messag
 
 
 def _stale_recommendation_state(reason: str) -> dict:
+    message_ar = reason or "تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
+    message_en = "The sensor reading changed after this recommendation was created. No device command is needed from this old recommendation; the system will rely on the latest recommendation when new readings arrive."
     return {
         "state": "stale",
         "domain": "recommendation",
         "label": "لا يتطلب إجراء الآن",
         "label_en": "No Action Needed Now",
-        "reason": reason,
-        "reason_en": "The sensor reading changed after this recommendation was created. No device command is needed from this old recommendation; the system will rely on the latest recommendation when new readings arrive.",
+        "reason": message_ar,
+        "reason_en": message_en,
     }
+
+
+def _recommendation_stale_fallback_reason(category: str, message: Optional[str], reasoning: Optional[str]) -> str:
+    text = f"{message or ''} {reasoning or ''}".lower()
+    if category == "irrigation":
+        return "لم يتم تشغيل الري لأن قراءة رطوبة التربة تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
+    if category == "humidity":
+        return "لم يتم تشغيل التهوية لأن قراءة رطوبة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
+    if category == "temperature":
+        return "لم يتم تشغيل التبريد لأن قراءة حرارة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
+    if "ري" in text or "تربة" in text:
+        return "لم يتم تشغيل الري لأن قراءة رطوبة التربة تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
+    if "تهوية" in text or "رطوبة" in text:
+        return "لم يتم تشغيل التهوية لأن قراءة رطوبة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
+    return "تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
 
 
 def _auto_action_message(category: str, message: Optional[str], reasoning: Optional[str], lang: str) -> str:

@@ -130,7 +130,7 @@ const localizedRecommendationCopy = (rec, isEn) => {
     },
     irrigation_increase: {
       title: 'Increase Irrigation Frequency',
-      reasoning: `Soil moisture (${value}) has started moving toward the critical threshold (70%). Recommendation: increase irrigation frequency gradually to maintain productivity.`,
+      reasoning: `Soil moisture (${value}) is below the suitable crop range (70-80%). Recommendation: run irrigation to restore soil moisture without saturation.`,
     },
     irrigation_reduce: {
       title: 'Reduce Irrigation',
@@ -173,7 +173,7 @@ const localizedRecommendationCopy = (rec, isEn) => {
     },
     irrigation_increase: {
       title: 'زيادة تكرار الري',
-      reasoning: `رطوبة التربة (${value}) بدأت تنخفض مقتربة من الحد الأدنى المناسب (70%). التوصية: زيادة تكرار الري تدريجيًا للحفاظ على صحة النبات واستقرار الإنتاجية.`,
+      reasoning: `رطوبة التربة (${value}) أقل من النطاق المناسب للمحصول (70-80%). التوصية: تشغيل الري لاستعادة رطوبة التربة المناسبة بدون تشبع.`,
     },
     irrigation_reduce: {
       title: 'تقليل الري',
@@ -917,6 +917,28 @@ function getManualCompletionExplanation(category, isEn) {
     .replace(/\s*تلقائياً/g, '');
 }
 
+function getCompletedRecommendationMessage(category, isEn) {
+  const c = (category || '').toLowerCase();
+  if (c === 'climate' || c === 'temperature') {
+    return isEn
+      ? 'Cooling and fans were activated to lower temperature and stabilize the greenhouse environment.'
+      : 'تم تشغيل التبريد والمراوح لخفض درجة الحرارة وتحسين أجواء المحمية حفاظًا على استقرار المحصول.';
+  }
+  if (c === 'humidity') {
+    return isEn
+      ? 'Ventilation fans were activated to exhaust excess humidity and protect crop health.'
+      : 'تم تشغيل نظام التهوية والمراوح لتصريف الرطوبة الزائدة وحماية المحصول.';
+  }
+  if (c === 'irrigation' || c === 'soil' || c === 'water' || c === 'soil_moisture') {
+    return isEn
+      ? 'Irrigation was activated to restore the suitable soil moisture level while respecting safety conditions.'
+      : 'تم تشغيل الري لاستعادة المستوى المناسب لرطوبة التربة مع مراعاة شروط السلامة.';
+  }
+  return isEn
+    ? 'The recommended device action was completed and remains available here for evaluation.'
+    : 'تم تنفيذ إجراء الجهاز المرتبط بهذه التوصية، وستبقى هنا للتقييم.';
+}
+
 function getInProgressRecommendationMessage(category, isEn) {
   const c = (category || '').toLowerCase();
   if (c === 'climate' || c === 'temperature') {
@@ -1238,7 +1260,7 @@ function decisionStateCopy(decisionState, isEn) {
 }
 
 function recommendationStateLabel(decisionState, actionStatus, isEn, category) {
-  const state = decisionState?.state || actionStatus || 'hold';
+  const state = actionStatus || decisionState?.state || 'hold';
   const normalizedCategory = String(category || decisionState?.domain || '').toLowerCase();
   const isIrrigation = ['irrigation', 'water', 'soil_moisture'].includes(normalizedCategory);
   if (actionStatus === 'executed' || state === 'completed') return isEn ? 'Executed' : 'تم التنفيذ';
@@ -1254,12 +1276,17 @@ function recommendationStateLabel(decisionState, actionStatus, isEn, category) {
 }
 
 function recommendationStateMessage(decisionState, actionStatus, fallbackMessage, isEn, category) {
-  const state = decisionState?.state || actionStatus || 'hold';
+  const state = actionStatus || decisionState?.state || 'hold';
   const normalizedCategory = String(category || decisionState?.domain || '').toLowerCase();
   const isIrrigation = ['irrigation', 'water', 'soil_moisture'].includes(normalizedCategory);
   const reason = isEn ? decisionState?.reason_en : decisionState?.reason;
+  if (state === 'stale' || actionStatus === 'stale') {
+    return reason || (isEn
+      ? 'The reading changed after this recommendation was created. No device command is needed from this old recommendation; the system will rely on the latest recommendation when new readings arrive.'
+      : 'تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.');
+  }
   if (reason) return reason;
-  if (actionStatus === 'executed' || state === 'completed') return fallbackMessage;
+  if (actionStatus === 'executed' || state === 'completed') return getCompletedRecommendationMessage(normalizedCategory, isEn);
   if (actionStatus === 'ignored') {
     return isEn
       ? 'The recommendation was ignored and remains available for later review.'
@@ -1285,11 +1312,6 @@ function recommendationStateMessage(decisionState, actionStatus, fallbackMessage
     return isEn
       ? 'The system delayed this recommendation because current safety conditions are not suitable.'
       : 'أجّل النظام هذه التوصية لأن شروط السلامة الحالية غير مناسبة.';
-  }
-  if (state === 'stale' || actionStatus === 'stale') {
-    return isEn
-      ? 'The reading changed after this recommendation was created. No device command is needed from this old recommendation; the system will rely on the latest recommendation when new readings arrive.'
-      : 'تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.';
   }
   return isEn
     ? 'The system will reassess this recommendation when new sensor readings arrive.'
@@ -1388,18 +1410,31 @@ export function RecommendationCard({
   const rawReasoning = extractSafeText(localizedCopy.reasoning || rec.reasoning);
   const safeTitle = extractSafeText(localizedCopy.title || rec.title || rec.message);
   const decisionState = decisionStateCopy(rec.decision_state, isEn);
-  const decisionStyle = DECISION_STATE_STYLES[decisionState.state] || DECISION_STATE_STYLES.hold;
   const lockedDecisionStates = new Set(['stale', 'legacy', 'blocked', 'completed']);
   const isLockedDecision = Boolean(rec.decision_state && lockedDecisionStates.has(decisionState.state));
-  const displayStateLabel = recommendationStateLabel(rec.decision_state, rec.action_status || actionResult, isEn, rec.category || rec.type);
+  const visibleActionStatus = isLockedDecision ? null : (rec.action_status || actionResult);
+  const displayStateKey =
+    visibleActionStatus === 'executing' ? 'executing' :
+    visibleActionStatus === 'executed' ? 'completed' :
+    visibleActionStatus === 'failed' ? 'failed' :
+    visibleActionStatus === 'ignored' ? 'monitoring' :
+    decisionState.state;
+  const decisionStyle = DECISION_STATE_STYLES[displayStateKey] || DECISION_STATE_STYLES.hold;
+  const showManualPrompt = !globalAutoMode && !actionResult && !isLockedDecision;
+  const showDecisionBanner = isLockedDecision || globalAutoMode;
+  const showLocalActionBanner = !globalAutoMode && !showManualPrompt && !showDecisionBanner && actionResult;
+  const displayStateLabel = recommendationStateLabel(rec.decision_state, visibleActionStatus, isEn, rec.category || rec.type);
   const autoActionExplanation = getActionExplanation(rec.category || rec.type, isEn, true);
   const displayStateMessage = recommendationStateMessage(
     rec.decision_state,
-    rec.action_status || actionResult,
+    visibleActionStatus,
     autoActionExplanation,
     isEn,
     rec.category || rec.type
   );
+  const decisionBannerMessage = isLockedDecision
+    ? (decisionState.reason || displayStateMessage)
+    : displayStateMessage;
 
   const domainCategory = isEn
     ? (rec.category === 'irrigation' || rec.category === 'water' ? 'Irrigation & Water'
@@ -1464,22 +1499,22 @@ export function RecommendationCard({
 
       {/* Unified Footer Area */}
       <div className="pt-1.5 flex flex-col gap-2 mt-auto w-full">
-        {isLockedDecision && !globalAutoMode && !actionResult && (
+        {showDecisionBanner && (
           <div className={`flex items-start gap-2 p-2.5 rounded-xl border ${decisionStyle.bg} ${decisionStyle.border} w-full`}>
-            <div className={`shrink-0 w-2.5 h-2.5 rounded-full ${decisionStyle.dot} mt-1 ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
+            <div className={`shrink-0 w-2.5 h-2.5 rounded-full ${decisionStyle.dot} mt-1 ${displayStateKey === 'pending' || displayStateKey === 'executing' ? 'animate-pulse' : ''}`} />
             <div className="min-w-0 flex-1 text-start">
               <div className={`font-black text-[11px] md:text-[12px] leading-tight ${decisionStyle.text}`}>
                 {displayStateLabel}
               </div>
-              {decisionState.reason && (
+              {decisionBannerMessage && (
                 <p className={`font-medium text-[11px] md:text-[12px] leading-snug mt-0.5 ${decisionStyle.text}`}>
-                  {decisionState.reason}
+                  {decisionBannerMessage}
                 </p>
               )}
             </div>
           </div>
         )}
-        {!globalAutoMode && !actionResult && !isLockedDecision ? (
+        {showManualPrompt ? (
           <div className="flex flex-col gap-2 w-full">
             <div className="flex items-start gap-2 p-3 rounded-xl border border-sky-100 bg-sky-50/60 w-full">
               <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 flex items-center justify-center">
@@ -1513,21 +1548,7 @@ export function RecommendationCard({
               </button>
             </div>
           </div>
-        ) : globalAutoMode ? (
-          <div className={`flex items-start gap-2 p-3 rounded-xl border w-full ${decisionStyle.bg} ${decisionStyle.border}`}>
-            <div className={`shrink-0 w-2.5 h-2.5 rounded-full mt-1 ${decisionStyle.dot} ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
-            <div className="min-w-0 flex-1 text-start">
-              <div className={`font-black text-[12px] md:text-[13px] leading-snug ${decisionStyle.text}`}>
-                {displayStateLabel}
-              </div>
-              {displayStateMessage && (
-                <p className={`font-medium text-[11px] md:text-[12px] leading-snug mt-1 ${decisionStyle.text}`}>
-                  {displayStateMessage}
-                </p>
-              )}
-            </div>
-          </div>
-        ) : (
+        ) : showLocalActionBanner ? (
           <div className="flex items-center gap-2 p-3 rounded-xl border border-emerald-100 bg-emerald-50/80 w-full">
             <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
@@ -1553,7 +1574,7 @@ export function RecommendationCard({
               </p>
             </div>
           </div>
-        )}
+        ) : null}
 
         <div className="flex items-center justify-end w-full">
           <div className="flex items-center gap-2">
@@ -1721,6 +1742,12 @@ export function AlertCard({
     }
   };
 
+  const handleReview = () => {
+    setExecutionSuccess(true);
+    const message = isEn ? 'Review saved.' : 'تم حفظ المراجعة.';
+    setActionNotice(message);
+  };
+
   return (
     <div
       className={`bg-white/90 backdrop-blur-md rounded-[24px] border border-gray-100/80 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] transition-all duration-300 flex flex-col overflow-hidden shrink-0 ${compact ? 'p-4' : 'p-5 md:p-6'}`}
@@ -1795,10 +1822,11 @@ export function AlertCard({
             ) : (
               <div className="flex justify-end w-full">
                 <button
-                  onClick={() => onReject?.(alert.id)}
+                  onClick={handleReview}
+                  disabled={executionSuccess}
                   className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
                 >
-                  {isEn ? 'Reviewed' : 'تمت المراجعة'}
+                  {executionSuccess ? (isEn ? 'Saved' : 'تم الحفظ') : (isEn ? 'Reviewed' : 'تمت المراجعة')}
                 </button>
               </div>
             )}

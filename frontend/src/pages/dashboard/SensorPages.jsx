@@ -11,7 +11,7 @@ import {
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
 import { formatLastUpdated, isRecommendationCompleted } from './dashboardUtils';
-import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction, useCoolingStatus } from '../../hooks/useWarifData';
+import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction, useCoolingStatus, useIrrigationStatus } from '../../hooks/useWarifData';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
 
@@ -581,7 +581,8 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
 ========================================================= */
 export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, sharedSensors }) {
   const [seconds, setSeconds] = useState(0);
-  const [pumpRunning, _setPumpRunning] = useState(false);
+  const { data: irrigationStatus } = useIrrigationStatus(farmId);
+  const pumpRunning = irrigationStatus?.status === 'active';
   const [irrigationFeedback, _setIrrigationFeedback] = useState(null);
 
   const [feedback, setFeedback] = useState({});

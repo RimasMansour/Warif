@@ -14,6 +14,7 @@ On each ingestion, the pipeline:
   4. Triggers the Decision Engine for recommendations and alerts
 """
 import logging
+import re
 from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
@@ -351,18 +352,35 @@ async def ingest_sensor_reading(
                     # Warning/urgent items may also create alert cards below, but alerts are kept separate.
                     if sev_lower in ("normal", "low", "informational", "optimization", "medium", "warning", "urgent", "critical", "risk"):
                         duplicate_window = datetime.now(timezone.utc) - timedelta(minutes=30)
+                        duplicate_signature = _recommendation_signature(
+                            sr.category,
+                            sr.message,
+                            sr.reasoning,
+                            getattr(sr, "execution_action", None),
+                        )
                         recent_rec_result = await db.execute(
                             select(Recommendation)
                             .where(
                                 Recommendation.farm_id == farm_id,
                                 Recommendation.category == cat_map.get(sr.category),
-                                Recommendation.message == sr.message,
-                                Recommendation.reasoning == sr.reasoning,
                                 Recommendation.created_at >= duplicate_window,
                             )
-                            .limit(1)
+                            .order_by(desc(Recommendation.created_at))
                         )
-                        if recent_rec_result.scalar_one_or_none() is None:
+                        duplicate_rec = next(
+                            (
+                                rec
+                                for rec in recent_rec_result.scalars().all()
+                                if _recommendation_signature(
+                                    rec.category.value if hasattr(rec.category, "value") else str(rec.category),
+                                    rec.message,
+                                    rec.reasoning,
+                                    getattr(rec, "execution_action", None),
+                                ) == duplicate_signature
+                            ),
+                            None,
+                        )
+                        if duplicate_rec is None:
                             rec = Recommendation(
                                 farm_id=farm_id,
                                 message=sr.message,
@@ -376,6 +394,10 @@ async def ingest_sensor_reading(
                             )
                             db.add(rec)
                             saved_recommendations.append((rec, sr))
+                        elif farm_auto_mode and _is_executable_decision(getattr(sr, "execution_action", None)):
+                            if duplicate_rec.mode not in {"executed", "ignored", "stale"}:
+                                duplicate_rec.execution_action = getattr(sr, "execution_action", None)
+                                saved_recommendations.append((duplicate_rec, sr))
 
                     # ── RULES: medium, warning, urgent, critical, risk -> ALERTS ─────────────
                     if sev_lower in ("medium", "warning", "urgent", "critical", "risk"):
@@ -488,6 +510,18 @@ def _compute_status(value: float, threshold) -> str:
        (threshold.warning_max is not None and value > threshold.warning_max):
         return "warning"
     return "normal"
+
+
+def _recommendation_signature(category: str, message: Optional[str], reasoning: Optional[str], decision: Optional[dict]) -> str:
+    action = (decision or {}).get("action") or ""
+    text = f"{message or ''} {reasoning or ''}".lower()
+    text = re.sub(r"\d+(?:\.\d+)?\s*(?:%|°?\s*c|م|lux)?", "#", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return f"{category}:{action}:{text[:180]}"
+
+
+def _is_executable_decision(decision: Optional[dict]) -> bool:
+    return (decision or {}).get("action") in {"start", "stop", "cooling_full", "fan_only"}
 
 
 def _apply_auto_recommendation_statuses(saved_recommendations: list, automation_result: dict, farm_auto_mode: bool) -> None:

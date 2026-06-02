@@ -395,7 +395,6 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     const helpful = typeof typeOrHelpful === 'boolean' ? typeOrHelpful : typeOrHelpful === 'up';
     const saved = await submitAlertFeedback(id, helpful);
     if (!saved) return false;
-    dismissAlert(id);
     return true;
   };
 
