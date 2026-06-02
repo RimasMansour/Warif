@@ -93,7 +93,6 @@ async def list_recommendations(
 
     result = await db.execute(q)
     recommendations = result.scalars().all()
-    recommendation_ids = {rec.id for rec in recommendations}
 
     def normalize_category(value: Optional[str]) -> str:
         raw = (value or "general").lower()

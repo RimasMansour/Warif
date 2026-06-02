@@ -14,10 +14,9 @@ import {
   EmptyState,
   RecommendationCard,
   AlertCard,
-  LastUpdatedTimer,
-  isRecommendationCompleted
+  LastUpdatedTimer
 } from './DashboardShared';
-import { getLabelForRange } from './dashboardUtils';
+import { getLabelForRange, isRecommendationCompleted } from './dashboardUtils';
 import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources, submitRecommendationFeedback, submitRecommendationAction, executeRecommendation, submitAlertFeedback } from '../../hooks/useWarifData';
 
 

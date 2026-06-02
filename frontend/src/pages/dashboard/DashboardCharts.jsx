@@ -476,14 +476,6 @@ export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
     if (val < 50000) return '#f97316';
     return '#ef4444';
   };
-  const getLabel = (val) => {
-    if (val === 0) return isRtl ? 'لا يوجد إضاءة' : 'No light';
-    if (val < 200) return isRtl ? 'خافتة جداً' : 'Very dim';
-    if (val < 1000) return isRtl ? 'إضاءة داخلية' : 'Indoor';
-    if (val < 10000) return isRtl ? 'مضيئة' : 'Bright';
-    if (val < 50000) return isRtl ? 'مشرقة جداً' : 'Very bright';
-    return isRtl ? 'ضوء شمس مباشر' : 'Direct sunlight';
-  };
   const lineColor = getColor(currentVal);
   return (
     <CardShell className="p-5" dir={isRtl ? 'rtl' : 'ltr'}>

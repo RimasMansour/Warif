@@ -1842,20 +1842,6 @@ export function AlertCard({
   );
 }
 
-export function isRecommendationCompleted(rec) {
-  if (!rec) return false;
-  const status = rec.action_status || rec.mode;
-  const decisionState = rec.decision_state?.state;
-  const hasSavedFeedback = rec.helpful === true || rec.helpful === false || Boolean(rec.feedback_at);
-  return (
-    status === 'executed' ||
-    status === 'ignored' ||
-    status === 'completed' ||
-    decisionState === 'completed' ||
-    hasSavedFeedback
-  );
-}
-
 export {
   CardShell,
   CardTopRow,

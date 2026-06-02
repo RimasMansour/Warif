@@ -6,12 +6,11 @@ import {
   PlantSoilIcon,
   WindSharedIcon,
   EmptyState,
-  RecommendationCard,
-  isRecommendationCompleted
+  RecommendationCard
 } from './DashboardShared';
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
-import { formatLastUpdated } from './dashboardUtils';
+import { formatLastUpdated, isRecommendationCompleted } from './dashboardUtils';
 import { useLatestSensors, triggerManualCooling, useSensorHistory, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction, useCoolingStatus } from '../../hooks/useWarifData';
 
 const csvValue = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;

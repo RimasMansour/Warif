@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer, isRecommendationCompleted } from './DashboardShared';
+import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer } from './DashboardShared';
 import { IrrigationActionButton, SustainabilityLineChart } from './DashboardCharts';
+import { isRecommendationCompleted } from './dashboardUtils';
 import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 import { stopFarmIrrigation } from '../../services/api';
 
