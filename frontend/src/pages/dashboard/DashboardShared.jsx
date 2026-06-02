@@ -222,11 +222,11 @@ const localizedRecommendationCopy = (rec, isEn) => {
       return 'temperature_moderate';
     }
     if (category === 'humidity') {
+      if (numericValue !== null) {
+        return numericValue < 40 ? 'humidity_low' : 'humidity_high';
+      }
       if (message.includes('\u0631\u0634') || message.includes('\u062a\u0631\u0637\u064a\u0628') || message.toLowerCase().includes('mist') || message.toLowerCase().includes('low')) {
         return 'humidity_low';
-      }
-      if (numericValue !== null) {
-        return numericValue < 30 ? 'humidity_low' : 'humidity_high';
       }
       return 'humidity_high';
     }
