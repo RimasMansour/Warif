@@ -95,26 +95,6 @@ async def list_recommendations(
     recommendations = result.scalars().all()
     recommendation_ids = {rec.id for rec in recommendations}
 
-    action_status_by_id = {}
-    if recommendation_ids:
-        action_logs_result = await db.execute(
-            select(ActivityLog)
-            .where(
-                ActivityLog.farm_id == farm_id,
-                ActivityLog.action_type == "recommendation_executed",
-            )
-            .order_by(desc(ActivityLog.created_at))
-            .limit(1000)
-        )
-        for log in action_logs_result.scalars().all():
-            details = log.details or {}
-            try:
-                rec_id = int(details.get("recommendation_id"))
-            except (TypeError, ValueError):
-                continue
-            if rec_id in recommendation_ids and rec_id not in action_status_by_id:
-                action_status_by_id[rec_id] = "executed"
-
     def normalize_category(value: Optional[str]) -> str:
         raw = (value or "general").lower()
         if raw in ("air_temperature", "temperature", "climate"):
@@ -150,7 +130,8 @@ async def list_recommendations(
             category_value = rec.category.value if hasattr(rec.category, 'value') else str(rec.category)
             severity_value = rec.severity.value if hasattr(rec.severity, 'value') else str(rec.severity)
             normalized_category = normalize_category(category_value)
-            action_status = rec.mode if rec.mode in ("executed", "ignored", "deferred", "auto", "legacy", "stale") else action_status_by_id.get(rec.id)
+            action_status = rec.mode if rec.mode in ("executed", "ignored", "deferred", "auto", "legacy", "stale", "executing") else None
+            action_status = await _resolve_live_recommendation_status(db, farm_id, rec, normalized_category, action_status)
             if (
                 not action_status
                 and getattr(farm, "auto_mode", False)
@@ -179,7 +160,7 @@ async def list_recommendations(
                     "reason": "تم تنفيذ التوصية ولا يوجد إجراء نشط حاليا.",
                     "reason_en": "The recommendation was executed and no action is active now.",
                 }
-            if action_status in {"deferred", "legacy", "auto"} and not decision_state:
+            if action_status in {"deferred", "legacy", "auto", "executing"} and not decision_state:
                 decision_state = _decision_state_from_action_status(action_status, normalized_category, rec.message, rec.reasoning)
 
             professional_recs.append({
@@ -216,6 +197,79 @@ def _is_before_auto_status_rollout(value: Optional[datetime]) -> bool:
     return utc_value < AUTO_RECOMMENDATION_STATUS_ROLLOUT
 
 
+async def _resolve_live_recommendation_status(
+    db: AsyncSession,
+    farm_id: int,
+    rec: Recommendation,
+    category: str,
+    action_status: Optional[str],
+) -> Optional[str]:
+    if action_status != "executing":
+        return action_status
+
+    decision = rec.execution_action or {}
+    action = decision.get("action")
+    if not action:
+        return "auto"
+
+    if category == "irrigation":
+        active = await _is_irrigation_running(db, farm_id)
+        if action == "start":
+            return "executing" if active else "executed"
+        if action == "stop":
+            return "executed" if not active else "executing"
+
+    if category in {"temperature", "humidity", "climate"}:
+        current_mode = await _latest_climate_mode(db, farm_id)
+        expected_mode = "full" if action == "cooling_full" else "fan_only" if action == "fan_only" else "stop" if action == "stop" else None
+        if expected_mode:
+            if expected_mode == "stop":
+                return "executed" if current_mode == "stop" else "executing"
+            return "executing" if current_mode == expected_mode else "executed"
+
+    return "auto"
+
+
+async def _is_irrigation_running(db: AsyncSession, farm_id: int) -> bool:
+    result = await db.execute(
+        select(IrrigationEvent)
+        .join(IrrigationCommand)
+        .join(Actuator)
+        .join(Device)
+        .where(
+            Device.farm_id == farm_id,
+            IrrigationEvent.status == IrrigationStatus.active,
+        )
+        .order_by(desc(IrrigationEvent.timestamp))
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def _latest_climate_mode(db: AsyncSession, farm_id: int) -> str:
+    result = await db.execute(
+        select(ActivityLog)
+        .where(
+            ActivityLog.farm_id == farm_id,
+            ActivityLog.action_type.in_([
+                "manual_cooling_full",
+                "manual_cooling_fan_only",
+                "manual_cooling_stop",
+                "auto_cooling_full",
+                "auto_cooling_fan_only",
+                "auto_cooling_stop",
+            ]),
+        )
+        .order_by(desc(ActivityLog.created_at), desc(ActivityLog.id))
+        .limit(1)
+    )
+    latest = result.scalar_one_or_none()
+    if not latest:
+        return "stop"
+    details = latest.details or {}
+    return details.get("mode") or ("full" if "full" in latest.action_type else "fan_only" if "fan_only" in latest.action_type else "stop")
+
+
 def _decision_state_from_action_status(action_status: str, category: str, message: Optional[str], reasoning: Optional[str]) -> Optional[dict]:
     if action_status == "legacy":
         return {
@@ -228,6 +282,15 @@ def _decision_state_from_action_status(action_status: str, category: str, messag
         }
 
     if action_status == "auto":
+        if category == "irrigation":
+            return {
+                "state": "blocked",
+                "domain": category,
+                "label": "ري مؤجل",
+                "label_en": "Irrigation Deferred",
+                "reason": _deferred_reason(category, message, reasoning, "ar"),
+                "reason_en": _deferred_reason(category, message, reasoning, "en"),
+            }
         return {
             "state": "monitoring",
             "domain": category,
@@ -237,12 +300,24 @@ def _decision_state_from_action_status(action_status: str, category: str, messag
             "reason_en": _auto_action_message(category, message, reasoning, "en"),
         }
 
+    if action_status == "executing":
+        return {
+            "state": "executing",
+            "domain": category,
+            "label": "قيد التنفيذ",
+            "label_en": "In Progress",
+            "reason": _auto_action_message(category, message, reasoning, "ar"),
+            "reason_en": _auto_action_message(category, message, reasoning, "en"),
+        }
+
     if action_status == "deferred":
+        label = "ري مؤجل" if category == "irrigation" else "مؤجل"
+        label_en = "Irrigation Deferred" if category == "irrigation" else "Deferred"
         return {
             "state": "blocked",
             "domain": category,
-            "label": "مؤجل",
-            "label_en": "Deferred",
+            "label": label,
+            "label_en": label_en,
             "reason": _deferred_reason(category, message, reasoning, "ar"),
             "reason_en": _deferred_reason(category, message, reasoning, "en"),
         }
@@ -257,7 +332,7 @@ def _stale_recommendation_state(reason: str) -> dict:
         "label": "لا يتطلب إجراء الآن",
         "label_en": "No Action Needed Now",
         "reason": reason,
-        "reason_en": "The sensor reading has changed since this recommendation was created. No device command is needed from this old recommendation; use the latest recommendation instead.",
+        "reason_en": "The sensor reading changed after this recommendation was created. No device command is needed from this old recommendation; the system will rely on the latest recommendation when new readings arrive.",
     }
 
 
@@ -430,7 +505,7 @@ async def execute_recommendation(
         )
 
     rec.is_read = True
-    rec.mode = "executed"
+    rec.mode = "executing"
     db.add(ActivityLog(
         farm_id=farm_id,
         user_id=int(current_user["sub"]),
@@ -731,19 +806,20 @@ def _recommendation_reading_mismatch_reason(
         return None
 
     unit = "°C" if sensor_type == "air_temperature" else "%"
+    suffix = " لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة."
     if sensor_type == "soil_moisture":
         return (
             f"لم يتم تشغيل الري لأن رطوبة التربة تغيّرت من {recommendation_value:.1f}{unit} "
-            f"إلى {current_value:.1f}{unit}. يرجى الاعتماد على أحدث توصية."
+            f"إلى {current_value:.1f}{unit}.{suffix}"
         )
     if sensor_type == "air_humidity":
         return (
             f"لم يتم تشغيل التهوية لأن رطوبة الهواء تغيّرت من {recommendation_value:.1f}{unit} "
-            f"إلى {current_value:.1f}{unit}. يرجى الاعتماد على أحدث توصية."
+            f"إلى {current_value:.1f}{unit}.{suffix}"
         )
     return (
         f"لم يتم تشغيل التبريد لأن حرارة الهواء تغيّرت من {recommendation_value:.1f}{unit} "
-        f"إلى {current_value:.1f}{unit}. يرجى الاعتماد على أحدث توصية."
+        f"إلى {current_value:.1f}{unit}.{suffix}"
     )
 
 
@@ -853,6 +929,11 @@ async def _execute_climate_decision(
         else:
             await asyncio.to_thread(tuya_client.control_cooling, False)
             tuya_sent = await asyncio.to_thread(tuya_client.control_fan, False)
+        if not tuya_sent:
+            raise HTTPException(
+                status_code=502,
+                detail="تعذر إرسال أمر المناخ إلى جهاز Tuya. تحقق من اتصال الجهاز ثم حاول مرة أخرى.",
+            )
 
     return {
         "action": action,
@@ -953,6 +1034,11 @@ async def _execute_irrigation_decision(
     tuya_sent = False
     if tuya_client.is_tuya_farm(farm_id):
         tuya_sent = await asyncio.to_thread(tuya_client.control_irrigation, valve_state)
+        if not tuya_sent:
+            raise HTTPException(
+                status_code=502,
+                detail="تعذر إرسال أمر الري إلى جهاز Tuya. تحقق من اتصال الجهاز ثم حاول مرة أخرى.",
+            )
 
     return {
         "action": action,

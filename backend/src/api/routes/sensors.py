@@ -405,11 +405,13 @@ async def ingest_sensor_reading(
 
                 try:
                     from src.services.automation_executor import execute_auto_decisions
+                    await db.flush()
+                    executable_decisions = _action_decisions_from_saved_recommendations(saved_recommendations)
                     automation_result = await execute_auto_decisions(
                         db=db,
                         farm_id=farm_id,
                         sensor_data=full_sensor_data,
-                        action_decisions=intelligence_report.get("action_decisions", {}),
+                        action_decisions=executable_decisions,
                     )
                     _apply_auto_recommendation_statuses(saved_recommendations, automation_result, farm_auto_mode)
                     _apply_auto_alert_statuses(saved_alerts, automation_result, farm_auto_mode)
@@ -501,15 +503,36 @@ def _apply_auto_recommendation_statuses(saved_recommendations: list, automation_
         result = results.get(domain) if domain else None
 
         if result and result.get("executed"):
-            rec.mode = "executed"
+            rec.mode = "executing"
         elif result and _already_in_desired_state(result.get("reason")):
-            rec.mode = "auto"
+            rec.mode = "executing"
         elif _is_deferred_decision(decision, result):
             rec.mode = "deferred"
+        elif result:
+            rec.mode = "deferred"
         elif decision_action in {"start", "stop", "cooling_full", "fan_only"}:
-            rec.mode = "auto"
+            rec.mode = "deferred"
         else:
             rec.mode = "deferred"
+
+
+def _action_decisions_from_saved_recommendations(saved_recommendations: list) -> dict:
+    action_decisions = {}
+    for rec, sr in saved_recommendations:
+        decision = getattr(sr, "execution_action", None) or {}
+        action = decision.get("action")
+        if action not in {"start", "stop", "cooling_full", "fan_only"}:
+            continue
+        decision = {
+            **decision,
+            "execution_source": "saved_recommendation",
+            "saved_recommendation_id": getattr(rec, "id", None),
+        }
+        if sr.category == "irrigation":
+            action_decisions["irrigation"] = decision
+        elif sr.category in {"temperature", "humidity"}:
+            action_decisions["climate"] = decision
+    return action_decisions
 
 
 def _apply_auto_alert_statuses(saved_alerts: list, automation_result: dict, farm_auto_mode: bool) -> None:
@@ -529,13 +552,15 @@ def _apply_auto_alert_statuses(saved_alerts: list, automation_result: dict, farm
         alert.action_result = result
 
         if result and result.get("executed"):
-            alert.action_status = "executed"
+            alert.action_status = "executing"
         elif result and _already_in_desired_state(result.get("reason")):
-            alert.action_status = "auto"
+            alert.action_status = "executing"
         elif _is_deferred_decision(decision, result):
             alert.action_status = "deferred"
+        elif result:
+            alert.action_status = "deferred"
         elif decision_action in {"start", "stop", "cooling_full", "fan_only"}:
-            alert.action_status = "auto"
+            alert.action_status = "deferred"
         else:
             alert.action_status = None
 

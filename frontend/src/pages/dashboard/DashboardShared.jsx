@@ -708,7 +708,7 @@ export function AlertsPanel({ alerts = [], isOpen, onAccept, onFeedback }) {
     setTimeout(() => {
       setShowThanks(prev => prev.filter(item => item !== id));
       setHiddenAlertIds(prev => prev.includes(id) ? prev : [...prev, id]);
-    }, 1200);
+    }, 500);
     onFeedback?.(id, type === 'up');
   };
 
@@ -923,6 +923,141 @@ function getIgnoredRecommendationMessage(isEn) {
     : "تم تجاهل التوصية. ستبقى متاحة في صفحة التوصيات للمراجعة لاحقًا.";
 }
 
+function getAlertExecutionSuccessMessage(category, isEn) {
+  const c = (category || '').toLowerCase();
+  if (c === 'climate' || c === 'temperature') {
+    return isEn
+      ? "Cooling and ventilation commands were sent to the climate devices."
+      : "تم إرسال أمر تشغيل التبريد والتهوية إلى أجهزة المناخ.";
+  }
+  if (c === 'humidity') {
+    return isEn
+      ? "Ventilation command was sent to the fan system."
+      : "تم إرسال أمر تشغيل التهوية إلى نظام المراوح.";
+  }
+  if (c === 'irrigation' || c === 'soil' || c === 'water') {
+    return isEn
+      ? "Irrigation command was sent to the pump system."
+      : "تم إرسال أمر تشغيل الري إلى نظام المضخة.";
+  }
+  return isEn
+    ? "The required action was sent successfully."
+    : "تم إرسال الإجراء المطلوب بنجاح.";
+}
+
+function extractAlertDeviceName(text = '', sensorType = '', isEn = false) {
+  const raw = String(text || '');
+  const idMatch = raw.match(/\b(?:fan|cooling|irrigation|pump|valve|sensor|energy|tuya)[\w-]*_\d+\b/i)
+    || raw.match(/\(([^)]*(?:unit|fan|pump|valve|sensor|meter|tuya)[^)]*)\)/i);
+  if (idMatch) return idMatch[1] || idMatch[0];
+
+  const s = String(sensorType || '').toLowerCase();
+  if (s.includes('power') || s.includes('energy')) return isEn ? 'energy meter' : 'عداد الطاقة';
+  if (s.includes('water_tank')) return isEn ? 'water tank sensor' : 'حساس خزان المياه';
+  if (s.includes('soil')) return isEn ? 'soil sensor' : 'حساس التربة';
+  if (s.includes('humidity') || s.includes('temperature') || s.includes('light')) return isEn ? 'climate sensor' : 'حساس المناخ';
+  return isEn ? 'related sensor or controller' : 'الحساس أو وحدة التحكم المرتبطة';
+}
+
+function getAutoAlertSummary(category, isEn, actionStatus, sensorType = '', alertText = '') {
+  const c = (category || '').toLowerCase();
+  if (actionStatus === 'executing') {
+    if (c === 'climate' || c === 'temperature') return isEn
+      ? "Cooling and ventilation are running now while the system monitors temperature and humidity."
+      : "التبريد والتهوية يعملان الآن بينما يراقب النظام الحرارة والرطوبة.";
+    if (c === 'humidity') return isEn
+      ? "Ventilation fans are running now while the system monitors air humidity."
+      : "مراوح التهوية تعمل الآن بينما يراقب النظام رطوبة الهواء.";
+    if (c === 'irrigation' || c === 'soil' || c === 'water') return isEn
+      ? "Irrigation is running now while the system monitors soil moisture and safety conditions."
+      : "الري يعمل الآن بينما يراقب النظام رطوبة التربة وشروط السلامة.";
+  }
+  if (actionStatus === 'executed') {
+    if (c === 'climate' || c === 'temperature') return isEn
+      ? "Cooling and ventilation were activated because the temperature alert required climate control."
+      : "تم تشغيل التبريد والتهوية لأن تنبيه الحرارة يتطلب ضبط مناخ المحمية.";
+    if (c === 'humidity') return isEn
+      ? "Ventilation fans were activated because the humidity alert required air exchange."
+      : "تم تشغيل مراوح التهوية لأن تنبيه الرطوبة يتطلب تصريف الهواء الرطب.";
+    if (c === 'irrigation' || c === 'soil' || c === 'water') return isEn
+      ? "Irrigation was activated because the alert indicated soil moisture needed recovery."
+      : "تم تشغيل الري لأن التنبيه أظهر حاجة رطوبة التربة إلى الاستعادة.";
+    return getAlertExecutionSuccessMessage(c, isEn);
+  }
+  if (actionStatus === 'deferred') {
+    if (c === 'irrigation' || c === 'soil' || c === 'water') {
+      return isEn
+        ? "Irrigation was delayed because current safety checks do not allow watering now, such as nighttime fungal-risk conditions, high soil moisture, or low tank level."
+        : "تم تأجيل الري لأن فحوصات السلامة لا تسمح بتشغيل المضخة الآن، مثل فترة الليل وخطر الفطريات أو ارتفاع رطوبة التربة أو انخفاض مستوى الخزان.";
+    }
+    return isEn
+      ? "The device action was delayed because current safety checks do not confirm that operation is safe yet."
+      : "تم تأجيل إجراء الجهاز لأن فحوصات السلامة الحالية لا تؤكد أن التشغيل آمن الآن.";
+  }
+  if (actionStatus === 'auto') {
+    return isEn
+      ? "Automatic control is monitoring this alert and will send the matching device command only when the latest readings confirm it is still needed."
+      : "يراقب التحكم التلقائي هذا التنبيه، ولن يرسل أمر الجهاز المناسب إلا إذا أكدت أحدث القراءات أن الإجراء ما زال مطلوبًا.";
+  }
+  if (c === 'climate' || c === 'temperature' || c === 'humidity') {
+    return isEn
+      ? "The climate system will compare the next temperature and humidity readings before deciding whether to start cooling or ventilation."
+      : "سيوازن نظام المناخ بين قراءات الحرارة والرطوبة القادمة قبل قرار تشغيل التبريد أو التهوية.";
+  }
+  if (c === 'water_tank') {
+    return isEn
+      ? "The system logged the low water tank level and will continue checking available water before irrigation is allowed."
+      : "سجّل النظام انخفاض مستوى خزان المياه وسيواصل التحقق من الماء المتاح قبل السماح بالري.";
+  }
+  if (c === 'irrigation' || c === 'soil' || c === 'water') {
+    return isEn
+      ? "The irrigation system will monitor soil and water readings and start or delay watering according to safety conditions."
+      : "سيراقب نظام الري قراءات التربة والمياه ويشغّل أو يؤجل الري حسب شروط السلامة.";
+  }
+  if (c === 'power' || c === 'energy') {
+    const device = extractAlertDeviceName(alertText, sensorType, isEn);
+    return isEn
+      ? `Please verify the energy reading, ${device} connection, and the electrical load of the connected equipment.`
+      : `يرجى التحقق من قراءة الطاقة، واتصال ${device}، وحمل الأجهزة الكهربائية المرتبطة.`;
+  }
+  const device = extractAlertDeviceName(alertText, sensorType, isEn);
+  return isEn
+    ? `Please verify ${device}, its latest reading, and its connection status.`
+    : `يرجى التحقق من ${device}، وآخر قراءة صادرة عنه، وحالة اتصاله.`;
+}
+
+function getManualAlertPrompt(category, isEn, sensorType = '', alertText = '') {
+  const c = (category || '').toLowerCase();
+  if (c === 'water_tank') {
+    return isEn
+      ? "Refill or inspect the water tank, then confirm that the tank sensor reading has updated."
+      : "يرجى تعبئة خزان المياه أو فحصه، ثم التأكد من تحديث قراءة حساس الخزان.";
+  }
+  if (c === 'climate' || c === 'temperature') {
+    return isEn
+      ? "Do you want to start cooling and ventilation to lower the greenhouse temperature?"
+      : "هل تود تشغيل التبريد والتهوية لخفض حرارة المحمية؟";
+  }
+  if (c === 'humidity') {
+    return isEn
+      ? "Do you want to start the ventilation fans to reduce excess air humidity?"
+      : "هل تود تشغيل مراوح التهوية لتصريف رطوبة الهواء الزائدة؟";
+  }
+  if (c === 'irrigation' || c === 'soil' || c === 'water') {
+    return isEn
+      ? "Do you want to start irrigation to restore soil moisture, if the tank level and safety checks allow it?"
+      : "هل تود تشغيل الري لاستعادة رطوبة التربة إذا سمح مستوى الخزان وفحوصات السلامة؟";
+  }
+  const device = extractAlertDeviceName(alertText, sensorType, isEn);
+  return isEn
+    ? `Review ${device}, its latest reading, and its connection status.`
+    : `يرجى مراجعة ${device}، وآخر قراءة صادرة عنه، وحالة اتصاله.`;
+}
+
+function alertHasDirectDeviceAction(category) {
+  return ['climate', 'temperature', 'humidity', 'irrigation', 'soil', 'water'].includes((category || '').toLowerCase());
+}
+
 // ─── THEME & ICONS ──────────────────────────────────────────────────────────
 function getRecommendationTheme(type, text = "") {
   let resolvedType = type;
@@ -1037,6 +1172,24 @@ const DECISION_STATE_STYLES = {
     text: 'text-teal-800',
     dot: 'bg-teal-500',
   },
+  monitoring: {
+    bg: 'bg-gray-50/80',
+    border: 'border-gray-100',
+    text: 'text-gray-700',
+    dot: 'bg-gray-400',
+  },
+  stale: {
+    bg: 'bg-gray-50/80',
+    border: 'border-gray-100',
+    text: 'text-gray-700',
+    dot: 'bg-gray-400',
+  },
+  legacy: {
+    bg: 'bg-gray-50/80',
+    border: 'border-gray-100',
+    text: 'text-gray-700',
+    dot: 'bg-gray-400',
+  },
   failed: {
     bg: 'bg-red-50/80',
     border: 'border-red-100',
@@ -1060,6 +1213,65 @@ function decisionStateCopy(decisionState, isEn) {
     label: label || (isEn ? 'No active action' : 'لا يوجد إجراء نشط'),
     reason: reason || '',
   };
+}
+
+function recommendationStateLabel(decisionState, actionStatus, isEn, category) {
+  const state = decisionState?.state || actionStatus || 'hold';
+  const normalizedCategory = String(category || decisionState?.domain || '').toLowerCase();
+  const isIrrigation = ['irrigation', 'water', 'soil_moisture'].includes(normalizedCategory);
+  if (actionStatus === 'executed' || state === 'completed') return isEn ? 'Executed' : 'تم التنفيذ';
+  if (actionStatus === 'ignored') return isEn ? 'Ignored' : 'تم التجاهل';
+  if (state === 'executing') return isEn ? 'In Progress' : 'قيد التنفيذ';
+  if (actionStatus === 'auto' && isIrrigation) return isEn ? 'Irrigation Deferred' : 'ري مؤجل';
+  if (actionStatus === 'auto' || state === 'monitoring' || state === 'pending') return isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن';
+  if (state === 'blocked' || actionStatus === 'deferred') return isIrrigation ? (isEn ? 'Irrigation Deferred' : 'ري مؤجل') : (isEn ? 'Deferred' : 'مؤجل');
+  if (state === 'stale' || actionStatus === 'stale') return isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن';
+  if (state === 'legacy' || actionStatus === 'legacy') return isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن';
+  if (state === 'failed') return isEn ? 'Execution Failed' : 'تعذر التنفيذ';
+  return isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن';
+}
+
+function recommendationStateMessage(decisionState, actionStatus, fallbackMessage, isEn, category) {
+  const state = decisionState?.state || actionStatus || 'hold';
+  const normalizedCategory = String(category || decisionState?.domain || '').toLowerCase();
+  const isIrrigation = ['irrigation', 'water', 'soil_moisture'].includes(normalizedCategory);
+  const reason = isEn ? decisionState?.reason_en : decisionState?.reason;
+  if (reason) return reason;
+  if (actionStatus === 'executed' || state === 'completed') return fallbackMessage;
+  if (actionStatus === 'ignored') {
+    return isEn
+      ? 'The recommendation was ignored and remains available for later review.'
+      : 'تم تجاهل التوصية وستبقى متاحة للمراجعة لاحقًا.';
+  }
+  if (state === 'executing') return fallbackMessage;
+  if (actionStatus === 'auto' || state === 'monitoring' || state === 'pending') {
+    if (isIrrigation) {
+      return isEn
+        ? 'Irrigation was deferred by the current safety checks. The system will re-evaluate the pump decision when soil moisture and environmental conditions allow it.'
+        : 'تم تأجيل الري بسبب فحوصات السلامة الحالية. سيعيد النظام تقييم قرار المضخة عندما تسمح رطوبة التربة والظروف البيئية بذلك.';
+    }
+    return fallbackMessage || (isEn
+      ? 'The system will reassess this recommendation when new sensor readings arrive.'
+      : 'سيعيد النظام تقييم هذه التوصية عند وصول قراءات حساسات جديدة.');
+  }
+  if (state === 'blocked' || actionStatus === 'deferred') {
+    if (isIrrigation) {
+      return isEn
+        ? 'Irrigation was deferred by the current safety checks. The system will re-evaluate the pump decision when soil moisture and environmental conditions allow it.'
+        : 'تم تأجيل الري بسبب فحوصات السلامة الحالية. سيعيد النظام تقييم قرار المضخة عندما تسمح رطوبة التربة والظروف البيئية بذلك.';
+    }
+    return isEn
+      ? 'The system delayed this recommendation because current safety conditions are not suitable.'
+      : 'أجّل النظام هذه التوصية لأن شروط السلامة الحالية غير مناسبة.';
+  }
+  if (state === 'stale' || actionStatus === 'stale') {
+    return isEn
+      ? 'The reading changed after this recommendation was created. No device command is needed from this old recommendation; the system will rely on the latest recommendation when new readings arrive.'
+      : 'تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.';
+  }
+  return isEn
+    ? 'The system will reassess this recommendation when new sensor readings arrive.'
+    : 'سيعيد النظام تقييم هذه التوصية عند وصول قراءات حساسات جديدة.';
 }
 
 export function RecommendationCard({
@@ -1101,19 +1313,22 @@ export function RecommendationCard({
   const handleExecute = async (event) => {
     event?.stopPropagation();
     if (isLoading || actionResult) return;
+    setActionResult('executing');
     setIsLoading(true);
     try {
       const executionResult = await onExecute?.(actionType, farmId, rec.rawId || rec.id);
       if (!executionResult) throw new Error('Recommendation execution failed');
       if (executionResult.executed === false) {
-        setActionResult(null);
+        setActionResult('failed');
+        window.setTimeout(() => setActionResult(null), 2500);
       } else {
-        setActionResult('executed');
+        setActionResult('executing');
         if (autoDismissOnAction) scheduleDismiss();
       }
     } catch (err) {
       console.error('Execution failed:', err);
-      setActionResult(null);
+      setActionResult('failed');
+      window.setTimeout(() => setActionResult(null), 2500);
     } finally {
       setIsLoading(false);
     }
@@ -1152,7 +1367,17 @@ export function RecommendationCard({
   const safeTitle = extractSafeText(localizedCopy.title || rec.title || rec.message);
   const decisionState = decisionStateCopy(rec.decision_state, isEn);
   const decisionStyle = DECISION_STATE_STYLES[decisionState.state] || DECISION_STATE_STYLES.hold;
+  const lockedDecisionStates = new Set(['stale', 'legacy', 'blocked', 'completed']);
+  const isLockedDecision = Boolean(rec.decision_state && lockedDecisionStates.has(decisionState.state));
+  const displayStateLabel = recommendationStateLabel(rec.decision_state, rec.action_status || actionResult, isEn, rec.category || rec.type);
   const autoActionExplanation = getActionExplanation(rec.category || rec.type, isEn, true);
+  const displayStateMessage = recommendationStateMessage(
+    rec.decision_state,
+    rec.action_status || actionResult,
+    autoActionExplanation,
+    isEn,
+    rec.category || rec.type
+  );
 
   const domainCategory = isEn
     ? (rec.category === 'irrigation' || rec.category === 'water' ? 'Irrigation & Water'
@@ -1217,12 +1442,12 @@ export function RecommendationCard({
 
       {/* Unified Footer Area */}
       <div className="pt-1.5 flex flex-col gap-2 mt-auto w-full">
-        {rec.decision_state && !globalAutoMode && (
+        {isLockedDecision && !globalAutoMode && !actionResult && (
           <div className={`flex items-start gap-2 p-2.5 rounded-xl border ${decisionStyle.bg} ${decisionStyle.border} w-full`}>
             <div className={`shrink-0 w-2.5 h-2.5 rounded-full ${decisionStyle.dot} mt-1 ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
             <div className="min-w-0 flex-1 text-start">
               <div className={`font-black text-[11px] md:text-[12px] leading-tight ${decisionStyle.text}`}>
-                {decisionState.label}
+                {displayStateLabel}
               </div>
               {decisionState.reason && (
                 <p className={`font-medium text-[11px] md:text-[12px] leading-snug mt-0.5 ${decisionStyle.text}`}>
@@ -1232,11 +1457,11 @@ export function RecommendationCard({
             </div>
           </div>
         )}
-        {!globalAutoMode && !actionResult ? (
-          <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-sky-100 bg-sky-50/50 w-full">
-            <div className="flex items-start gap-2">
+        {!globalAutoMode && !actionResult && !isLockedDecision ? (
+          <div className="flex flex-col gap-2 w-full">
+            <div className="flex items-start gap-2 p-3 rounded-xl border border-sky-100 bg-sky-50/60 w-full">
               <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-sky-500 mt-1 flex items-center justify-center">
-                <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                <div className="w-1 h-1 rounded-full bg-white" />
               </div>
               <p className="font-medium text-[12px] md:text-[13px] text-sky-800 leading-snug flex-1 text-start">
                 {getActionExplanation(rec.category || rec.type, isEn, false)}
@@ -1267,22 +1492,16 @@ export function RecommendationCard({
             </div>
           </div>
         ) : globalAutoMode ? (
-          <div className={`flex items-start gap-2 p-3 rounded-xl border w-full ${rec.decision_state ? `${decisionStyle.bg} ${decisionStyle.border}` : 'border-emerald-100 bg-emerald-50/80'}`}>
-            <div className={`shrink-0 w-2.5 h-2.5 rounded-full mt-1 ${rec.decision_state ? decisionStyle.dot : 'bg-emerald-500'} ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
+          <div className={`flex items-start gap-2 p-3 rounded-xl border w-full ${decisionStyle.bg} ${decisionStyle.border}`}>
+            <div className={`shrink-0 w-2.5 h-2.5 rounded-full mt-1 ${decisionStyle.dot} ${decisionState.state === 'pending' || decisionState.state === 'executing' ? 'animate-pulse' : ''}`} />
             <div className="min-w-0 flex-1 text-start">
-              <div className={`font-bold text-[12px] md:text-[13px] leading-snug ${rec.decision_state ? decisionStyle.text : 'text-emerald-800'}`}>
-                {autoActionExplanation}
+              <div className={`font-black text-[12px] md:text-[13px] leading-snug ${decisionStyle.text}`}>
+                {displayStateLabel}
               </div>
-              {decisionState.reason && (
+              {displayStateMessage && (
                 <p className={`font-medium text-[11px] md:text-[12px] leading-snug mt-1 ${decisionStyle.text}`}>
-                  {decisionState.reason}
+                  {displayStateMessage}
                 </p>
-              )}
-              {rec.decision_state && (
-                <div className={`font-black text-[11px] md:text-[12px] leading-tight mt-1.5 ${decisionStyle.text}`}>
-                  <span className="opacity-75">{isEn ? 'Decision status: ' : 'حالة القرار: '}</span>
-                  {decisionState.label}
-                </div>
               )}
             </div>
           </div>
@@ -1291,13 +1510,26 @@ export function RecommendationCard({
             <div className="shrink-0 w-2.5 h-2.5 rounded-full bg-emerald-500 flex items-center justify-center">
               <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
             </div>
-            <p className="font-medium text-[12px] md:text-[13px] text-emerald-800 leading-snug flex-1 text-start">
-              {actionResult === 'ignored'
-                ? getIgnoredRecommendationMessage(isEn)
-                : actionResult === 'executed' && !globalAutoMode
-                ? getManualCompletionExplanation(rec.category || rec.type, isEn)
-                : getActionExplanation(rec.category || rec.type, isEn, true)}
-            </p>
+            <div className="min-w-0 flex-1 text-start">
+              <div className="font-black text-[12px] md:text-[13px] text-emerald-800 leading-snug">
+                {actionResult === 'ignored'
+                  ? (isEn ? 'Ignored' : 'تم التجاهل')
+                  : actionResult === 'executed'
+                    ? (isEn ? 'Executed' : 'تم التنفيذ')
+                    : actionResult === 'failed'
+                      ? (isEn ? 'Execution Failed' : 'تعذر التنفيذ')
+                      : (isEn ? 'In Progress' : 'قيد التنفيذ')}
+              </div>
+              <p className="font-medium text-[11px] md:text-[12px] text-emerald-800 leading-snug mt-1">
+                {actionResult === 'ignored'
+                  ? getIgnoredRecommendationMessage(isEn)
+                  : actionResult === 'executed' && !globalAutoMode
+                    ? getManualCompletionExplanation(rec.category || rec.type, isEn)
+                    : actionResult === 'failed'
+                      ? (isEn ? 'The device command could not be sent. Please check the connection and try again.' : 'تعذر إرسال أمر الجهاز. يرجى التحقق من الاتصال والمحاولة مرة أخرى.')
+                      : (isEn ? 'The device command is being sent now. Please wait for confirmation.' : 'يتم إرسال أمر الجهاز الآن. يرجى انتظار تأكيد التنفيذ.')}
+              </p>
+            </div>
           </div>
         )}
 
@@ -1346,6 +1578,7 @@ export function AlertCard({
   globalAutoMode,
   isEn,
   onAccept,
+  onReject,
   onFeedback,
   feedbackState = {},
   showThanks = [],
@@ -1354,6 +1587,7 @@ export function AlertCard({
   const isRtl = !isEn;
   const [isLoading, setIsLoading] = React.useState(false);
   const [executionSuccess, setExecutionSuccess] = React.useState(false);
+  const [actionNotice, setActionNotice] = React.useState('');
   const [nowMs] = React.useState(() => Date.now());
 
   const severity = alert.severity || 'info';
@@ -1384,11 +1618,15 @@ export function AlertCard({
   })();
   const msgText = safeMessage.toLowerCase();
   const category =
-    (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
-     sensorType === 'temperature' || sensorType === 'humidity' || sensorType === 'air_humidity' ||
-     sensorType.includes('ventilation') || msgText.includes('حرار') ||
-     msgText.includes('temperature') || msgText.includes('رطوبة الهواء') ||
-     msgText.includes('humidity') || msgText.includes('تهوية') || msgText.includes('مراوح'))
+    (sensorType === 'water_tank' || msgText.includes('خزان') || msgText.includes('tank'))
+      ? 'water_tank'
+    : (sensorType === 'air_humidity' || sensorType === 'humidity' ||
+     msgText.includes('رطوبة الهواء') || msgText.includes('humidity') ||
+     msgText.includes('تهوية') || msgText.includes('مراوح') || sensorType.includes('ventilation'))
+      ? 'humidity'
+    : (sensorType.includes('temperature') || sensorType.includes('air_temp') ||
+     sensorType === 'temperature' || msgText.includes('حرار') ||
+     msgText.includes('temperature'))
       ? 'climate'
     : (sensorType.includes('soil') || msgText.includes('ترب') || msgText.includes('soil'))
       ? 'soil'
@@ -1402,20 +1640,29 @@ export function AlertCard({
       ? 'power'
     : 'system';
 
-  const actionType = category === 'climate' ? 'cool' : category === 'irrigation' ? 'irrigate' : 'general';
-  const autoAlertExplanation = getActionExplanation(category, isEn, true, sensorType);
-  const primaryActionLabel = category === 'system' || category === 'power'
-    ? (isEn ? 'Review' : 'راجع')
-    : (isEn ? 'Execute' : 'نفذ');
+  const hasDirectAction = alertHasDirectDeviceAction(category);
+  const actionType = category === 'climate'
+    ? 'cool'
+    : category === 'humidity'
+      ? 'ventilate'
+      : (category === 'irrigation' || category === 'soil' || category === 'water')
+        ? 'irrigate'
+        : 'general';
+  const autoAlertExplanation = getAutoAlertSummary(category, isEn, alert.action_status, sensorType, displayMessage);
+  const primaryActionLabel = isEn ? 'Execute' : 'نفذ';
 
   const domainTitle = isEn
     ? (category === 'climate'    ? 'Climate & Ventilation'
       : category === 'soil'      ? 'Soil & Crop Health'
-      : category === 'irrigation'? 'Irrigation & Water'
+      : category === 'water_tank' ? 'Water Tank'
+      : category === 'irrigation' || category === 'water' ? 'Irrigation & Water'
+      : category === 'humidity'  ? 'Climate & Ventilation'
       :                            'System')
     : (category === 'climate'    ? 'المناخ والتهوية'
       : category === 'soil'      ? 'بيئة وصحة التربة'
-      : category === 'irrigation'? 'الري والمياه'
+      : category === 'water_tank' ? 'خزان المياه'
+      : category === 'irrigation' || category === 'water' ? 'الري والمياه'
+      : category === 'humidity'  ? 'المناخ والتهوية'
       :                            'النظام');
 
   const formatAlertMeta = () => {
@@ -1433,11 +1680,20 @@ export function AlertCard({
   const handleConfirm = async () => {
     setIsLoading(true);
     try {
-      await onAccept?.(alert.id, actionType);
+      const didExecute = await onAccept?.(alert.id, actionType);
+      if (didExecute === false) {
+        setActionNotice(isEn ? 'No device action was executed for this alert.' : 'لم يتم تنفيذ إجراء جهاز لهذا التنبيه.');
+        setTimeout(() => setActionNotice(''), 3000);
+        return;
+      }
       setExecutionSuccess(true);
+      setActionNotice(getAlertExecutionSuccessMessage(category, isEn));
+      setTimeout(() => setActionNotice(''), 3000);
       setTimeout(() => setExecutionSuccess(false), 3000);
     } catch (err) {
       console.error('Confirm action failed:', err);
+      setActionNotice(isEn ? 'Action failed. Please try again.' : 'تعذر تنفيذ الإجراء. حاولي مرة أخرى.');
+      setTimeout(() => setActionNotice(''), 3000);
     } finally {
       setIsLoading(false);
     }
@@ -1480,36 +1736,55 @@ export function AlertCard({
                 <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
               </div>
               <p className="font-medium text-[12px] md:text-[13px] text-sky-800 leading-snug flex-1 text-start">
-                {getActionExplanation(category, isEn, false)}
+                {getManualAlertPrompt(category, isEn, sensorType, displayMessage)}
               </p>
             </div>
-            <div className="flex gap-2 justify-end w-full">
-              <button
-                onClick={handleConfirm}
-                disabled={isLoading || executionSuccess}
-                className={`px-3 py-1 text-white text-[12px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
-                  ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
-              >
-                {isLoading ? (
-                  <>
-                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
-                    </svg>
-                    {isEn ? 'Executing…' : 'جاري التنفيذ…'}
-                  </>
-                ) : executionSuccess ? (
-                  <>
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                    {isEn ? 'Done' : 'تم'}
-                  </>
-                ) : primaryActionLabel}
-              </button>
-              <button className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap">
-                {isEn ? 'Ignore' : 'تجاهل'}
-              </button>
-            </div>
+            {hasDirectAction ? (
+              <div className="flex gap-2 justify-end w-full">
+                <button
+                  onClick={handleConfirm}
+                  disabled={isLoading || executionSuccess}
+                  className={`px-3 py-1 text-white text-[12px] font-bold rounded-lg transition-all active:scale-95 shadow-sm flex items-center gap-1.5 whitespace-nowrap
+                    ${executionSuccess ? 'bg-emerald-600' : 'bg-emerald-600 hover:bg-emerald-700'} ${isLoading ? 'opacity-75' : ''}`}
+                >
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/>
+                      </svg>
+                      {isEn ? 'Executing…' : 'جاري التنفيذ…'}
+                    </>
+                  ) : executionSuccess ? (
+                    <>
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                      {isEn ? 'Done' : 'تم'}
+                    </>
+                  ) : primaryActionLabel}
+                </button>
+                <button
+                  onClick={() => onReject?.(alert.id)}
+                  className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
+                >
+                  {isEn ? 'Ignore' : 'تجاهل'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex justify-end w-full">
+                <button
+                  onClick={() => onReject?.(alert.id)}
+                  className="px-3 py-1 bg-white border border-sky-200 text-sky-700 text-[12px] font-bold rounded-lg hover:bg-sky-100 hover:border-sky-300 transition-all active:scale-95 whitespace-nowrap"
+                >
+                  {isEn ? 'Reviewed' : 'تمت المراجعة'}
+                </button>
+              </div>
+            )}
+            {actionNotice && (
+              <div className="self-end px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 text-[11px] font-bold animate-fade-in">
+                {actionNotice}
+              </div>
+            )}
           </div>
         ) : (
           <div
@@ -1523,13 +1798,6 @@ export function AlertCard({
             <div className="min-w-0 flex-1 text-start">
               <div className="font-bold text-[12px] md:text-[13px] leading-snug" style={{ color: cfg.dot }}>
                 {autoAlertExplanation}
-              </div>
-              <p className="font-medium text-[11px] md:text-[12px] leading-snug mt-1" style={{ color: cfg.dot }}>
-                {displayMessage}
-              </p>
-              <div className="font-black text-[11px] md:text-[12px] leading-tight mt-1.5" style={{ color: cfg.dot }}>
-                <span className="opacity-75">{isEn ? 'Alert status: ' : 'حالة التنبيه: '}</span>
-                {cfg.label}
               </div>
             </div>
           </div>
@@ -1571,6 +1839,20 @@ export function AlertCard({
         )}
       </div>
     </div>
+  );
+}
+
+export function isRecommendationCompleted(rec) {
+  if (!rec) return false;
+  const status = rec.action_status || rec.mode;
+  const decisionState = rec.decision_state?.state;
+  const hasSavedFeedback = rec.helpful === true || rec.helpful === false || Boolean(rec.feedback_at);
+  return (
+    status === 'executed' ||
+    status === 'ignored' ||
+    status === 'completed' ||
+    decisionState === 'completed' ||
+    hasSavedFeedback
   );
 }
 

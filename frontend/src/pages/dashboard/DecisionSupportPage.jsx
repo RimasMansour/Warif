@@ -31,25 +31,55 @@ function recommendationStatus(rec) {
   if (actionStatus === 'stale' || decisionState === 'stale') return 'stale';
   if (actionStatus === 'legacy' || decisionState === 'legacy') return 'legacy';
   if (actionStatus === 'executed' || decisionState === 'completed') return 'completed';
-  const text = `${rec.title || ''} ${rec.reasoning || ''}`.toLowerCase();
-  const looksDeferred = text.includes('مؤجل') || text.includes('تأجيل') || text.includes('السلامة') || text.includes('deferred') || text.includes('blocked') || text.includes('safety');
-  if (actionStatus === 'deferred' || actionStatus === 'ignored' || decisionState === 'blocked' || looksDeferred) return 'blocked';
+  if (actionStatus === 'executing' || decisionState === 'executing') return 'pending';
+  if (actionStatus === 'deferred' || actionStatus === 'ignored' || decisionState === 'blocked') return 'blocked';
   return 'pending';
+}
+
+function deferredReason(rec, isEn) {
+  const category = String(rec.category || rec.type || '').toLowerCase();
+  const text = `${rec.message || ''} ${rec.reasoning || ''} ${rec.data_insight || ''}`.toLowerCase();
+  if (
+    (category === 'irrigation' || category === 'water' || category === 'soil_moisture') &&
+    (text.includes('ليل') || text.includes('night') || text.includes('فطر') || text.includes('fungal'))
+  ) {
+    return isEn
+      ? 'The system did not start irrigation because the current period is nighttime. Watering now can keep leaves or soil wet for longer and increase fungal disease risk, so irrigation will be re-evaluated when safety conditions improve.'
+      : 'لم يشغّل النظام الري لأن الوقت الحالي فترة ليلية. الري الآن قد يبقي الأوراق أو التربة رطبة لفترة أطول ويزيد خطر الأمراض الفطرية، لذلك سيُعاد تقييم الري عند تحسن شروط السلامة.';
+  }
+  return isEn
+    ? 'The system delayed this recommendation because current safety conditions are not suitable.'
+    : 'أجّل النظام هذه التوصية لأن شروط السلامة الحالية غير مناسبة.';
 }
 
 function inferredDecisionState(rec, isEn) {
   if (rec.decision_state) return rec.decision_state;
-  const state = recommendationStatus(rec);
-  if (state === 'blocked') {
+  const category = String(rec.category || rec.type || '').toLowerCase();
+  if (rec.action_status === 'deferred') {
+    const reason = deferredReason(rec, isEn);
     return {
       state: 'blocked',
-      label: isEn ? 'Deferred' : 'مؤجل',
-      label_en: 'Deferred',
-      reason: isEn ? '' : 'تم تأجيل التوصية بناءً على شرط سلامة مذكور في نص التوصية.',
-      reason_en: 'Recommendation is deferred based on a safety condition mentioned in the recommendation text.',
+      label: category === 'irrigation' || category === 'water' || category === 'soil_moisture'
+        ? (isEn ? 'Irrigation Deferred' : 'ري مؤجل')
+        : (isEn ? 'Deferred' : 'مؤجل'),
+      label_en: category === 'irrigation' || category === 'water' || category === 'soil_moisture'
+        ? 'Irrigation Deferred'
+        : 'Deferred',
+      reason,
+      reason_en: deferredReason(rec, true),
     };
   }
-  if (state === 'legacy') {
+  if (rec.action_status === 'legacy' || rec.action_status === 'auto') {
+    if (category === 'irrigation' || category === 'water' || category === 'soil_moisture') {
+      const reason = deferredReason(rec, isEn);
+      return {
+        state: 'blocked',
+        label: isEn ? 'Irrigation Deferred' : 'ري مؤجل',
+        label_en: 'Irrigation Deferred',
+        reason,
+        reason_en: deferredReason(rec, true),
+      };
+    }
     return {
       state: 'monitoring',
       label: isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن',
@@ -60,24 +90,24 @@ function inferredDecisionState(rec, isEn) {
       reason_en: 'The latest readings do not require a device command right now. The system will re-evaluate this recommendation when new sensor data arrives.',
     };
   }
-  if (state === 'stale') {
-    return {
-      state: 'stale',
-      label: isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن',
-      label_en: 'No Action Needed Now',
-      reason: isEn
-        ? 'The sensor reading has changed since this recommendation was created. Use the latest recommendation before sending a device command.'
-        : 'تغيّرت قراءة الحساس منذ إنشاء هذه التوصية. يرجى الاعتماد على أحدث توصية قبل إرسال أمر للجهاز.',
-      reason_en: 'The sensor reading has changed since this recommendation was created. Use the latest recommendation before sending a device command.',
-    };
-  }
-  if (state === 'completed') {
+  if (rec.action_status === 'executed') {
     return {
       state: 'completed',
       label: isEn ? 'Executed' : 'تم التنفيذ',
       label_en: 'Executed',
       reason: '',
       reason_en: '',
+    };
+  }
+  if (rec.action_status === 'executing') {
+    return {
+      state: 'executing',
+      label: isEn ? 'In Progress' : 'قيد التنفيذ',
+      label_en: 'In Progress',
+      reason: isEn
+        ? 'The related device command is active and the system is monitoring the latest readings.'
+        : 'أمر الجهاز المرتبط قيد العمل، والنظام يراقب أحدث القراءات.',
+      reason_en: 'The related device command is active and the system is monitoring the latest readings.',
     };
   }
   return null;
@@ -100,7 +130,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
   const { data: apiRecs, error: recsError } = useRecommendations(farmId, {
     includeAlerts: true,
     includeState: false,
-    limit: 1000,
+    limit: 5000,
   });
 
 

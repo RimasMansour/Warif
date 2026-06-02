@@ -126,6 +126,19 @@ class SmartDecisionEngine:
     _weather_fetched_at: Optional[datetime] = None
     _WEATHER_TTL_SECONDS = 300
 
+    def _hold_action_contract(self, domain: str, reason: str, targets: Optional[Dict] = None) -> Dict:
+        return {
+            "domain": domain,
+            "action": "hold",
+            "actuators": {},
+            "source": "decision_engine",
+            "confidence": 0.0,
+            "reason": reason,
+            "targets": targets or {},
+            "safety": {},
+            "should_execute": False,
+        }
+
     def __init__(self):
         """Initialize the decision engine with sub-components"""
         try:
@@ -901,10 +914,19 @@ class SmartDecisionEngine:
         }
 
         for rec in recommendations:
+            if rec.execution_action:
+                continue
             if rec.category == "irrigation":
                 rec.execution_action = irrigation_decision
-            elif rec.category in {"temperature", "humidity"}:
+            elif rec.category == "temperature" and "تدفئة" not in rec.message:
                 rec.execution_action = climate_decision
+            elif rec.category == "humidity" and "ترطيب" not in rec.message:
+                rec.execution_action = climate_decision
+            else:
+                rec.execution_action = self._hold_action_contract(
+                    rec.category,
+                    "هذه توصية متابعة ولا يوجد أمر جهاز مباشر مطلوب الآن.",
+                )
 
         return {
             "recommendations": recommendations,

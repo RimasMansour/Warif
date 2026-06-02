@@ -23,8 +23,10 @@ from src.services import tuya_client
 
 PENDING_WINDOW = timedelta(minutes=2)
 IRRIGATION_ACTIVE_WINDOW = timedelta(minutes=20)
-COOLING_ACTIVE_WINDOW = timedelta(minutes=5)
-VENTILATION_ACTIVE_WINDOW = timedelta(minutes=10)
+COOLING_ACTIVE_WINDOW = timedelta(minutes=10)
+VENTILATION_ACTIVE_WINDOW = timedelta(minutes=15)
+IRRIGATION_SETTLING_WINDOW = timedelta(minutes=10)
+CLIMATE_SETTLING_WINDOW = timedelta(minutes=5)
 BLOCKED_WINDOW = timedelta(minutes=30)
 
 
@@ -95,13 +97,18 @@ async def _irrigation_suppression(
 
     active_event = await _active_irrigation_event(db, farm_id)
     if active_event:
-        start_utc = _as_utc(active_event.timestamp)
-        if start_utc and datetime.now(timezone.utc) - start_utc <= IRRIGATION_ACTIVE_WINDOW:
-            return {
-                "suppress": True,
-                "state": "executing",
-                "reason": "irrigation is active and waiting for soil moisture response",
-            }
+        return {
+            "suppress": True,
+            "state": "executing",
+            "reason": "irrigation is active and waiting for soil moisture response",
+        }
+
+    if await _recent_irrigation_stop(db, farm_id, IRRIGATION_SETTLING_WINDOW):
+        return {
+            "suppress": True,
+            "state": "monitoring",
+            "reason": "irrigation recently stopped and soil moisture is still settling",
+        }
 
     return {"suppress": False}
 
@@ -183,11 +190,18 @@ async def _climate_suppression(
     details = latest.details if isinstance(latest.details, dict) else {}
     mode = details.get("mode") or _mode_from_action(latest.action_type)
     if mode == "stop":
+        created_at = _as_utc(latest.created_at)
+        if created_at and datetime.now(timezone.utc) - created_at <= CLIMATE_SETTLING_WINDOW:
+            return {
+                "suppress": True,
+                "state": "monitoring",
+                "reason": "climate system recently stopped and readings are still settling",
+            }
         return {"suppress": False}
 
     window = VENTILATION_ACTIVE_WINDOW if mode == "fan_only" or category == "humidity" else COOLING_ACTIVE_WINDOW
     created_at = _as_utc(latest.created_at)
-    if created_at and datetime.now(timezone.utc) - created_at <= window and _climate_mode_matches_category(mode, category):
+    if mode in {"full", "fan_only"}:
         return {
             "suppress": True,
             "state": "executing",
@@ -266,6 +280,24 @@ async def _recent_pending_command(
         .limit(1)
     )
     return result.scalar_one_or_none()
+
+
+async def _recent_irrigation_stop(db: AsyncSession, farm_id: int, window: timedelta) -> bool:
+    since = datetime.now(timezone.utc) - window
+    result = await db.execute(
+        select(ActivityLog)
+        .where(
+            ActivityLog.farm_id == farm_id,
+            ActivityLog.action_type.in_([
+                "auto_irrigation_stop",
+                "manual_irrigation_stop",
+                "irrigation_auto_stop",
+            ]),
+            ActivityLog.created_at >= since,
+        )
+        .limit(1)
+    )
+    return result.scalar_one_or_none() is not None
 
 
 async def _active_irrigation_event(db: AsyncSession, farm_id: int) -> Optional[IrrigationEvent]:

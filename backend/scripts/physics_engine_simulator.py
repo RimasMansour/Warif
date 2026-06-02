@@ -57,6 +57,44 @@ async def log_action(db, farm_id, action_type, device_id=None,
         pass  # Never block simulation for logging
 
 
+async def climate_transition_allowed(db, farm_id, current_mode, next_mode):
+    if current_mode == next_mode:
+        return True, ""
+
+    result = await db.execute(
+        select(ActivityLog)
+        .where(
+            ActivityLog.farm_id == farm_id,
+            ActivityLog.action_type.in_([
+                "manual_cooling_full",
+                "manual_cooling_fan_only",
+                "manual_cooling_stop",
+                "auto_cooling_full",
+                "auto_cooling_fan_only",
+                "auto_cooling_stop",
+            ]),
+        )
+        .order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc())
+        .limit(1)
+    )
+    latest = result.scalar_one_or_none()
+    if not latest or not latest.created_at:
+        return True, ""
+
+    started_at = latest.created_at.replace(tzinfo=timezone.utc) if latest.created_at.tzinfo is None else latest.created_at.astimezone(timezone.utc)
+    elapsed = datetime.now(timezone.utc) - started_at
+
+    if current_mode == "stop" and next_mode != "stop" and elapsed < CLIMATE_RESTART_COOLDOWN:
+        remaining = (CLIMATE_RESTART_COOLDOWN - elapsed).total_seconds() / 60
+        return False, f"cooldown {remaining:.1f} min remaining"
+
+    if current_mode != "stop" and next_mode != current_mode and elapsed < CLIMATE_MIN_RUNTIME:
+        remaining = (CLIMATE_MIN_RUNTIME - elapsed).total_seconds() / 60
+        return False, f"minimum runtime {remaining:.1f} min remaining"
+
+    return True, ""
+
+
 # --- Engineering Constants (Science-Based) ---
 # Greenhouse specs
 AREA_SQM = 80.0
@@ -75,6 +113,8 @@ PUMP_FLOW_L_PER_MIN = 20.0
 PUMP_POWER_KW = 0.5
 # 20L/min → 3.33L/10s over 80m² → ~0.5% VWC increase per tick
 SOIL_MOISTURE_GAIN_PER_TICK = 0.5
+CLIMATE_MIN_RUNTIME = timedelta(minutes=10)
+CLIMATE_RESTART_COOLDOWN = timedelta(minutes=5)
 
 # Soil drying rate
 # Ref: Stanghellini (1987) - at 30°C, 80m² loses ~0.08% VWC per 10s
@@ -406,35 +446,40 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
             next_mode = climate_decision["mode"]
 
             if next_mode != current_mode and climate_decision["action"] != "hold":
-                state["fan_on"] = climate_decision["fan"]
-                state["cooler_on"] = climate_decision["cooler"]
-                state["cooling_on"] = state["fan_on"] and state["cooler_on"]
-                if next_mode == "stop":
-                    state["manual_cooling_active"] = False
+                allowed, guard_reason = await climate_transition_allowed(db, fid, current_mode, next_mode)
+                if not allowed:
+                    print(f"[CLIMATE GUARD] Farm {fid} | {current_mode} -> {next_mode} delayed: {guard_reason}")
+                    next_mode = current_mode
+                else:
+                    state["fan_on"] = climate_decision["fan"]
+                    state["cooler_on"] = climate_decision["cooler"]
+                    state["cooling_on"] = state["fan_on"] and state["cooler_on"]
+                    if next_mode == "stop":
+                        state["manual_cooling_active"] = False
 
-                action_type = {
-                    "full": "auto_cooling_full",
-                    "fan_only": "auto_cooling_fan_only",
-                    "stop": "auto_cooling_stop",
-                }[next_mode]
-                device_id = f"cooling_unit_{fid}" if next_mode != "stop" else f"fan_unit_{fid}"
-                await log_action(
-                    db, fid, action_type, device_id,
-                    {
-                        "mode": next_mode,
-                        "fan": state["fan_on"],
-                        "cooler": state["cooler_on"],
-                        "reason": climate_decision["reason"],
-                        "temp": round(state["internal_temp"], 1),
-                        "hum": round(state["internal_hum"], 1),
-                        "targets": climate_decision["targets"],
-                    }
-                )
-                print(
-                    f"[CLIMATE BALANCE] Farm {fid} | {current_mode} -> {next_mode} | "
-                    f"{climate_decision['reason']} "
-                    f"(Temp {state['internal_temp']:.1f}C, Hum {state['internal_hum']:.1f}%)."
-                )
+                    action_type = {
+                        "full": "auto_cooling_full",
+                        "fan_only": "auto_cooling_fan_only",
+                        "stop": "auto_cooling_stop",
+                    }[next_mode]
+                    device_id = f"cooling_unit_{fid}" if next_mode != "stop" else f"fan_unit_{fid}"
+                    await log_action(
+                        db, fid, action_type, device_id,
+                        {
+                            "mode": next_mode,
+                            "fan": state["fan_on"],
+                            "cooler": state["cooler_on"],
+                            "reason": climate_decision["reason"],
+                            "temp": round(state["internal_temp"], 1),
+                            "hum": round(state["internal_hum"], 1),
+                            "targets": climate_decision["targets"],
+                        }
+                    )
+                    print(
+                        f"[CLIMATE BALANCE] Farm {fid} | {current_mode} -> {next_mode} | "
+                        f"{climate_decision['reason']} "
+                        f"(Temp {state['internal_temp']:.1f}C, Hum {state['internal_hum']:.1f}%)."
+                    )
 
             if next_mode == "stop" and not state["cooler_on"] and not state["fan_on"]:
                 state["manual_cooling_active"] = False
@@ -467,27 +512,31 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
                     )
                     next_mode = climate_decision["mode"]
                     if next_mode != current_mode and climate_decision["action"] != "hold":
-                        state["fan_on"] = climate_decision["fan"]
-                        state["cooler_on"] = climate_decision["cooler"]
-                        state["cooling_on"] = state["fan_on"] and state["cooler_on"]
-                        action_type = {
-                            "full": "auto_cooling_full",
-                            "fan_only": "auto_cooling_fan_only",
-                            "stop": "auto_cooling_stop",
-                        }[next_mode]
-                        device_id = f"cooling_unit_{fid}" if next_mode == "full" else f"fan_unit_{fid}"
-                        await log_action(
-                            db, fid, action_type, device_id,
-                            {
-                                "mode": next_mode,
-                                "fan": state["fan_on"],
-                                "cooler": state["cooler_on"],
-                                "reason": climate_decision["reason"],
-                                "temp": round(state["internal_temp"], 1),
-                                "hum": round(state["internal_hum"], 1),
-                                "targets": climate_decision["targets"],
-                            }
-                        )
+                        allowed, guard_reason = await climate_transition_allowed(db, fid, current_mode, next_mode)
+                        if not allowed:
+                            print(f"[CLIMATE GUARD] Farm {fid} | {current_mode} -> {next_mode} delayed: {guard_reason}")
+                        else:
+                            state["fan_on"] = climate_decision["fan"]
+                            state["cooler_on"] = climate_decision["cooler"]
+                            state["cooling_on"] = state["fan_on"] and state["cooler_on"]
+                            action_type = {
+                                "full": "auto_cooling_full",
+                                "fan_only": "auto_cooling_fan_only",
+                                "stop": "auto_cooling_stop",
+                            }[next_mode]
+                            device_id = f"cooling_unit_{fid}" if next_mode == "full" else f"fan_unit_{fid}"
+                            await log_action(
+                                db, fid, action_type, device_id,
+                                {
+                                    "mode": next_mode,
+                                    "fan": state["fan_on"],
+                                    "cooler": state["cooler_on"],
+                                    "reason": climate_decision["reason"],
+                                    "temp": round(state["internal_temp"], 1),
+                                    "hum": round(state["internal_hum"], 1),
+                                    "targets": climate_decision["targets"],
+                                }
+                            )
                 else:
                     # Manual mode (via auto_mode toggle): stay in current state
                     pass

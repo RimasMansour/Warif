@@ -9,7 +9,7 @@ actuators once the target temperature and humidity are successfully achieved.
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, desc
 
 from src.db.session import AsyncSessionLocal
@@ -50,6 +50,28 @@ CROP_PROFILES = {
         "optimal_soil_max": 70.0,
     }
 }
+
+CLIMATE_MIN_RUNTIME = timedelta(minutes=10)
+CLIMATE_RESTART_COOLDOWN = timedelta(minutes=5)
+
+
+def _transition_allowed(latest_log: ActivityLog | None, current_mode: str, next_mode: str) -> tuple[bool, str]:
+    if current_mode == next_mode or not latest_log or not latest_log.created_at:
+        return True, ""
+
+    started_at = latest_log.created_at.replace(tzinfo=timezone.utc) if latest_log.created_at.tzinfo is None else latest_log.created_at.astimezone(timezone.utc)
+    elapsed = datetime.now(timezone.utc) - started_at
+
+    if current_mode == "stop" and next_mode != "stop" and elapsed < CLIMATE_RESTART_COOLDOWN:
+        remaining = (CLIMATE_RESTART_COOLDOWN - elapsed).total_seconds() / 60
+        return False, f"climate restart cooldown active ({remaining:.1f} min remaining)"
+
+    if current_mode != "stop" and next_mode != current_mode and elapsed < CLIMATE_MIN_RUNTIME:
+        remaining = (CLIMATE_MIN_RUNTIME - elapsed).total_seconds() / 60
+        return False, f"minimum climate runtime active ({remaining:.1f} min remaining)"
+
+    return True, ""
+
 
 async def run_closed_loop_once(db):
     """Check target status for Tuya farm and turn off devices if targets are met."""
@@ -132,6 +154,10 @@ async def run_closed_loop_once(db):
     )
 
     if climate_decision["mode"] == "stop":
+        allowed, guard_reason = _transition_allowed(latest_log, mode, "stop")
+        if not allowed:
+            log.info(f"[Tuya Closed-Loop] Stop delayed for Farm {farm_id}: {guard_reason}")
+            return
         log.info(f"[Tuya Closed-Loop] Climate targets achieved for Farm {farm_id}. Turning OFF cooling and fan.")
         try:
             ok_cooling = await asyncio.to_thread(tuya_client.control_cooling, False)
@@ -175,6 +201,10 @@ async def run_closed_loop_once(db):
         # A. If temperature is achieved or humidity is too high, physically turn off
         # the cooler and keep the fan running for ventilation/dehumidification.
         if climate_decision["mode"] == "fan_only":
+            allowed, guard_reason = _transition_allowed(latest_log, mode, "fan_only")
+            if not allowed:
+                log.info(f"[Tuya Closed-Loop] Fan-only transition delayed for Farm {farm_id}: {guard_reason}")
+                return
             reason = climate_decision["reason"]
             log.info(
                 f"[Tuya Closed-Loop] Switching Farm {farm_id} to fan-only "
@@ -239,6 +269,10 @@ async def run_closed_loop_once(db):
     current_mode = details.get("mode") or ("full" if "full" in latest_log.action_type else ("fan_only" if "fan_only" in latest_log.action_type else "stop")) if latest_log else "stop"
 
     if current_mode == "fan_only" and climate_decision["mode"] == "full":
+        allowed, guard_reason = _transition_allowed(latest_log, current_mode, "full")
+        if not allowed:
+            log.info(f"[Tuya Closed-Loop] Full cooling resume delayed for Farm {farm_id}: {guard_reason}")
+            return
         log.info(
             f"[Tuya Closed-Loop] Humidity is safe for Farm {farm_id} ({current_hum}% <= "
             f"{hum_resume_cooling}%). Resuming full cooling because temp is {current_temp}C."
@@ -279,6 +313,10 @@ async def run_closed_loop_once(db):
             await db.rollback()
 
     elif current_mode == "fan_only" and climate_decision["mode"] == "stop":
+        allowed, guard_reason = _transition_allowed(latest_log, current_mode, "stop")
+        if not allowed:
+            log.info(f"[Tuya Closed-Loop] Fan stop delayed for Farm {farm_id}: {guard_reason}")
+            return
         log.info(f"[Tuya Closed-Loop] Climate targets achieved for Farm {farm_id}. Turning OFF physical fan.")
         try:
             ok_fan = await asyncio.to_thread(tuya_client.control_fan, False)
