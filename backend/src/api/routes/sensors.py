@@ -405,15 +405,17 @@ async def ingest_sensor_reading(
                             saved_alerts.append((alert, sr))
 
                 try:
-                    from src.services.automation_executor import execute_auto_decisions
                     await db.flush()
-                    executable_decisions = _action_decisions_from_saved_recommendations(saved_recommendations)
-                    automation_result = await execute_auto_decisions(
-                        db=db,
-                        farm_id=farm_id,
-                        sensor_data=full_sensor_data,
-                        action_decisions=executable_decisions,
-                    )
+                    automation_result = {"executed": False, "results": {}, "reason": "farm is in manual mode"}
+                    if farm_auto_mode:
+                        from src.services.automation_executor import execute_auto_decisions
+                        executable_decisions = _action_decisions_from_saved_recommendations(saved_recommendations)
+                        automation_result = await execute_auto_decisions(
+                            db=db,
+                            farm_id=farm_id,
+                            sensor_data=full_sensor_data,
+                            action_decisions=executable_decisions,
+                        )
                     _apply_auto_recommendation_statuses(saved_recommendations, automation_result, farm_auto_mode)
                     _apply_auto_alert_statuses(saved_alerts, automation_result, farm_auto_mode)
                     if automation_result.get("executed"):
