@@ -26,9 +26,9 @@ from src.services import tuya_client
 log = logging.getLogger(__name__)
 
 
-CLIMATE_MIN_RUNTIME = timedelta(minutes=10)
+CLIMATE_MIN_RUNTIME = timedelta(minutes=1)
 CLIMATE_RESTART_COOLDOWN = timedelta(minutes=5)
-IRRIGATION_MIN_RUNTIME = timedelta(minutes=8)
+IRRIGATION_MIN_RUNTIME = timedelta(minutes=1)
 IRRIGATION_RESTART_COOLDOWN = timedelta(minutes=10)
 
 
@@ -50,7 +50,7 @@ async def execute_auto_decisions(
 
     climate = action_decisions.get("climate")
     if climate and _is_saved_recommendation_decision(climate) and {"air_temperature", "air_humidity"}.issubset(sensor_data):
-        results["climate"] = await _execute_auto_climate(db, farm_id, climate)
+        results["climate"] = await _execute_auto_climate(db, farm_id, climate, sensor_data)
 
     return {"executed": any(item.get("executed") for item in results.values()), "results": results}
 
@@ -67,7 +67,7 @@ async def _get_auto_farm(db: AsyncSession, farm_id: int) -> Farm | None:
     return farm
 
 
-async def _execute_auto_climate(db: AsyncSession, farm_id: int, decision: Dict) -> Dict:
+async def _execute_auto_climate(db: AsyncSession, farm_id: int, decision: Dict, sensor_data: Dict) -> Dict:
     action = decision.get("action")
     if action == "hold":
         return {"executed": False, "action": action, "reason": decision.get("reason")}
@@ -78,7 +78,7 @@ async def _execute_auto_climate(db: AsyncSession, farm_id: int, decision: Dict) 
     if current_mode == next_mode:
         return {"executed": False, "action": action, "reason": "climate mode already active"}
 
-    guard_reason = _climate_transition_guard(latest_climate_log, current_mode, next_mode)
+    guard_reason = _climate_transition_guard(latest_climate_log, current_mode, next_mode, decision, sensor_data)
     if guard_reason:
         return {"executed": False, "action": action, "mode": current_mode, "reason": guard_reason}
 
@@ -186,16 +186,70 @@ def _elapsed_since(value: datetime | None) -> timedelta | None:
     return datetime.now(timezone.utc) - value_utc
 
 
-def _climate_transition_guard(latest_log: ActivityLog | None, current_mode: str, next_mode: str) -> str:
+def _climate_targets_met(decision: Dict, sensor_data: Dict) -> bool:
+    targets = decision.get("targets") or {}
+    temp = sensor_data.get("air_temperature")
+    hum = sensor_data.get("air_humidity")
+    target_temp = float(targets.get("air_temperature_max") or 28.0)
+    target_hum = float(targets.get("air_humidity_max") or 70.0)
+    return temp is not None and hum is not None and float(temp) <= target_temp and float(hum) <= target_hum
+
+
+def _climate_restart_needed(decision: Dict, sensor_data: Dict, next_mode: str) -> bool:
+    targets = decision.get("targets") or {}
+    temp = sensor_data.get("air_temperature")
+    hum = sensor_data.get("air_humidity")
+    target_temp = float(targets.get("air_temperature_max") or 28.0)
+    ventilation_hum = float(targets.get("ventilation_humidity") or targets.get("air_humidity_max") or 70.0)
+    if next_mode == "full" and temp is not None and float(temp) >= target_temp + 2.0:
+        return True
+    if next_mode == "fan_only" and hum is not None and float(hum) >= ventilation_hum + 5.0:
+        return True
+    return False
+
+
+def _climate_mode_change_needed(decision: Dict, sensor_data: Dict, current_mode: str, next_mode: str) -> bool:
+    targets = decision.get("targets") or {}
+    temp = sensor_data.get("air_temperature")
+    hum = sensor_data.get("air_humidity")
+    target_temp = float(targets.get("air_temperature_max") or 28.0)
+    target_hum = float(targets.get("air_humidity_max") or 70.0)
+    if current_mode == "full" and next_mode == "fan_only":
+        temp_safe = temp is not None and float(temp) <= target_temp
+        humidity_too_high = hum is not None and float(hum) > target_hum
+        return temp_safe or humidity_too_high
+    return _climate_targets_met(decision, sensor_data)
+
+
+def _climate_transition_guard(
+    latest_log: ActivityLog | None,
+    current_mode: str,
+    next_mode: str,
+    decision: Dict,
+    sensor_data: Dict,
+) -> str:
     elapsed = _elapsed_since(latest_log.created_at if latest_log else None)
     if elapsed is None:
         return ""
 
-    if current_mode == "stop" and next_mode != "stop" and elapsed < CLIMATE_RESTART_COOLDOWN:
+    if current_mode != "stop" and next_mode == "stop" and _climate_targets_met(decision, sensor_data):
+        return ""
+
+    if (
+        current_mode == "stop"
+        and next_mode != "stop"
+        and elapsed < CLIMATE_RESTART_COOLDOWN
+        and not _climate_restart_needed(decision, sensor_data, next_mode)
+    ):
         remaining = CLIMATE_RESTART_COOLDOWN - elapsed
         return f"climate restart cooldown active ({remaining.total_seconds() / 60:.1f} min remaining)"
 
-    if current_mode != "stop" and next_mode != current_mode and elapsed < CLIMATE_MIN_RUNTIME:
+    if (
+        current_mode != "stop"
+        and next_mode != current_mode
+        and elapsed < CLIMATE_MIN_RUNTIME
+        and not _climate_mode_change_needed(decision, sensor_data, current_mode, next_mode)
+    ):
         remaining = CLIMATE_MIN_RUNTIME - elapsed
         return f"minimum climate runtime active ({remaining.total_seconds() / 60:.1f} min remaining)"
 
@@ -215,7 +269,7 @@ async def _execute_auto_irrigation(db: AsyncSession, farm_id: int, decision: Dic
     if action == "stop" and not active_event:
         return {"executed": False, "action": action, "reason": "irrigation already stopped"}
 
-    guard_reason = await _irrigation_transition_guard(db, farm_id, action, active_event)
+    guard_reason = await _irrigation_transition_guard(db, farm_id, action, active_event, decision, sensor_data)
     if guard_reason:
         return {"executed": False, "action": action, "reason": guard_reason}
 
@@ -287,21 +341,41 @@ async def _irrigation_transition_guard(
     farm_id: int,
     action: str,
     active_event: IrrigationEvent | None,
+    decision: Dict,
+    sensor_data: Dict,
 ) -> str:
     if action == "stop" and active_event:
         elapsed = _elapsed_since(active_event.timestamp)
-        if elapsed is not None and elapsed < IRRIGATION_MIN_RUNTIME:
+        if elapsed is not None and elapsed < IRRIGATION_MIN_RUNTIME and not _irrigation_target_met(decision, sensor_data):
             remaining = IRRIGATION_MIN_RUNTIME - elapsed
             return f"minimum irrigation runtime active ({remaining.total_seconds() / 60:.1f} min remaining)"
 
     if action == "start":
         latest_stop = await _latest_irrigation_stop_log(db, farm_id)
         elapsed = _elapsed_since(latest_stop.created_at if latest_stop else None)
-        if elapsed is not None and elapsed < IRRIGATION_RESTART_COOLDOWN:
+        if elapsed is not None and elapsed < IRRIGATION_RESTART_COOLDOWN and not _irrigation_critically_needed(decision, sensor_data):
             remaining = IRRIGATION_RESTART_COOLDOWN - elapsed
             return f"irrigation restart cooldown active ({remaining.total_seconds() / 60:.1f} min remaining)"
 
     return ""
+
+
+def _irrigation_target_met(decision: Dict, sensor_data: Dict) -> bool:
+    soil = sensor_data.get("soil_moisture")
+    if soil is None:
+        return False
+    targets = decision.get("targets") or {}
+    target_max = float(targets.get("soil_moisture_max") or 70.0)
+    return float(soil) >= target_max
+
+
+def _irrigation_critically_needed(decision: Dict, sensor_data: Dict) -> bool:
+    soil = sensor_data.get("soil_moisture")
+    if soil is None:
+        return False
+    targets = decision.get("targets") or {}
+    target_min = float(targets.get("soil_moisture_min") or 60.0)
+    return float(soil) <= target_min - 10.0
 
 
 async def _latest_irrigation_stop_log(db: AsyncSession, farm_id: int) -> ActivityLog | None:

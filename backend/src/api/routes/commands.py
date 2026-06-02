@@ -251,21 +251,29 @@ async def control_cooling(
         performed_by="system" if is_auto_mode else "user",
     )
     db.add(log)
-    await db.commit()
 
     # ── Tuya Physical Control (configured Tuya farm only — does not affect other farms) ────
     if tuya_client.is_tuya_farm(farm_id):
         try:
             if cooler_state:
-                await asyncio.to_thread(tuya_client.control_cooling, True)
+                tuya_ok = await asyncio.to_thread(tuya_client.control_cooling, True)
             elif fan_state:
-                await asyncio.to_thread(tuya_client.control_cooler_only, False)
-                await asyncio.to_thread(tuya_client.control_fan, True)
+                cooler_ok = await asyncio.to_thread(tuya_client.control_cooler_only, False)
+                fan_ok = await asyncio.to_thread(tuya_client.control_fan, True)
+                tuya_ok = cooler_ok and fan_ok
             else:
-                await asyncio.to_thread(tuya_client.control_cooling, False)
-                await asyncio.to_thread(tuya_client.control_fan, False)
+                cooling_ok = await asyncio.to_thread(tuya_client.control_cooling, False)
+                fan_ok = await asyncio.to_thread(tuya_client.control_fan, False)
+                tuya_ok = cooling_ok and fan_ok
         except Exception as e:
-            logger.warning(f"Tuya cooling command failed (DB already saved): {e}")
+            await db.rollback()
+            logger.warning(f"Tuya cooling command failed: {e}")
+            raise HTTPException(status_code=502, detail="Failed to send Tuya cooling command") from e
+        if not tuya_ok:
+            await db.rollback()
+            raise HTTPException(status_code=502, detail="Failed to send Tuya cooling command")
+
+    await db.commit()
 
     # ── Autonomous Validation Loop (Auto Mode Only) ───────────────────────────
     if is_auto_mode and recommendation_id and (fan_state or cooler_state):
@@ -374,14 +382,20 @@ async def control_irrigation(
         performed_by="system" if is_auto_mode else "user",
     )
     db.add(log)
-    await db.commit()
 
     # ── Tuya Physical Control (farm 22 only — does not affect other farms) ────
     if tuya_client.is_tuya_farm(farm_id):
         try:
-            await asyncio.to_thread(tuya_client.control_irrigation, valve_state)
+            tuya_ok = await asyncio.to_thread(tuya_client.control_irrigation, valve_state)
         except Exception as e:
-            logger.warning(f"Tuya irrigation command failed (DB already saved): {e}")
+            await db.rollback()
+            logger.warning(f"Tuya irrigation command failed: {e}")
+            raise HTTPException(status_code=502, detail="Failed to send Tuya irrigation command") from e
+        if not tuya_ok:
+            await db.rollback()
+            raise HTTPException(status_code=502, detail="Failed to send Tuya irrigation command")
+
+    await db.commit()
 
     # ── Autonomous Validation Loop (Auto Mode Only) ───────────────────────────
     if is_auto_mode and recommendation_id and valve_state:

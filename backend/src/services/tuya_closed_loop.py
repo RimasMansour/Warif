@@ -51,22 +51,34 @@ CROP_PROFILES = {
     }
 }
 
-CLIMATE_MIN_RUNTIME = timedelta(minutes=10)
+CLIMATE_MIN_RUNTIME = timedelta(minutes=1)
 CLIMATE_RESTART_COOLDOWN = timedelta(minutes=5)
 
 
-def _transition_allowed(latest_log: ActivityLog | None, current_mode: str, next_mode: str) -> tuple[bool, str]:
+def _transition_allowed(
+    latest_log: ActivityLog | None,
+    current_mode: str,
+    next_mode: str,
+    climate_decision: dict | None = None,
+) -> tuple[bool, str]:
     if current_mode == next_mode or not latest_log or not latest_log.created_at:
         return True, ""
 
     started_at = latest_log.created_at.replace(tzinfo=timezone.utc) if latest_log.created_at.tzinfo is None else latest_log.created_at.astimezone(timezone.utc)
     elapsed = datetime.now(timezone.utc) - started_at
+    decision = climate_decision or {}
+
+    if current_mode != "stop" and next_mode == "stop" and decision.get("temp_ok") and decision.get("hum_ok"):
+        return True, ""
+
+    if current_mode == "full" and next_mode == "fan_only" and decision.get("mode") == "fan_only":
+        return True, ""
 
     if current_mode == "stop" and next_mode != "stop" and elapsed < CLIMATE_RESTART_COOLDOWN:
         remaining = (CLIMATE_RESTART_COOLDOWN - elapsed).total_seconds() / 60
         return False, f"climate restart cooldown active ({remaining:.1f} min remaining)"
 
-    if current_mode != "stop" and next_mode != current_mode and elapsed < CLIMATE_MIN_RUNTIME:
+    if current_mode != "stop" and next_mode != current_mode and elapsed < CLIMATE_MIN_RUNTIME and not (decision.get("temp_ok") and decision.get("hum_ok")):
         remaining = (CLIMATE_MIN_RUNTIME - elapsed).total_seconds() / 60
         return False, f"minimum climate runtime active ({remaining:.1f} min remaining)"
 
@@ -154,7 +166,7 @@ async def run_closed_loop_once(db):
     )
 
     if climate_decision["mode"] == "stop":
-        allowed, guard_reason = _transition_allowed(latest_log, mode, "stop")
+        allowed, guard_reason = _transition_allowed(latest_log, mode, "stop", climate_decision)
         if not allowed:
             log.info(f"[Tuya Closed-Loop] Stop delayed for Farm {farm_id}: {guard_reason}")
             return
@@ -201,7 +213,7 @@ async def run_closed_loop_once(db):
         # A. If temperature is achieved or humidity is too high, physically turn off
         # the cooler and keep the fan running for ventilation/dehumidification.
         if climate_decision["mode"] == "fan_only":
-            allowed, guard_reason = _transition_allowed(latest_log, mode, "fan_only")
+            allowed, guard_reason = _transition_allowed(latest_log, mode, "fan_only", climate_decision)
             if not allowed:
                 log.info(f"[Tuya Closed-Loop] Fan-only transition delayed for Farm {farm_id}: {guard_reason}")
                 return
@@ -269,7 +281,7 @@ async def run_closed_loop_once(db):
     current_mode = details.get("mode") or ("full" if "full" in latest_log.action_type else ("fan_only" if "fan_only" in latest_log.action_type else "stop")) if latest_log else "stop"
 
     if current_mode == "fan_only" and climate_decision["mode"] == "full":
-        allowed, guard_reason = _transition_allowed(latest_log, current_mode, "full")
+        allowed, guard_reason = _transition_allowed(latest_log, current_mode, "full", climate_decision)
         if not allowed:
             log.info(f"[Tuya Closed-Loop] Full cooling resume delayed for Farm {farm_id}: {guard_reason}")
             return
@@ -313,7 +325,7 @@ async def run_closed_loop_once(db):
             await db.rollback()
 
     elif current_mode == "fan_only" and climate_decision["mode"] == "stop":
-        allowed, guard_reason = _transition_allowed(latest_log, current_mode, "stop")
+        allowed, guard_reason = _transition_allowed(latest_log, current_mode, "stop", climate_decision)
         if not allowed:
             log.info(f"[Tuya Closed-Loop] Fan stop delayed for Farm {farm_id}: {guard_reason}")
             return

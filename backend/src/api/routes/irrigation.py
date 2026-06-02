@@ -115,8 +115,6 @@ async def start_manual_irrigation(
         performed_by="user",
     )
     db.add(activity)
-    await db.commit()
-    await db.refresh(command)
 
     # ── Tuya Physical Control ──────────────────────────────────────────────────
     if dev is None:
@@ -127,11 +125,19 @@ async def start_manual_irrigation(
         try:
             ok = await asyncio.to_thread(tuya_client.control_irrigation, True)
             if not ok:
+                await db.rollback()
                 log.error("start_manual_irrigation: Tuya valve open command FAILED for device_id=%s", body.device_id)
-            else:
-                log.info("start_manual_irrigation: Tuya valve opened OK for device_id=%s", body.device_id)
+                raise HTTPException(status_code=502, detail="Failed to open Tuya irrigation valve")
+            log.info("start_manual_irrigation: Tuya valve opened OK for device_id=%s", body.device_id)
         except Exception as e:
+            await db.rollback()
             log.error("start_manual_irrigation: Tuya call raised exception: %s", e)
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(status_code=502, detail="Failed to open Tuya irrigation valve") from e
+
+    await db.commit()
+    await db.refresh(command)
 
     return command
 
@@ -233,26 +239,30 @@ async def stop_irrigation(
     if not event:
         raise HTTPException(status_code=404, detail="No active irrigation found")
 
-    started_at = event.timestamp
-    event.status = IrrigationStatus.completed
-    await db.commit()
-    await db.refresh(event)
-
     # ── Water usage + Tuya close (farm 22 only) ───────────────────────────────
     dev_result = await db.execute(
         select(Device).where(Device.device_id == device_id).limit(1)
     )
     dev = dev_result.scalar_one_or_none()
+    started_at = event.timestamp
     if dev and tuya_client.is_tuya_farm(dev.farm_id):
         try:
             ok = await asyncio.to_thread(tuya_client.control_irrigation, False)
             if not ok:
+                await db.rollback()
                 log.error("stop_irrigation: Tuya valve close command FAILED for device_id=%s", device_id)
-            else:
-                log.info("stop_irrigation: Tuya valve closed OK for device_id=%s", device_id)
+                raise HTTPException(status_code=502, detail="Failed to close Tuya irrigation valve")
+            log.info("stop_irrigation: Tuya valve closed OK for device_id=%s", device_id)
         except Exception as e:
+            await db.rollback()
             log.error("stop_irrigation: Tuya call raised exception: %s", e)
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(status_code=502, detail="Failed to close Tuya irrigation valve") from e
 
+    event.status = IrrigationStatus.completed
+
+    if dev and tuya_client.is_tuya_farm(dev.farm_id):
         # Calculate liters used: flow_rate = 3 L/min
         if started_at:
             start = started_at.replace(tzinfo=timezone.utc) if started_at.tzinfo is None else started_at
@@ -265,7 +275,9 @@ async def stop_irrigation(
                 value=liters,
                 unit="L",
             ))
-            await db.commit()
+
+    await db.commit()
+    await db.refresh(event)
 
     return event
 
@@ -290,23 +302,28 @@ async def stop_farm_irrigation(
     )
     events = result.scalars().all()
 
+    # ── Tuya Physical Control ─────────────────────────────────────────────────
+    if tuya_client.is_tuya_farm(farm_id):
+        try:
+            ok = await asyncio.to_thread(tuya_client.control_irrigation, False)
+            if not ok:
+                await db.rollback()
+                log.error("stop_farm_irrigation: Tuya valve close command FAILED for farm_id=%s", farm_id)
+                raise HTTPException(status_code=502, detail="Failed to close Tuya irrigation valve")
+            log.info("stop_farm_irrigation: Tuya valve closed OK for farm_id=%s", farm_id)
+        except Exception as e:
+            await db.rollback()
+            log.error("stop_farm_irrigation: Tuya call raised exception: %s", e)
+            if isinstance(e, HTTPException):
+                raise
+            raise HTTPException(status_code=502, detail="Failed to close Tuya irrigation valve") from e
+
     stopped = 0
     for event in events:
         event.status = IrrigationStatus.completed
         stopped += 1
 
     await db.commit()
-
-    # ── Tuya Physical Control ─────────────────────────────────────────────────
-    if tuya_client.is_tuya_farm(farm_id):
-        try:
-            ok = await asyncio.to_thread(tuya_client.control_irrigation, False)
-            if not ok:
-                log.error("stop_farm_irrigation: Tuya valve close command FAILED for farm_id=%s", farm_id)
-            else:
-                log.info("stop_farm_irrigation: Tuya valve closed OK for farm_id=%s", farm_id)
-        except Exception as e:
-            log.error("stop_farm_irrigation: Tuya call raised exception: %s", e)
 
     return {"stopped": stopped, "farm_id": farm_id}
 

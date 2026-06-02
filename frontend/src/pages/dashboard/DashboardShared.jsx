@@ -917,6 +917,28 @@ function getManualCompletionExplanation(category, isEn) {
     .replace(/\s*تلقائياً/g, '');
 }
 
+function getInProgressRecommendationMessage(category, isEn) {
+  const c = (category || '').toLowerCase();
+  if (c === 'climate' || c === 'temperature') {
+    return isEn
+      ? 'Cooling and fans are running now while the system monitors temperature and humidity balance.'
+      : 'التكييف والمراوح تعمل الآن، بانتظار توازن الحرارة والرطوبة.';
+  }
+  if (c === 'humidity') {
+    return isEn
+      ? 'Fans are running now while the system monitors air humidity.'
+      : 'المراوح تعمل الآن، بانتظار انخفاض رطوبة الهواء.';
+  }
+  if (c === 'irrigation' || c === 'soil' || c === 'water' || c === 'soil_moisture') {
+    return isEn
+      ? 'The pump is running now while the system monitors soil moisture and safety conditions.'
+      : 'المضخة تعمل الآن، بانتظار استجابة رطوبة التربة وشروط السلامة.';
+  }
+  return isEn
+    ? 'The related device action is active while the system monitors the latest readings.'
+    : 'إجراء الجهاز المرتبط قيد العمل، والنظام يراقب أحدث القراءات.';
+}
+
 function getIgnoredRecommendationMessage(isEn) {
   return isEn
     ? "Recommendation ignored. It will remain available in the recommendations page for later review."
@@ -1527,7 +1549,7 @@ export function RecommendationCard({
                     ? getManualCompletionExplanation(rec.category || rec.type, isEn)
                     : actionResult === 'failed'
                       ? (isEn ? 'The device command could not be sent. Please check the connection and try again.' : 'تعذر إرسال أمر الجهاز. يرجى التحقق من الاتصال والمحاولة مرة أخرى.')
-                      : (isEn ? 'The device command is being sent now. Please wait for confirmation.' : 'يتم إرسال أمر الجهاز الآن. يرجى انتظار تأكيد التنفيذ.')}
+                      : getInProgressRecommendationMessage(rec.category || rec.type, isEn)}
               </p>
             </div>
           </div>

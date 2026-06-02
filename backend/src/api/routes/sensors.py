@@ -319,7 +319,7 @@ async def ingest_sensor_reading(
                     if sr.category not in ("irrigation", "temperature", "humidity", "soil"):
                         continue
 
-                    if sr.category in ("irrigation", "temperature", "humidity"):
+                    if sr.category in ("irrigation", "temperature", "humidity", "soil"):
                         from src.services.recommendation_suppression import get_recommendation_suppression
                         suppression = await get_recommendation_suppression(
                             db=db,
@@ -327,6 +327,7 @@ async def ingest_sensor_reading(
                             category=sr.category,
                             message=sr.message,
                             decision=getattr(sr, "execution_action", None),
+                            auto_mode=farm_auto_mode,
                         )
                         if suppression.get("suppress"):
                             logger.info(

@@ -9,6 +9,8 @@ from sqlalchemy.orm import selectinload
 
 from src.db.models.models import (
     ActivityLog,
+    Alert,
+    AlertStatus,
     Actuator,
     CommandStatus,
     Device,
@@ -17,10 +19,13 @@ from src.db.models.models import (
     IrrigationEvent,
     IrrigationStatus,
     Recommendation,
+    RecommendationCategory,
 )
 from src.services import tuya_client
 
 
+ACTIVE_RECOMMENDATION_STATES = {"in_progress", "pending", "executing", "قيد التنفيذ"}
+ACTIVE_ALERT_STATES = {"in_progress", "pending", "executing", "قيد التنفيذ"}
 PENDING_WINDOW = timedelta(minutes=2)
 IRRIGATION_ACTIVE_WINDOW = timedelta(minutes=20)
 COOLING_ACTIVE_WINDOW = timedelta(minutes=10)
@@ -28,6 +33,8 @@ VENTILATION_ACTIVE_WINDOW = timedelta(minutes=15)
 IRRIGATION_SETTLING_WINDOW = timedelta(minutes=10)
 CLIMATE_SETTLING_WINDOW = timedelta(minutes=5)
 BLOCKED_WINDOW = timedelta(minutes=30)
+UNREAD_RECOMMENDATION_WINDOW = timedelta(hours=6)
+ACTIVE_DOMAIN_STATE_WINDOW = timedelta(minutes=30)
 
 
 async def get_recommendation_suppression(
@@ -37,6 +44,7 @@ async def get_recommendation_suppression(
     category: str,
     message: Optional[str],
     decision: Optional[Dict],
+    auto_mode: bool = False,
 ) -> Dict:
     """Return whether a recommendation should be skipped while a prior decision settles."""
     normalized_category = _normalize_category(category)
@@ -47,6 +55,38 @@ async def get_recommendation_suppression(
     action = decision.get("action")
     if action == "stop":
         return {"suppress": False}
+
+    domain = _domain_for_category(normalized_category)
+    active_rec = await _active_domain_recommendation(db, farm_id, domain)
+    if active_rec:
+        _refresh_recommendation(active_rec, message, decision)
+        return {
+            "suppress": True,
+            "state": "executing",
+            "reason": f"{domain} recommendation is already in progress",
+            "recommendation_id": active_rec.id,
+        }
+
+    active_alert = await _active_domain_alert(db, farm_id, domain)
+    if active_alert:
+        _refresh_alert(active_alert, message, decision)
+        return {
+            "suppress": True,
+            "state": "executing",
+            "reason": f"{domain} alert is already in progress",
+            "alert_id": active_alert.id,
+        }
+
+    if not auto_mode:
+        unread_rec = await _unread_domain_recommendation(db, farm_id, domain)
+        if unread_rec:
+            _refresh_recommendation(unread_rec, message, decision)
+            return {
+                "suppress": True,
+                "state": "pending",
+                "reason": f"{domain} recommendation is already pending user review",
+                "recommendation_id": unread_rec.id,
+            }
 
     if normalized_category == "irrigation":
         return await _irrigation_suppression(db, farm_id, message, decision)
@@ -382,13 +422,105 @@ async def _recent_category_recommendation_exists(
     return result.scalar_one_or_none() is not None
 
 
+async def _active_domain_recommendation(db: AsyncSession, farm_id: int, domain: str) -> Optional[Recommendation]:
+    since = datetime.now(timezone.utc) - ACTIVE_DOMAIN_STATE_WINDOW
+    result = await db.execute(
+        select(Recommendation)
+        .where(
+            Recommendation.farm_id == farm_id,
+            Recommendation.category.in_(_recommendation_categories_for_domain(domain)),
+            Recommendation.mode.in_(ACTIVE_RECOMMENDATION_STATES),
+            Recommendation.helpful.is_(None),
+            Recommendation.created_at >= since,
+        )
+        .order_by(desc(Recommendation.created_at), desc(Recommendation.id))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _unread_domain_recommendation(db: AsyncSession, farm_id: int, domain: str) -> Optional[Recommendation]:
+    since = datetime.now(timezone.utc) - UNREAD_RECOMMENDATION_WINDOW
+    result = await db.execute(
+        select(Recommendation)
+        .where(
+            Recommendation.farm_id == farm_id,
+            Recommendation.category.in_(_recommendation_categories_for_domain(domain)),
+            Recommendation.is_read.is_(False),
+            Recommendation.helpful.is_(None),
+            Recommendation.created_at >= since,
+            Recommendation.mode.is_(None),
+        )
+        .order_by(desc(Recommendation.created_at), desc(Recommendation.id))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _active_domain_alert(db: AsyncSession, farm_id: int, domain: str) -> Optional[Alert]:
+    since = datetime.now(timezone.utc) - ACTIVE_DOMAIN_STATE_WINDOW
+    result = await db.execute(
+        select(Alert)
+        .where(
+            Alert.farm_id == farm_id,
+            Alert.status == AlertStatus.open,
+            Alert.sensor_type.in_(_alert_sensor_types_for_domain(domain)),
+            Alert.action_status.in_(ACTIVE_ALERT_STATES),
+            Alert.created_at >= since,
+        )
+        .order_by(desc(Alert.created_at), desc(Alert.id))
+        .limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+def _refresh_recommendation(rec: Recommendation, message: Optional[str], decision: Dict) -> None:
+    rec.mode = rec.mode or "pending"
+    if decision:
+        rec.execution_action = decision
+    if message and rec.message != message:
+        rec.reasoning = rec.reasoning or message
+
+
+def _refresh_alert(alert: Alert, message: Optional[str], decision: Dict) -> None:
+    alert.action_status = alert.action_status or "pending"
+    if decision:
+        alert.execution_action = decision
+    if message and alert.message != message:
+        alert.explanation = alert.explanation or message
+
+
+def _recommendation_categories_for_domain(domain: str) -> list[RecommendationCategory]:
+    if domain == "climate":
+        return [RecommendationCategory.temperature, RecommendationCategory.humidity]
+    if domain == "irrigation":
+        return [RecommendationCategory.irrigation, RecommendationCategory.soil]
+    return [RecommendationCategory.general]
+
+
+def _alert_sensor_types_for_domain(domain: str) -> list[str]:
+    if domain == "climate":
+        return ["temperature", "humidity", "air_temperature", "air_humidity", "climate", "ventilation", "cooling"]
+    if domain == "irrigation":
+        return ["irrigation", "soil", "soil_moisture", "water"]
+    return [domain]
+
+
+def _domain_for_category(category: str) -> str:
+    if category in {"temperature", "humidity"}:
+        return "climate"
+    if category == "irrigation":
+        return "irrigation"
+    return category
+
+
 def _normalize_category(category: Optional[str]) -> str:
     raw = (category or "general").lower()
-    if raw in {"temperature", "air_temperature", "climate"}:
+    if raw in {"temperature", "air_temperature", "climate", "cooling"}:
         return "temperature"
-    if raw in {"humidity", "air_humidity"}:
+    if raw in {"humidity", "air_humidity", "ventilation"}:
         return "humidity"
-    if raw in {"irrigation", "soil_moisture", "water"}:
+    if raw in {"irrigation", "soil", "soil_moisture", "water"}:
         return "irrigation"
     return raw
 

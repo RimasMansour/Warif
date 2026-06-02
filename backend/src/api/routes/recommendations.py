@@ -123,6 +123,7 @@ async def list_recommendations(
 
     latest_sensor_data = await _latest_sensor_snapshot(farm_id, db)
     professional_recs = []
+    status_changed = False
     for rec in recommendations:
         try:
             # Safely extract enum string values for category and severity
@@ -131,6 +132,9 @@ async def list_recommendations(
             normalized_category = normalize_category(category_value)
             action_status = rec.mode if rec.mode in ("executed", "ignored", "deferred", "auto", "legacy", "stale", "executing") else None
             action_status = await _resolve_live_recommendation_status(db, farm_id, rec, normalized_category, action_status)
+            if action_status == "executed" and rec.mode != "executed":
+                rec.mode = "executed"
+                status_changed = True
             if (
                 not action_status
                 and getattr(farm, "auto_mode", False)
@@ -185,6 +189,8 @@ async def list_recommendations(
 
     professional_recs.sort(key=lambda item: item.get("created_at") or "", reverse=True)
     professional_recs = professional_recs[:limit]
+    if status_changed:
+        await db.commit()
 
     return professional_recs
 
