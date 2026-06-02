@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useLatestSensors, useAutoAlerts, triggerManualCooling, useDevices, useAutoMode } from "../../hooks/useWarifData";
+import { useLatestSensors, useAutoAlerts, triggerManualCooling, useDevices, useAutoMode, submitAlertFeedback } from "../../hooks/useWarifData";
 import { startManualIrrigation, getMe, getFarms } from "../../services/api";
 import { translations } from "../../i18n";
 import { apiConfig } from "../../config/api";
@@ -370,14 +370,20 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     try {
       if (actionType === 'cool') {
         await triggerManualCooling('full', currentFarmId);
+      } else if (actionType === 'ventilate') {
+        await triggerManualCooling('fan_only', currentFarmId);
       } else if (actionType === 'irrigate') {
         const deviceId = valveDeviceId || `irrigation_${currentFarmId}`;
         await startManualIrrigation(deviceId, 20, currentFarmId);
+      } else {
+        return false;
       }
       // Dismiss after action
       dismissAlert(id);
+      return true;
     } catch (e) {
       console.error("Alert action failed", e);
+      return false;
     }
   };
 
@@ -385,9 +391,12 @@ export default function Dashboard({ onLogout, lang: propLang, onLangChange }) {
     dismissAlert(id);
   };
 
-  const handleAlertFeedback = (id) => {
-    // Collect feedback for AI training later
+  const handleAlertFeedback = async (id, typeOrHelpful) => {
+    const helpful = typeof typeOrHelpful === 'boolean' ? typeOrHelpful : typeOrHelpful === 'up';
+    const saved = await submitAlertFeedback(id, helpful);
+    if (!saved) return false;
     dismissAlert(id);
+    return true;
   };
 
   useEffect(() => {

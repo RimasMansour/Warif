@@ -97,14 +97,6 @@ async def _irrigation_suppression(
     if active_event:
         start_utc = _as_utc(active_event.timestamp)
         if start_utc and datetime.now(timezone.utc) - start_utc <= IRRIGATION_ACTIVE_WINDOW:
-            mode = "unknown"
-            if active_event.command is not None:
-                mode = active_event.command.mode.value if hasattr(active_event.command.mode, "value") else str(active_event.command.mode)
-            if (
-                mode == "auto"
-                and not await _recent_category_recommendation_exists(db, farm_id, "irrigation", IRRIGATION_ACTIVE_WINDOW)
-            ):
-                return {"suppress": False}
             return {
                 "suppress": True,
                 "state": "executing",
@@ -195,12 +187,7 @@ async def _climate_suppression(
 
     window = VENTILATION_ACTIVE_WINDOW if mode == "fan_only" or category == "humidity" else COOLING_ACTIVE_WINDOW
     created_at = _as_utc(latest.created_at)
-    if created_at and datetime.now(timezone.utc) - created_at <= window:
-        if (
-            latest.performed_by == "system"
-            and not await _recent_category_recommendation_exists(db, farm_id, category, window)
-        ):
-            return {"suppress": False}
+    if created_at and datetime.now(timezone.utc) - created_at <= window and _climate_mode_matches_category(mode, category):
         return {
             "suppress": True,
             "state": "executing",
@@ -398,6 +385,14 @@ def _mode_from_action(action_type: str) -> str:
     if "fan_only" in action_type:
         return "fan_only"
     return "stop"
+
+
+def _climate_mode_matches_category(mode: str, category: str) -> bool:
+    if mode == "full":
+        return category in {"temperature", "humidity"}
+    if mode == "fan_only":
+        return category == "humidity"
+    return False
 
 
 def _as_utc(value: Optional[datetime]) -> Optional[datetime]:

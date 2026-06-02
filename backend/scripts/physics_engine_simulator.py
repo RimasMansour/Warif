@@ -80,7 +80,7 @@ SOIL_MOISTURE_GAIN_PER_TICK = 0.5
 # Ref: Stanghellini (1987) - at 30°C, 80m² loses ~0.08% VWC per 10s
 SOIL_DRY_FACTOR = 0.08
 
-TANK_CAPACITY_L = 1000.0
+TANK_CAPACITY_L = 50000.0
 INTERVAL = 10  # seconds
 
 # --- Crop Profiles ---
@@ -893,7 +893,8 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
         if farm_auto_mode and not pump_on and not irrigation_blocked:
             irrigation_action = intelligence_report.get("irrigation_action", {})
             should_irrigate = irrigation_action.get("should_irrigate", False)
-            if should_irrigate and farm.current_water_level > 10:
+            tank_pct = (farm.current_water_level / farm.water_tank_capacity) * 100 if farm.water_tank_capacity > 0 else 0
+            if should_irrigate and farm.current_water_level > 10 and tank_pct > 5:
                 irrig_device = await db.execute(
                     select(Device).where(
                         Device.farm_id == fid,

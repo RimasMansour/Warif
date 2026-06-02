@@ -14,6 +14,7 @@ All endpoints require JWT authentication and farm ownership verification.
 """
 import asyncio
 import json
+import re
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -50,6 +51,7 @@ class ExecuteRecommendationRequest(BaseModel):
 
 
 router = APIRouter()
+AUTO_RECOMMENDATION_STATUS_ROLLOUT = datetime(2026, 6, 2, 0, 0, tzinfo=timezone.utc)
 
 
 # Returns filtered recommendations for a farm — supports category, severity, type, and unread filters
@@ -62,11 +64,12 @@ async def list_recommendations(
     since: Optional[datetime] = Query(None, description="Return recommendations created at or after this UTC timestamp"),
     unread_only: bool = Query(False),
     limit: int = Query(50, le=5000),
+    include_state: bool = Query(True, description="Include live decision state for recommendation cards"),
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
     """List recommendations for a farm, filterable by category, severity, and type."""
-    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+    farm = await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
 
     q = (
         select(Recommendation)
@@ -139,6 +142,7 @@ async def list_recommendations(
             return "water_usage"
         return None
 
+    latest_sensor_data = await _latest_sensor_snapshot(farm_id, db)
     professional_recs = []
     for rec in recommendations:
         try:
@@ -146,15 +150,27 @@ async def list_recommendations(
             category_value = rec.category.value if hasattr(rec.category, 'value') else str(rec.category)
             severity_value = rec.severity.value if hasattr(rec.severity, 'value') else str(rec.severity)
             normalized_category = normalize_category(category_value)
-            action_status = rec.mode if rec.mode in ("executed", "ignored") else action_status_by_id.get(rec.id)
-            decision_state = await get_current_decision_state(
-                db=db,
-                farm_id=farm_id,
-                category=normalized_category,
-                message=rec.message,
-                created_at=rec.created_at,
-            )
-            if action_status == "executed" and decision_state.get("state") == "hold":
+            action_status = rec.mode if rec.mode in ("executed", "ignored", "deferred", "auto", "legacy", "stale") else action_status_by_id.get(rec.id)
+            if (
+                not action_status
+                and getattr(farm, "auto_mode", False)
+                and _is_before_auto_status_rollout(rec.created_at)
+            ):
+                action_status = "legacy"
+            decision_state = None
+            reading_mismatch_reason = _recommendation_reading_mismatch_reason(rec, latest_sensor_data, normalized_category)
+            if reading_mismatch_reason and action_status not in {"executed", "ignored"}:
+                action_status = "stale"
+                decision_state = _stale_recommendation_state(reading_mismatch_reason)
+            if include_state:
+                decision_state = decision_state or await get_current_decision_state(
+                    db=db,
+                    farm_id=farm_id,
+                    category=normalized_category,
+                    message=rec.message,
+                    created_at=rec.created_at,
+                )
+            if action_status == "executed" and decision_state and decision_state.get("state") == "hold":
                 decision_state = {
                     **decision_state,
                     "state": "completed",
@@ -163,6 +179,8 @@ async def list_recommendations(
                     "reason": "تم تنفيذ التوصية ولا يوجد إجراء نشط حاليا.",
                     "reason_en": "The recommendation was executed and no action is active now.",
                 }
+            if action_status in {"deferred", "legacy", "auto"} and not decision_state:
+                decision_state = _decision_state_from_action_status(action_status, normalized_category, rec.message, rec.reasoning)
 
             professional_recs.append({
                 "id": rec.id,
@@ -189,6 +207,90 @@ async def list_recommendations(
     professional_recs = professional_recs[:limit]
 
     return professional_recs
+
+
+def _is_before_auto_status_rollout(value: Optional[datetime]) -> bool:
+    if value is None:
+        return False
+    utc_value = value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+    return utc_value < AUTO_RECOMMENDATION_STATUS_ROLLOUT
+
+
+def _decision_state_from_action_status(action_status: str, category: str, message: Optional[str], reasoning: Optional[str]) -> Optional[dict]:
+    if action_status == "legacy":
+        return {
+            "state": "monitoring",
+            "domain": category,
+            "label": "لا يتطلب إجراء الآن",
+            "label_en": "No Action Needed Now",
+            "reason": "القراءات الحالية لا تحتاج أمر جهاز الآن. سيعيد النظام تقييم هذه التوصية عند وصول قراءة حساسات جديدة.",
+            "reason_en": "The latest readings do not require a device command right now. The system will re-evaluate this recommendation when new sensor data arrives.",
+        }
+
+    if action_status == "auto":
+        return {
+            "state": "monitoring",
+            "domain": category,
+            "label": "لا يتطلب إجراء الآن",
+            "label_en": "No Action Needed Now",
+            "reason": _auto_action_message(category, message, reasoning, "ar"),
+            "reason_en": _auto_action_message(category, message, reasoning, "en"),
+        }
+
+    if action_status == "deferred":
+        return {
+            "state": "blocked",
+            "domain": category,
+            "label": "مؤجل",
+            "label_en": "Deferred",
+            "reason": _deferred_reason(category, message, reasoning, "ar"),
+            "reason_en": _deferred_reason(category, message, reasoning, "en"),
+        }
+
+    return None
+
+
+def _stale_recommendation_state(reason: str) -> dict:
+    return {
+        "state": "stale",
+        "domain": "recommendation",
+        "label": "لا يتطلب إجراء الآن",
+        "label_en": "No Action Needed Now",
+        "reason": reason,
+        "reason_en": "The sensor reading has changed since this recommendation was created. No device command is needed from this old recommendation; use the latest recommendation instead.",
+    }
+
+
+def _auto_action_message(category: str, message: Optional[str], reasoning: Optional[str], lang: str) -> str:
+    text = f"{message or ''} {reasoning or ''}".lower()
+    if category == "irrigation":
+        if "إيقاف" in text or "ايقاف" in text or "stop" in text:
+            return "The system is stopping irrigation to prevent soil saturation and protect roots." if lang == "en" else "يقوم النظام بإيقاف الري لتجنب تشبع التربة وحماية الجذور."
+        return "The system is applying the irrigation decision and monitoring soil moisture response." if lang == "en" else "يقوم النظام بتطبيق قرار الري ومراقبة استجابة رطوبة التربة."
+    if category == "humidity":
+        return "Ventilation is running to reduce excess humidity and lower fungal-risk conditions." if lang == "en" else "نظام التهوية يعمل لتصريف الرطوبة الزائدة وتقليل ظروف خطر الأمراض الفطرية."
+    if category == "temperature":
+        return "Cooling and ventilation are running until temperature and humidity return to a stable range." if lang == "en" else "التبريد والتهوية يعملان حتى تعود الحرارة والرطوبة إلى نطاق مستقر."
+    return "The system is applying this automatic decision and monitoring the related readings." if lang == "en" else "يقوم النظام بتطبيق هذا القرار التلقائي ومراقبة القراءات المرتبطة."
+
+
+def _deferred_reason(category: str, message: Optional[str], reasoning: Optional[str], lang: str) -> str:
+    text = f"{message or ''} {reasoning or ''}".lower()
+    if category == "irrigation":
+        if "ليل" in text or "night" in text or "فطر" in text or "fungal" in text:
+            return (
+                "The system did not start irrigation because the current period is nighttime. Watering now can keep leaves or soil wet for longer and increase fungal disease risk, so irrigation will be re-evaluated when safety conditions improve."
+                if lang == "en"
+                else "لم يشغّل النظام الري لأن الوقت الحالي فترة ليلية. الري الآن قد يبقي الأوراق أو التربة رطبة لفترة أطول ويزيد خطر الأمراض الفطرية، لذلك سيُعاد تقييم الري عند تحسن شروط السلامة."
+            )
+        if "تشبع" in text or "تعفن" in text or "saturat" in text or "root" in text:
+            return "Irrigation is deferred because soil moisture is high or near saturation, and watering now may increase root-rot risk." if lang == "en" else "تم تأجيل الري لأن رطوبة التربة مرتفعة أو قريبة من التشبع، وتشغيل المضخة الآن قد يزيد خطر تعفن الجذور."
+        return "Irrigation is deferred by the current safety checks. The system will re-evaluate the pump decision when soil moisture and environmental conditions allow it." if lang == "en" else "تم تأجيل الري بسبب فحوصات السلامة الحالية. سيعيد النظام تقييم قرار المضخة عندما تسمح رطوبة التربة والظروف البيئية بذلك."
+    if category == "temperature":
+        return "Cooling was not started because the latest automatic decision did not require a new cooling command or the climate system is already in the requested state." if lang == "en" else "لم يبدأ التبريد لأن القرار التلقائي الأخير لم يحتج أمر تبريد جديد أو لأن نظام المناخ في الحالة المطلوبة بالفعل."
+    if category == "humidity":
+        return "Ventilation was not started because the latest automatic decision did not require a new fan command or the fans are already in the requested state." if lang == "en" else "لم تبدأ التهوية لأن القرار التلقائي الأخير لم يحتج أمر مروحة جديد أو لأن المراوح في الحالة المطلوبة بالفعل."
+    return "This recommendation is deferred because there is no direct actuator command available for it in the current automatic control cycle." if lang == "en" else "تم تأجيل هذه التوصية لعدم وجود أمر جهاز مباشر لها في دورة التحكم التلقائي الحالية."
 
 
 @router.post("/{farm_id}/action/{recommendation_id}", response_model=dict)
@@ -267,18 +369,39 @@ async def execute_recommendation(
     engine = get_engine()
     report = await engine.analyze_with_intelligence(sensor_data, farm_id)
     category = _normalize_category(rec.category.value if hasattr(rec.category, "value") else str(rec.category))
-    execution = _recommendation_execution_intent(rec, category)
+    execution = _recommendation_saved_execution_action(rec, category) or _recommendation_execution_intent(rec, category)
     executable_category = execution["category"] if execution else category
     if executable_category not in {"irrigation", "temperature", "humidity"}:
         raise HTTPException(status_code=422, detail=f"Recommendation category '{category}' is not directly executable")
 
     domain = "irrigation" if executable_category == "irrigation" else "climate"
     decision = report.get("action_decisions", {}).get(domain)
-    if (not decision or decision.get("action") == "hold") and execution:
+    mode = (body.mode or "manual").lower()
+    is_auto = mode == "auto"
+    mismatch_reason = _recommendation_reading_mismatch_reason(rec, sensor_data, executable_category)
+    if mismatch_reason and not is_auto:
+        raise HTTPException(status_code=409, detail=mismatch_reason)
+
+    if (not decision or decision.get("action") == "hold") and execution and not mismatch_reason:
         decision = execution["decision"]
     if not decision:
         raise HTTPException(status_code=422, detail="No executable decision is available for this recommendation")
     if decision.get("action") == "hold":
+        if not is_auto:
+            return {
+                "success": True,
+                "executed": False,
+                "recommendation_id": recommendation_id,
+                "domain": domain,
+                "decision": decision,
+                "result": {
+                    "action": "hold",
+                    "reason": (
+                        "لم يتم تنفيذ التوصية لأن القراءة الحالية أو شروط السلامة لا تتطلب هذا الإجراء الآن. "
+                        "راجع أحدث توصية قبل تشغيل الجهاز."
+                    ),
+                },
+            }
         return {
             "success": True,
             "executed": False,
@@ -288,8 +411,6 @@ async def execute_recommendation(
             "result": {"action": "hold", "reason": decision.get("reason")},
         }
 
-    mode = (body.mode or "manual").lower()
-    is_auto = mode == "auto"
     if domain == "irrigation":
         result_payload = await _execute_irrigation_decision(
             db=db,
@@ -567,6 +688,93 @@ def _recommendation_execution_intent(rec: Recommendation, category: str) -> Opti
     return None
 
 
+def _recommendation_saved_execution_action(rec: Recommendation, category: str) -> Optional[dict]:
+    decision = getattr(rec, "execution_action", None)
+    if not isinstance(decision, dict):
+        return None
+
+    action = decision.get("action")
+    if action in {"start", "stop"}:
+        return {"category": "irrigation", "decision": decision}
+    if action in {"cooling_full", "fan_only", "stop"}:
+        return {
+            "category": "humidity" if category == "humidity" else "temperature",
+            "decision": decision,
+        }
+    return None
+
+
+def _recommendation_reading_mismatch_reason(
+    rec: Recommendation,
+    sensor_data: dict,
+    category: str,
+) -> Optional[str]:
+    sensor_type = {
+        "irrigation": "soil_moisture",
+        "humidity": "air_humidity",
+        "temperature": "air_temperature",
+    }.get(category)
+    if not sensor_type:
+        return None
+
+    current_value = sensor_data.get(sensor_type)
+    if current_value is None:
+        return None
+
+    recommendation_value = _extract_recommendation_sensor_value(rec, sensor_type)
+    if recommendation_value is None:
+        return None
+
+    current_value = float(current_value)
+    tolerance = 3.0 if sensor_type == "air_temperature" else 8.0
+    if abs(current_value - recommendation_value) <= tolerance:
+        return None
+
+    unit = "°C" if sensor_type == "air_temperature" else "%"
+    if sensor_type == "soil_moisture":
+        return (
+            f"لم يتم تشغيل الري لأن رطوبة التربة تغيّرت من {recommendation_value:.1f}{unit} "
+            f"إلى {current_value:.1f}{unit}. يرجى الاعتماد على أحدث توصية."
+        )
+    if sensor_type == "air_humidity":
+        return (
+            f"لم يتم تشغيل التهوية لأن رطوبة الهواء تغيّرت من {recommendation_value:.1f}{unit} "
+            f"إلى {current_value:.1f}{unit}. يرجى الاعتماد على أحدث توصية."
+        )
+    return (
+        f"لم يتم تشغيل التبريد لأن حرارة الهواء تغيّرت من {recommendation_value:.1f}{unit} "
+        f"إلى {current_value:.1f}{unit}. يرجى الاعتماد على أحدث توصية."
+    )
+
+
+def _extract_recommendation_sensor_value(rec: Recommendation, sensor_type: str) -> Optional[float]:
+    text = f"{rec.message or ''} {rec.reasoning or ''}"
+    patterns = {
+        "soil_moisture": [
+            r"رطوبة\s+التربة(?:\s+الحالية)?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?",
+            r"soil\s+moisture[^\d]{0,30}(\d+(?:\.\d+)?)\s*%?",
+        ],
+        "air_humidity": [
+            r"رطوبة\s+الهواء(?:\s+الحالية| داخل المحمية)?\s*\(?\s*(\d+(?:\.\d+)?)\s*%?",
+            r"air\s+humidity[^\d]{0,30}(\d+(?:\.\d+)?)\s*%?",
+        ],
+        "air_temperature": [
+            r"درجة\s+الحرارة(?:\s+الداخلية|\s+الحالية)?\s*\(?\s*(\d+(?:\.\d+)?)\s*°?\s*C?",
+            r"حرارة\s+الهواء[^\d]{0,30}(\d+(?:\.\d+)?)\s*°?",
+            r"temperature[^\d]{0,30}(\d+(?:\.\d+)?)\s*°?\s*C?",
+        ],
+    }.get(sensor_type, [])
+
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            try:
+                return float(match.group(1))
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 async def _latest_sensor_snapshot(farm_id: int, db: AsyncSession) -> dict:
     snapshot = {}
     for sensor_type in ("soil_moisture", "soil_temperature", "air_temperature", "air_humidity", "light_intensity"):
@@ -666,6 +874,21 @@ async def _execute_irrigation_decision(
 ) -> dict:
     action = decision.get("action")
     valve_state = action == "start"
+    if valve_state:
+        farm_result = await db.execute(select(Farm).where(Farm.id == farm_id).limit(1))
+        farm = farm_result.scalar_one_or_none()
+        current_level = float(getattr(farm, "current_water_level", 0.0) or 0.0)
+        capacity = float(getattr(farm, "water_tank_capacity", 0.0) or 0.0)
+        tank_pct = (current_level / capacity) * 100 if capacity > 0 else 0.0
+        if current_level <= 10 or tank_pct <= 5:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"تعذر تشغيل مضخة الري لأن مستوى خزان المياه منخفض ({tank_pct:.1f}%). "
+                    "يرجى إعادة تعبئة الخزان أو انتظار إعادة التعبئة في المحاكي."
+                ),
+            )
+
     device_id = _irrigation_device_id_for_farm(farm_id)
     actuator = await _get_or_create_irrigation_actuator(farm_id, device_id, db)
     actuator.state = "on" if valve_state else "off"

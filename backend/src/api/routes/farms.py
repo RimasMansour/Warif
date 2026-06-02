@@ -19,10 +19,19 @@ Farm ownership is verified on every request.
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from src.db.session import get_db
-from src.db.models.models import Farm, Device, ActivityLog
+from src.db.models.models import (
+    Farm,
+    Device,
+    ActivityLog,
+    Actuator,
+    DeviceCommand,
+    IrrigationCommand,
+    IrrigationEvent,
+    SensorReading,
+)
 from src.api.schemas.schemas import FarmIn, FarmOut, DeviceIn, DeviceOut, FarmResourceUpdateIn
 from src.core.security import get_current_user
 from src.services import tuya_client
@@ -221,6 +230,44 @@ async def list_devices(
         select(Device).where(Device.farm_id == farm_id)
     )
     return result.scalars().all()
+
+
+@router.delete("/{farm_id}/devices/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device(
+    farm_id: int,
+    device_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a sensor/actuator device and its directly related records."""
+    await _get_farm_or_404(farm_id, int(current_user["sub"]), db)
+    result = await db.execute(
+        select(Device).where(Device.farm_id == farm_id, Device.device_id == device_id).limit(1)
+    )
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    actuator_ids_result = await db.execute(
+        select(Actuator.id).where(Actuator.device_id == device_id)
+    )
+    actuator_ids = list(actuator_ids_result.scalars().all())
+    if actuator_ids:
+        command_ids_result = await db.execute(
+            select(IrrigationCommand.id).where(IrrigationCommand.actuator_id.in_(actuator_ids))
+        )
+        command_ids = list(command_ids_result.scalars().all())
+        if command_ids:
+            await db.execute(delete(IrrigationEvent).where(IrrigationEvent.command_id.in_(command_ids)))
+            await db.execute(delete(IrrigationCommand).where(IrrigationCommand.id.in_(command_ids)))
+        await db.execute(delete(Actuator).where(Actuator.id.in_(actuator_ids)))
+
+    await db.execute(delete(SensorReading).where(SensorReading.device_id == device_id))
+    await db.execute(delete(DeviceCommand).where(DeviceCommand.device_id == device_id))
+    await db.execute(delete(ActivityLog).where(ActivityLog.farm_id == farm_id, ActivityLog.device_id == device_id))
+    await db.delete(device)
+    await db.commit()
+    return None
 
 
 def _is_reserved_simulator_device_for_farm(farm_id: int, device_id: str) -> bool:

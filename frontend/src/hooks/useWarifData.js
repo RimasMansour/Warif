@@ -313,7 +313,8 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, s
   const sinceStr = since ? since.toISOString() : null;
   const bucket = options.bucket || null;
   const untilStr = options.until ? options.until.toISOString() : null;
-  const cacheKey = `${sensor_type}_${limit}_${sinceStr || ''}_${untilStr || ''}_${bucket || 'raw'}`;
+  const requestedFarmId = options.farmId || null;
+  const cacheKey = `${sensor_type}_${limit}_${sinceStr || ''}_${untilStr || ''}_${bucket || 'raw'}_${requestedFarmId || 'current'}`;
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(!globalCache.history[cacheKey])
 
@@ -322,9 +323,9 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, s
     try {
       const userData = JSON.parse(localStorage.getItem('warif_user') || '{}');
       const sessionFarms = JSON.parse(sessionStorage.getItem('warif_session_farms') || '[]');
-      const farmId = sessionFarms.length > 0
+      const farmId = requestedFarmId || (sessionFarms.length > 0
         ? sessionFarms[0].id
-        : (userData.farmId || null);
+        : (userData.farmId || null));
       if (!farmId) return;
 
       let url = bucket
@@ -345,7 +346,7 @@ export function useSensorHistory(sensor_type, limit = 100, intervalMs = 30000, s
     } finally {
       setLoading(false)
     }
-  }, [sensor_type, limit, cacheKey, sinceStr, untilStr, bucket])
+  }, [sensor_type, limit, cacheKey, sinceStr, untilStr, bucket, requestedFarmId])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -437,6 +438,9 @@ export function useAutoAlerts(sensors, globalAutoMode, farmIdOverride = null) {
           anomaly_type: anomalyType,
           actual_value: backendAlert.actual_value,
           threshold: backendAlert.threshold,
+          execution_action: backendAlert.execution_action,
+          action_status: backendAlert.action_status,
+          action_result: backendAlert.action_result,
           sensor: isEn ? sensorNameEn : sensorNameAr,
           value: extractedValue,
           reason: reasoningText || reasonMatch,
@@ -514,10 +518,11 @@ export function useDashboard(farm_id) {
 
 export function useRecommendations(farm_id, options = {}) {
   const includeAlerts = Boolean(options.includeAlerts);
+  const includeState = options.includeState !== false;
   const limit = options.limit || 50;
   const since = options.since || null;
   const sinceStr = since instanceof Date ? since.toISOString() : since;
-  const cacheKey = `${farm_id || 'none'}_${includeAlerts ? 'all' : 'recommendations'}_${limit}_${sinceStr || 'all'}`;
+  const cacheKey = `${farm_id || 'none'}_${includeAlerts ? 'all' : 'recommendations'}_${includeState ? 'state' : 'fast'}_${limit}_${sinceStr || 'all'}`;
   const [data, setData] = useState(globalCache.recommendations[cacheKey] || [])
   const [loading, setLoading] = useState(!globalCache.recommendations[cacheKey])
   const [error, setError] = useState(null)
@@ -527,6 +532,7 @@ export function useRecommendations(farm_id, options = {}) {
     try {
       const params = new URLSearchParams({ limit: String(limit) });
       if (sinceStr) params.set('since', sinceStr);
+      if (!includeState) params.set('include_state', 'false');
       const res = await fetch(`${API_BASE}/api/v1/recommendations/${farm_id}?${params.toString()}`, {
         headers: authHeaders()
       })
@@ -548,7 +554,7 @@ export function useRecommendations(farm_id, options = {}) {
     } finally {
       setLoading(false)
     }
-  }, [farm_id, includeAlerts, limit, sinceStr, cacheKey])
+  }, [farm_id, includeAlerts, includeState, limit, sinceStr, cacheKey])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -812,7 +818,16 @@ export async function executeRecommendation(_category, farmId, recommendationId 
       },
       body: JSON.stringify({ mode: 'manual', duration_min: mins })
     });
-    if (!res.ok) throw new Error('Recommendation execution failed');
+    if (!res.ok) {
+      let message = 'Recommendation execution failed';
+      try {
+        const errorData = await res.json();
+        message = errorData?.detail || message;
+      } catch {
+        // Keep the generic message if the backend did not return JSON.
+      }
+      throw new Error(message);
+    }
     const data = await res.json();
     Object.keys(globalCache.recommendations).forEach(key => {
       if (String(key) !== String(farmId) && !key.startsWith(`${farmId}_`)) return;

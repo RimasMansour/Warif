@@ -28,9 +28,59 @@ function dayKeyFromDate(date) {
 function recommendationStatus(rec) {
   const actionStatus = rec.action_status;
   const decisionState = rec.decision_state?.state;
+  if (actionStatus === 'stale' || decisionState === 'stale') return 'stale';
+  if (actionStatus === 'legacy' || decisionState === 'legacy') return 'legacy';
   if (actionStatus === 'executed' || decisionState === 'completed') return 'completed';
-  if (actionStatus === 'ignored' || decisionState === 'blocked') return 'blocked';
+  const text = `${rec.title || ''} ${rec.reasoning || ''}`.toLowerCase();
+  const looksDeferred = text.includes('مؤجل') || text.includes('تأجيل') || text.includes('السلامة') || text.includes('deferred') || text.includes('blocked') || text.includes('safety');
+  if (actionStatus === 'deferred' || actionStatus === 'ignored' || decisionState === 'blocked' || looksDeferred) return 'blocked';
   return 'pending';
+}
+
+function inferredDecisionState(rec, isEn) {
+  if (rec.decision_state) return rec.decision_state;
+  const state = recommendationStatus(rec);
+  if (state === 'blocked') {
+    return {
+      state: 'blocked',
+      label: isEn ? 'Deferred' : 'مؤجل',
+      label_en: 'Deferred',
+      reason: isEn ? '' : 'تم تأجيل التوصية بناءً على شرط سلامة مذكور في نص التوصية.',
+      reason_en: 'Recommendation is deferred based on a safety condition mentioned in the recommendation text.',
+    };
+  }
+  if (state === 'legacy') {
+    return {
+      state: 'monitoring',
+      label: isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن',
+      label_en: 'No Action Needed Now',
+      reason: isEn
+        ? 'The latest readings do not require a device command right now. The system will re-evaluate this recommendation when new sensor data arrives.'
+        : 'القراءات الحالية لا تحتاج أمر جهاز الآن. سيعيد النظام تقييم هذه التوصية عند وصول قراءة حساسات جديدة.',
+      reason_en: 'The latest readings do not require a device command right now. The system will re-evaluate this recommendation when new sensor data arrives.',
+    };
+  }
+  if (state === 'stale') {
+    return {
+      state: 'stale',
+      label: isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن',
+      label_en: 'No Action Needed Now',
+      reason: isEn
+        ? 'The sensor reading has changed since this recommendation was created. Use the latest recommendation before sending a device command.'
+        : 'تغيّرت قراءة الحساس منذ إنشاء هذه التوصية. يرجى الاعتماد على أحدث توصية قبل إرسال أمر للجهاز.',
+      reason_en: 'The sensor reading has changed since this recommendation was created. Use the latest recommendation before sending a device command.',
+    };
+  }
+  if (state === 'completed') {
+    return {
+      state: 'completed',
+      label: isEn ? 'Executed' : 'تم التنفيذ',
+      label_en: 'Executed',
+      reason: '',
+      reason_en: '',
+    };
+  }
+  return null;
 }
 
 export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
@@ -48,6 +98,8 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
   };
 
   const { data: apiRecs, error: recsError } = useRecommendations(farmId, {
+    includeAlerts: true,
+    includeState: false,
     limit: 1000,
   });
 
@@ -64,7 +116,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
         reasoning: r.data_insight || r.reasoning || '',
         severity: r.severity || 'normal',
         action_status: r.action_status,
-        decision_state: r.decision_state,
+        decision_state: inferredDecisionState(r, isEn),
         feedback: r.helpful === true ? 'up' : r.helpful === false ? 'down' : null,
         created_at: r.created_at,
         status: r.is_read ? 'accepted' : 'pending',
@@ -85,7 +137,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
     // In auto mode, show all recommendations (both auto and manual)
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLocalRecs(filtered);
-  }, [allRecommendations, globalAutoMode]);
+  }, [allRecommendations]);
 
   const handleFeedback = async (id, val) => {
     setLocalRecs(prev => prev.map(rec => rec.id === id ? { ...rec, feedback: val } : rec));
@@ -94,7 +146,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
     }
     const item = localRecs.find(rec => rec.id === id);
     const rawId = item?.rawId || String(id).replace(/^(recommendation|alert|api)-/, '');
-    await submitRecommendationFeedback(farmId, rawId, val === 'up');
+    return submitRecommendationFeedback(farmId, rawId, val === 'up');
   };
 
   const _handleDecision = async (id, val) => {
@@ -137,6 +189,14 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
     });
     return counts;
   }, [localRecs, scopeFilters]);
+  useEffect(() => {
+    if ((scopeCounts[scopeFilter] || 0) > 0) return;
+    const firstPopulatedDay = scopeFilters.find(filter => (scopeCounts[filter.key] || 0) > 0);
+    if (firstPopulatedDay) {
+      const id = window.setTimeout(() => setScopeFilter(firstPopulatedDay.key), 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [scopeCounts, scopeFilter, scopeFilters]);
   const scopedRecs = useMemo(() => {
     return localRecs.filter(rec => {
       return recommendationDayKey(rec) === scopeFilter;

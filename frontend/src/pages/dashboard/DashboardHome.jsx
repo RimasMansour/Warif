@@ -14,7 +14,8 @@ import {
   EmptyState,
   RecommendationCard,
   AlertCard,
-  LastUpdatedTimer
+  LastUpdatedTimer,
+  isRecommendationCompleted
 } from './DashboardShared';
 import { getLabelForRange } from './dashboardUtils';
 import { useLatestSensors, useDashboard, useSensorHistory, useRecommendations, useDevices, useIrrigationResources, submitRecommendationFeedback, submitRecommendationAction, executeRecommendation, submitAlertFeedback } from '../../hooks/useWarifData';
@@ -175,22 +176,25 @@ export function DashboardHome({ onGo, globalAutoMode, onOpenAssets, activeFarm, 
   );
 }
 
-function DashboardAlertsCard({ alerts, onAccept, onAlertHidden, isEn, globalAutoMode }) {
+function DashboardAlertsCard({ alerts, onAccept, onReject, onAlertHidden, onFeedback, isEn, globalAutoMode }) {
   const [alertFeedback, setAlertFeedback] = useState({});
   const [showAlertThanks, setShowAlertThanks] = useState([]);
 
   const handleAlertFeedback = async (id, type) => {
-    // Update the local UI immediately
     setAlertFeedback(prev => ({ ...prev, [id]: type }));
     setShowAlertThanks(prev => [...prev, id]);
+
+    const helpful = type === 'up';
+    const saved = onFeedback ? await onFeedback(id, type) : await submitAlertFeedback(id, helpful);
+    if (!saved) {
+      setShowAlertThanks(prev => prev.filter(i => i !== id));
+      return;
+    }
+
     setTimeout(() => {
       setShowAlertThanks(prev => prev.filter(i => i !== id));
       onAlertHidden?.(id);
     }, 1200);
-
-    // Send feedback to the Backend for alerts (not recommendations)
-    const helpful = type === 'up';
-    await submitAlertFeedback(id, helpful);
   };
 
   // Categorize alerts by severity
@@ -223,7 +227,7 @@ function DashboardAlertsCard({ alerts, onAccept, onAlertHidden, isEn, globalAuto
           <>
             {/* All alerts sorted by severity */}
             {[...urgentAlerts, ...warningAlerts].map((alert, i) => (
-              <AlertCard key={alert.id || i} alert={alert} isEn={isEn} globalAutoMode={globalAutoMode} onAccept={onAccept} onFeedback={handleAlertFeedback} feedbackState={alertFeedback} showThanks={showAlertThanks} compact={true} />
+              <AlertCard key={alert.id || i} alert={alert} isEn={isEn} globalAutoMode={globalAutoMode} onAccept={onAccept} onReject={onReject} onFeedback={handleAlertFeedback} feedbackState={alertFeedback} showThanks={showAlertThanks} compact={true} />
             ))}
           </>
         )}
@@ -573,12 +577,13 @@ function DSSGlanceCard({ onGo, globalAutoMode, farmId }) {
     setFeedback(prev => ({ ...prev, [id]: type }));
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
-    await submitRecommendationFeedback(farmId, id, type === 'up');
+    return submitRecommendationFeedback(farmId, id, type === 'up');
   };
   const [recentRecommendationsSince] = useState(() => new Date(Date.now() - 24 * 60 * 60 * 1000));
   const { data: apiRecs } = useRecommendations(farmId, { since: recentRecommendationsSince });
 
   const recommendations = (apiRecs && apiRecs.length > 0) ? apiRecs
+    .filter(r => !isRecommendationCompleted(r))
     .filter(r => !handledRecommendationIds.includes(r.id) && !handledRecommendationIds.includes(`recommendation-${r.id}`))
     .slice(0, 2).map((r, idx) => ({
       id: r.id || idx,

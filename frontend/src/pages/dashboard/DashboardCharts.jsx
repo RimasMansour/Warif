@@ -11,7 +11,7 @@ const getDateRangeLabel = (range, isRtl) => {
   if (range === 'D') return `${now.getDate()} ${ms[now.getMonth()]}`;
   if (range === 'W') {
     const start = new Date();
-    start.setDate(now.getDate() - 6);
+    start.setDate(now.getDate() - now.getDay());
     if (start.getMonth() === now.getMonth()) {
       return `${start.getDate()} - ${now.getDate()} ${ms[now.getMonth()]}`;
     }
@@ -240,10 +240,14 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
   const yMax = Math.ceil(Math.max(...allValues, 2) / 5) * 5; 
   const getY = (v) => h - pBottom - (v / (yMax || 1)) * (h - pTop - pBottom);
   const getX = (i) => pLeft + i * segmentW;
-  const latestItem = [...data].reverse().find(item => item.hasData);
-  const chartSummary = range === 'D'
-    ? ((latestItem?.water || 0) + (latestItem?.power || 0)) / 2
-    : data.reduce((sum, item) => sum + ((item.water || 0) + (item.power || 0)) / 2, 0) / (n || 1);
+  const dataWithReadings = data.filter(item => item.hasData);
+  const averageFor = (key) => {
+    const items = dataWithReadings.filter(item => Number.isFinite(item[key]));
+    if (!items.length) return 0;
+    return items.reduce((sum, item) => sum + (item[key] || 0), 0) / items.length;
+  };
+  const averageWater = averageFor('water');
+  const averagePower = averageFor('power');
 
   const getPath = (key) => {
     if (n < 2) return "";
@@ -280,14 +284,16 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           <div className="text-[14px] font-bold text-gray-400">{getDateRangeLabel(range, isRtl)}</div>
         </div>
 
-        <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[100px]">
-          <div className="flex items-baseline gap-1">
-            <span className="text-xl font-black text-gray-800 tracking-tight">
-              {chartSummary.toFixed(1)}
-            </span>
-            <span className="text-[12px] font-black text-gray-400">avg</span>
+        <div className="flex flex-col items-stretch bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[138px]">
+          <div className="text-xs font-black text-emerald-600 mb-1 uppercase tracking-tighter text-center">{T.periodAverage}</div>
+          <div className="flex items-center justify-between gap-3 text-[12px] font-black">
+            <span className="text-blue-600">{T?.waterLabel || 'Water'}</span>
+            <span className="text-gray-800">{averageWater.toFixed(1)} L</span>
           </div>
-          <div className="text-xs font-black text-emerald-600 mt-1 uppercase tracking-tighter">{T.periodAverage}</div>
+          <div className="flex items-center justify-between gap-3 text-[12px] font-black mt-1">
+            <span className="text-yellow-600">{T?.powerLabel || 'Power'}</span>
+            <span className="text-gray-800">{averagePower.toFixed(1)} Wh</span>
+          </div>
         </div>
       </div>
 
@@ -351,7 +357,7 @@ export function SustainabilityLineChart({ range, onRangeChange, data, metricName
           <text x={40} y={pTop + (h - pTop - pBottom) / 2}
             transform={`rotate(-90, 40, ${pTop + (h - pTop - pBottom) / 2})`}
             textAnchor="middle" fontSize="18" fill="#059669" fontWeight="900" opacity="0.6">
-            {isRtl ? 'متوسط الاستهلاك' : 'Average Usage'}
+            {isRtl ? 'القيمة (لتر / واط-ساعة)' : 'Value (L / Wh)'}
           </text>
 
           {/* Area fills */}
@@ -491,7 +497,7 @@ export function LightAreaChart({ data, range, onRangeChange, T, isRtl }) {
               {T.realtimeAnalysis || 'تحليل فوري'}
             </span>
           </div>
-          <div className="text-[13px] font-bold text-gray-400">{getLabel(currentVal)}</div>
+          <div className="text-[13px] font-bold text-gray-400">{getDateRangeLabel(range, isRtl)}</div>
         </div>
         <div className="flex flex-col items-center bg-white p-3 rounded-2xl border border-gray-100 shadow-sm min-w-[110px]">
           <div className="flex items-baseline gap-1">

@@ -6,7 +6,8 @@ import {
   PlantSoilIcon,
   WindSharedIcon,
   EmptyState,
-  RecommendationCard
+  RecommendationCard,
+  isRecommendationCompleted
 } from './DashboardShared';
 import { HealthStyleBarChart, LightAreaChart, IrrigationActionButton } from './DashboardCharts';
 
@@ -111,7 +112,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
     const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
-    await submitRecommendationFeedback(farmId, rawId, type === 'up');
+    return submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -315,6 +316,7 @@ export function MicroclimatePage({ onBack, globalAutoMode, activeFarm, farmId, s
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs
+      .filter(r => !isRecommendationCompleted(r))
       .filter(r => {
         const category = String(r.category || r.type || '').toLowerCase();
         const text = `${r.message || ''} ${r.data_insight || ''} ${r.reasoning || ''}`.toLowerCase();
@@ -592,7 +594,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
     const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
-    await submitRecommendationFeedback(farmId, rawId, type === 'up');
+    return submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
   const lang = (window.localStorage.getItem('warif_user') && JSON.parse(window.localStorage.getItem('warif_user')).language) || 'ar';
@@ -784,6 +786,7 @@ export function SoilRootDataPage({ onBack, globalAutoMode, activeFarm, farmId, s
   const soilRecs = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs
+      .filter(r => !isRecommendationCompleted(r))
       .filter(r => {
         const category = String(r.category || r.type || '').toLowerCase();
         const sourceSensor = String(r.source_sensor_type || r.sensor_type || '').toLowerCase();

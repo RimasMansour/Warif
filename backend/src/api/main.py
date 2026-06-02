@@ -16,6 +16,7 @@ To run locally:
 import asyncio
 from pathlib import Path
 from fastapi import FastAPI
+from sqlalchemy import text
 
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -25,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 from src.core.config import settings  # noqa: E402
+from src.db.session import engine  # noqa: E402
 from src.chatbot.chatbot_api import router as chatbot_router  # noqa: E402
 from src.api.routes import (  # noqa: E402
     auth,
@@ -157,6 +159,13 @@ async def startup_monitoring():
         out.flush()
     else:
         print(msg)
+
+    async with engine.begin() as conn:
+        column_type = "JSONB" if settings.DATABASE_URL.startswith(("postgresql", "postgres")) else "JSON"
+        await conn.execute(text(f"ALTER TABLE recommendations ADD COLUMN IF NOT EXISTS execution_action {column_type}"))
+        await conn.execute(text(f"ALTER TABLE alerts ADD COLUMN IF NOT EXISTS execution_action {column_type}"))
+        await conn.execute(text("ALTER TABLE alerts ADD COLUMN IF NOT EXISTS action_status VARCHAR(20)"))
+        await conn.execute(text(f"ALTER TABLE alerts ADD COLUMN IF NOT EXISTS action_result {column_type}"))
 
     async def connectivity_monitoring():
         """Monitor device connectivity — runs independently of ML monitoring."""

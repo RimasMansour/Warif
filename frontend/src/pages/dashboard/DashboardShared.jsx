@@ -223,9 +223,9 @@ const localizedRecommendationCopy = (rec, isEn) => {
     }
     if (category === 'humidity') {
       if (numericValue !== null) {
-        return numericValue < 30 ? 'humidity_low' : 'humidity_high';
+        return numericValue < 60 ? 'humidity_low' : 'humidity_high';
       }
-      if (message.includes('رش') || message.toLowerCase().includes('mist')) return 'humidity_low';
+      if (message.includes('\u0631\u0634') || message.includes('\u062a\u0631\u0637\u064a\u0628') || message.toLowerCase().includes('mist') || message.toLowerCase().includes('low')) return 'humidity_low';
       return 'humidity_high';
     }
     if (category === 'soil') {

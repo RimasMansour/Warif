@@ -332,14 +332,22 @@ class SmartDecisionEngine:
                     severity="normal",
                     confidence=0.86,
                 ))
-            elif score > 0.5:
+            elif score > 0.5 and soil_moisture < optimal_min:
                 severity = "urgent" if score > 0.75 else "warning"
                 if score > 0.75:
                     message = "تفعيل الري الفوري"
-                    rec_text = f"رطوبة التربة الحالية ({soil_moisture:.0f}%) انخفضت إلى أقل من الحد الأدنى المناسب للمحصول (70%). الإجراء: تفعيل الري الفوري لتجنب إجهاد النبات."
+                    rec_text = (
+                        f"رطوبة التربة الحالية ({soil_moisture:.0f}%) أقل من النطاق المناسب للمحصول "
+                        f"({optimal_min:.0f}-{optimal_max:.0f}%). الإجراء: تشغيل الري فوراً عند توفر الماء "
+                        "وشروط السلامة لتقليل إجهاد النبات."
+                    )
                 else:
                     message = "زيادة تكرار الري"
-                    rec_text = f"رطوبة التربة ({soil_moisture:.0f}%) بدأت تنخفض مقتربة من الحد الأدنى المناسب (70%). التوصية: زيادة تكرار الري تدريجياً للحفاظ على صحة النبات واستقرار الإنتاجية."
+                    rec_text = (
+                        f"رطوبة التربة الحالية ({soil_moisture:.0f}%) أقل من النطاق المناسب للمحصول "
+                        f"({optimal_min:.0f}-{optimal_max:.0f}%). الإجراء: تشغيل ري قصير ومراقبة استجابة التربة "
+                        "حتى ترتفع الرطوبة إلى هذا النطاق بدون تشبع."
+                    )
 
                 if ml_result:
                     recommendation_conf = ml_result.get("confidence", 0.65)
@@ -383,7 +391,11 @@ class SmartDecisionEngine:
                 conf = 0.82 if ext_temp and ext_temp > 28 else 0.75
                 recommendations.append(SmartRecommendation(
                     message="تحسين التهوية والتبريد",
-                    reasoning=f"درجة الحرارة الداخلية ({air_temperature:.0f}°C) أعلى من الحد المثالي (28°C). التوصية: زيادة التهوية والتأكد من تدفق الهواء لتجنب إجهاد النبات.",
+                    reasoning=(
+                        f"درجة الحرارة الداخلية ({air_temperature:.1f}°C) أعلى من نطاق الراحة المستهدف "
+                        "(حتى 28°C). التوصية: تحسين تدفق الهواء، وتشغيل التبريد فقط إذا استمرت الحرارة "
+                        "بالارتفاع أو تجاوزت حد التشغيل."
+                    ),
                     category="temperature",
                     severity="warning",
                     confidence=conf,
@@ -409,7 +421,10 @@ class SmartDecisionEngine:
                 conf = 0.82 if ext_temp and ext_temp > 30 else 0.75
                 recommendations.append(SmartRecommendation(
                     message="تحسين التهوية والتبريد",
-                    reasoning=f"مؤشر الحرارة داخل المحمية ({combined_temp:.0f}°C) مرتفع. التوصية: زيادة التهوية لتجنب إجهاد النبات.",
+                    reasoning=(
+                        f"مؤشر الحرارة داخل المحمية ({combined_temp:.1f}°C) أعلى من النطاق المريح للمحصول. "
+                        "التوصية: تحسين التهوية ومراقبة استجابة الحرارة قبل رفع مستوى التبريد."
+                    ),
                     category="temperature",
                     severity="warning",
                     confidence=conf,
@@ -603,8 +618,8 @@ class SmartDecisionEngine:
                 message="تحسين التبريد والتهوية",
                 reasoning=(
                     f"درجة الحرارة الداخلية ({temp:.1f}°C) أعلى من هدف التشغيل المناسب "
-                    f"({temp_target:.0f}°C). التوصية: {action_text} حتى تعود حرارة المحمية "
-                    "إلى النطاق المناسب للمحصول."
+                    f"({temp_target:.0f}°C). التوصية: {action_text} حسب حاجة المحمية، مع متابعة "
+                    "الرطوبة حتى تعود الحرارة إلى نطاق مستقر للمحصول."
                 ),
                 category="temperature",
                 severity="normal",

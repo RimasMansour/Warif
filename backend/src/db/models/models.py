@@ -122,8 +122,8 @@ class Farm(Base):
     name       = Column(String(128), nullable=False)
     farm_type  = Column(SAEnum(FarmType), default=FarmType.greenhouse)
     crop_type  = Column(String(64))
-    current_water_level = Column(Float, default=1000.0)  # liters
-    water_tank_capacity = Column(Float, default=1000.0)  # liters
+    current_water_level = Column(Float, default=50000.0)  # liters
+    water_tank_capacity = Column(Float, default=50000.0)  # liters
     total_energy_kwh    = Column(Float, default=0.0)
     auto_mode  = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -234,6 +234,7 @@ class Recommendation(Base):
     helpful    = Column(Boolean, nullable=True)  # NULL = لم يعطِ فيدباك, True = مفيدة, False = غير مفيدة
     is_alert   = Column(Boolean, default=False, index=True)  # تمييز التوصيات العاجلة
     mode       = Column(String(10), nullable=True)  # 'auto' أو 'manual' وقت توليد التوصية
+    execution_action = Column(JSON, nullable=True)  # Decision Engine actuator action linked to this recommendation
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     feedback_at= Column(DateTime(timezone=True), nullable=True)  # وقت إعطاء الفيدباك
     actual_outcome = Column(Boolean, nullable=True)  # هل كانت التوصية صحيحة فعلاً
@@ -273,6 +274,9 @@ class Alert(Base):
     threshold    = Column(Float)
     actual_value = Column(Float)
     helpful      = Column(Boolean, nullable=True)  # تقييم التنبيه: True = مفيد, False = إزعاج, NULL = لم يعطِ فيدباك
+    execution_action = Column(JSON, nullable=True)  # Decision Engine actuator action linked to this alert
+    action_status = Column(String(20), nullable=True)  # executed | deferred | auto | ignored
+    action_result = Column(JSON, nullable=True)
     created_at   = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at   = Column(DateTime(timezone=True), onupdate=lambda: datetime.now(timezone.utc))
     resolved_at  = Column(DateTime(timezone=True), nullable=True)

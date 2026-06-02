@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { translations } from '../../i18n';
-import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer } from './DashboardShared';
+import { SensorTopBar, CardShell, IrrigationSmartIcon, EmptyState, RecommendationCard, LastUpdatedTimer, isRecommendationCompleted } from './DashboardShared';
 import { IrrigationActionButton, SustainabilityLineChart } from './DashboardCharts';
 import { useLatestSensors, useIrrigationStatus, useIrrigationPrediction, useSensorHistory, useIrrigationResources, useRecommendations, executeRecommendation, submitRecommendationFeedback, submitRecommendationAction } from '../../hooks/useWarifData';
 import { stopFarmIrrigation } from '../../services/api';
@@ -29,7 +29,7 @@ const usageDiffBadge = (value, isEn) => {
   }
 
   return {
-    label: `${value > 0 ? '+' : ''}${value}% ${isEn ? 'vs same period yesterday' : 'مقارنة بالفترة نفسها أمس'}`,
+    label: `${value > 0 ? '+' : ''}${value}% ${isEn ? 'vs yesterday' : 'مقارنة بأمس'}`,
     className: value <= 0
       ? 'text-emerald-700 bg-emerald-50 border-emerald-100'
       : 'text-red-700 bg-red-50 border-red-100',
@@ -129,7 +129,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     setShowThanksIds(prev => [...prev, id]);
     setTimeout(() => setShowThanksIds(prev => prev.filter(i => i !== id)), 2000);
     const rawId = String(id).replace(/^(recommendation|alert|api)-/, '');
-    await submitRecommendationFeedback(farmId, rawId, type === 'up');
+    return submitRecommendationFeedback(farmId, rawId, type === 'up');
   };
 
   const { data: localSensors } = useLatestSensors(3000, farmId);
@@ -162,10 +162,10 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
     const now = new Date();
     return new Date(now.getFullYear(), 0, 1);
   })();
-  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', 0, 0, irrigationSince, { bucket: chartBucket });
-  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', 0, 0, irrigationSince, { bucket: chartBucket });
-  const { data: allRawWater } = useSensorHistory('water_usage', 0, 0, reportSince, { bucket: 'minute' });
-  const { data: allRawPower } = useSensorHistory('power_usage', 0, 0, reportSince, { bucket: 'minute' });
+  const { data: rawWater, refetch: refetchWater } = useSensorHistory('water_usage', 0, 0, irrigationSince, { bucket: chartBucket, farmId });
+  const { data: rawPower, refetch: refetchPower } = useSensorHistory('power_usage', 0, 0, irrigationSince, { bucket: chartBucket, farmId });
+  const { data: allRawWater } = useSensorHistory('water_usage', 0, 0, reportSince, { bucket: 'minute', farmId });
+  const { data: allRawPower } = useSensorHistory('power_usage', 0, 0, reportSince, { bucket: 'minute', farmId });
 
   // Refresh at noon (12:00) and midnight (00:00) every day
   useEffect(() => {
@@ -189,6 +189,7 @@ export function IrrigationPage({ onBack, globalAutoMode, farmId, onOpenManual, s
   const recommendations = useMemo(() => {
     if (!apiRecs) return [];
     return apiRecs
+      .filter(r => !isRecommendationCompleted(r))
       .filter(r => r.category === 'irrigation')
       .filter(r => {
         const itemId = `${r.source || 'recommendation'}-${r.id}`;

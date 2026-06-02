@@ -78,6 +78,13 @@ export const registerDevice = async (farm_id, device_id, name, type) => {
   })
 }
 
+export const deleteDevice = async (farm_id, device_id) => {
+  return fetchWithRetry(`${apiConfig.baseURL}/api/v1/farms/${farm_id}/devices/${encodeURIComponent(device_id)}`, {
+    method: "DELETE",
+    headers: getAuthHeaders()
+  })
+}
+
 // Sensors
 export const getLatestSensors = async () => {
   return fetchWithRetry(`${apiConfig.baseURL}/api/v1/sensors/latest`, {

@@ -269,7 +269,7 @@ async def ingest_sensor_reading(
         # 2. Decision Engine Stage
         if device_obj and farm_id:
             try:
-                from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus
+                from src.db.models.models import Recommendation, RecommendationCategory, RecommendationSeverity, Alert, AlertSeverity, AlertStatus, Farm
 
                 # Fetch latest reading per sensor type for this farm
                 from sqlalchemy import func as sqlfunc
@@ -307,6 +307,11 @@ async def ingest_sensor_reading(
                 engine = _get_decision_engine()
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)
                 smart_recs = intelligence_report.get('recommendations', [])
+                farm_result = await db.execute(select(Farm).where(Farm.id == farm_id).limit(1))
+                farm = farm_result.scalar_one_or_none()
+                farm_auto_mode = bool(getattr(farm, "auto_mode", False))
+                saved_recommendations = []
+                saved_alerts = []
 
                 cat_map = {"irrigation": RecommendationCategory.irrigation, "temperature": RecommendationCategory.temperature, "humidity": RecommendationCategory.humidity, "soil": RecommendationCategory.soil}
 
@@ -344,19 +349,20 @@ async def ingest_sensor_reading(
                     # Store every Decision Engine item as a recommendation.
                     # Warning/urgent items may also create alert cards below, but alerts are kept separate.
                     if sev_lower in ("normal", "low", "informational", "optimization", "medium", "warning", "urgent", "critical", "risk"):
-                        cooldown_5min = datetime.now(timezone.utc) - timedelta(minutes=5)
+                        duplicate_window = datetime.now(timezone.utc) - timedelta(minutes=30)
                         recent_rec_result = await db.execute(
                             select(Recommendation)
                             .where(
                                 Recommendation.farm_id == farm_id,
                                 Recommendation.category == cat_map.get(sr.category),
                                 Recommendation.message == sr.message,
-                                Recommendation.created_at >= cooldown_5min,
+                                Recommendation.reasoning == sr.reasoning,
+                                Recommendation.created_at >= duplicate_window,
                             )
                             .limit(1)
                         )
                         if recent_rec_result.scalar_one_or_none() is None:
-                            db.add(Recommendation(
+                            rec = Recommendation(
                                 farm_id=farm_id,
                                 message=sr.message,
                                 reasoning=sr.reasoning,
@@ -364,7 +370,11 @@ async def ingest_sensor_reading(
                                 severity=rec_severity,
                                 is_read=False,
                                 is_alert=False,
-                            ))
+                                mode="auto" if farm_auto_mode else None,
+                                execution_action=getattr(sr, "execution_action", None),
+                            )
+                            db.add(rec)
+                            saved_recommendations.append((rec, sr))
 
                     # ── RULES: medium, warning, urgent, critical, risk -> ALERTS ─────────────
                     if sev_lower in ("medium", "warning", "urgent", "critical", "risk"):
@@ -380,7 +390,7 @@ async def ingest_sensor_reading(
                         )
                         if existing.scalar_one_or_none() is None:
                             category_value = full_sensor_data.get(sr.category)
-                            db.add(Alert(
+                            alert = Alert(
                                 sensor_type=sr.category,
                                 message=sr.message,
                                 explanation=sr.reasoning,
@@ -388,7 +398,10 @@ async def ingest_sensor_reading(
                                 status=AlertStatus.open,
                                 farm_id=farm_id,
                                 actual_value=category_value,
-                            ))
+                                execution_action=getattr(sr, "execution_action", None),
+                            )
+                            db.add(alert)
+                            saved_alerts.append((alert, sr))
 
                 try:
                     from src.services.automation_executor import execute_auto_decisions
@@ -398,6 +411,8 @@ async def ingest_sensor_reading(
                         sensor_data=full_sensor_data,
                         action_decisions=intelligence_report.get("action_decisions", {}),
                     )
+                    _apply_auto_recommendation_statuses(saved_recommendations, automation_result, farm_auto_mode)
+                    _apply_auto_alert_statuses(saved_alerts, automation_result, farm_auto_mode)
                     if automation_result.get("executed"):
                         logger.info("[Automation] Executed auto decision for farm_id=%s: %s", farm_id, automation_result)
                 except Exception as auto_err:
@@ -468,3 +483,79 @@ def _compute_status(value: float, threshold) -> str:
        (threshold.warning_max is not None and value > threshold.warning_max):
         return "warning"
     return "normal"
+
+
+def _apply_auto_recommendation_statuses(saved_recommendations: list, automation_result: dict, farm_auto_mode: bool) -> None:
+    if not saved_recommendations:
+        return
+    if not farm_auto_mode:
+        for rec, _sr in saved_recommendations:
+            rec.mode = None
+        return
+
+    results = (automation_result or {}).get("results") or {}
+    for rec, sr in saved_recommendations:
+        domain = "irrigation" if sr.category == "irrigation" else "climate" if sr.category in ("temperature", "humidity") else None
+        decision = getattr(sr, "execution_action", None) or {}
+        decision_action = decision.get("action")
+        result = results.get(domain) if domain else None
+
+        if result and result.get("executed"):
+            rec.mode = "executed"
+        elif result and _already_in_desired_state(result.get("reason")):
+            rec.mode = "auto"
+        elif _is_deferred_decision(decision, result):
+            rec.mode = "deferred"
+        elif decision_action in {"start", "stop", "cooling_full", "fan_only"}:
+            rec.mode = "auto"
+        else:
+            rec.mode = "deferred"
+
+
+def _apply_auto_alert_statuses(saved_alerts: list, automation_result: dict, farm_auto_mode: bool) -> None:
+    if not saved_alerts:
+        return
+    if not farm_auto_mode:
+        for alert, _sr in saved_alerts:
+            alert.action_status = None
+        return
+
+    results = (automation_result or {}).get("results") or {}
+    for alert, sr in saved_alerts:
+        domain = "irrigation" if sr.category == "irrigation" else "climate" if sr.category in ("temperature", "humidity") else None
+        decision = getattr(sr, "execution_action", None) or {}
+        decision_action = decision.get("action")
+        result = results.get(domain) if domain else None
+        alert.action_result = result
+
+        if result and result.get("executed"):
+            alert.action_status = "executed"
+        elif result and _already_in_desired_state(result.get("reason")):
+            alert.action_status = "auto"
+        elif _is_deferred_decision(decision, result):
+            alert.action_status = "deferred"
+        elif decision_action in {"start", "stop", "cooling_full", "fan_only"}:
+            alert.action_status = "auto"
+        else:
+            alert.action_status = None
+
+
+def _already_in_desired_state(reason: Optional[str]) -> bool:
+    text = (reason or "").lower()
+    return "already active" in text or "already stopped" in text or "mode already active" in text
+
+
+def _is_deferred_decision(decision: dict, result: Optional[dict]) -> bool:
+    text = f"{decision.get('reason') or ''} {(result or {}).get('reason') or ''}".lower()
+    safety = decision.get("safety") or {}
+    if safety.get("blocked"):
+        return True
+    return (
+        decision.get("action") == "hold"
+        or "blocked" in text
+        or "safety" in text
+        or "ليل" in text
+        or "فطر" in text
+        or "night" in text
+        or "fungal" in text
+    )

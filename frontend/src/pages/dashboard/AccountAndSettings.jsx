@@ -12,7 +12,7 @@ import {
   Account_SensorIcon 
 } from './DashboardShared';
 import { guides } from './GuidesContent';
-import { updateUser, getMe, deleteAccount, getFarms, createFarm } from '../../services/api';
+import { updateUser, getMe, deleteAccount, getFarms, createFarm, deleteDevice } from '../../services/api';
 import { fetchWithRetry, getAuthHeaders, apiConfig } from '../../config/api';
 import { useEffect } from 'react';
 import { useActivityLogs } from '../../hooks/useWarifData';
@@ -554,12 +554,25 @@ export function AccountAndSettingsPages({
       danger: true,
       title: isEn ? "Delete Sensor" : "حذف الحساس",
       message: isEn ? "Are you sure you want to delete this sensor?" : "هل تريد حذف هذا الحساس بصورة نهائية؟",
-      onConfirm: () => {
-        onSensorsChange?.(sensors.filter((s) => s.id !== id));
-        setConfirmModal(prev => ({ ...prev, success: true }));
-        setTimeout(() => {
-          setConfirmModal(prev => ({ ...prev, open: false, success: false }));
-        }, 3000);
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          if (!activeFarmId) {
+            throw new Error('No active farm selected');
+          }
+          await deleteDevice(activeFarmId, id);
+          onSensorsChange?.(sensors.filter((s) => s.id !== id));
+          setConfirmModal(prev => ({ ...prev, success: true }));
+          setTimeout(() => {
+            setConfirmModal(prev => ({ ...prev, open: false, success: false }));
+          }, 3000);
+        } catch (err) {
+          console.error('Delete device error:', err);
+          setErrorMsg(isEn ? "Failed to delete device" : "فشل حذف الجهاز");
+          setConfirmModal(prev => ({ ...prev, open: false }));
+        } finally {
+          setLoading(false);
+        }
       }
     });
   }

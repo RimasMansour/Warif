@@ -82,6 +82,9 @@ async def list_alerts(
                 "device_id": alert.device_id,
                 "actual_value": alert.actual_value,
                 "threshold": alert.threshold,
+                "execution_action": alert.execution_action,
+                "action_status": alert.action_status,
+                "action_result": alert.action_result,
                 "created_at": alert.created_at.isoformat() if alert.created_at else None,
                 "updated_at": alert.updated_at.isoformat() if alert.updated_at else None,
             })
