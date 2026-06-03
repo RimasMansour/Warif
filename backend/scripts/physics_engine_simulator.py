@@ -828,7 +828,9 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
 
         # Save recommendations with 5-minute cooldown
         cooldown_5min = datetime.now(timezone.utc) - timedelta(minutes=5)
+        saved_executable_recs = {}
         for rec in intelligence_report.get('recommendations', []):
+            rec_action = getattr(rec, "execution_action", None) or {}
             # Use proper AND logic for SQLAlchemy
             existing = await db.execute(
                 select(Recommendation).where(
@@ -839,16 +841,31 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
                     )
                 )
             )
-            if not existing.scalar_one_or_none():
-                db.add(Recommendation(
+            db_rec = existing.scalar_one_or_none()
+            if not db_rec:
+                db_rec = Recommendation(
                     farm_id=fid,
                     message=rec.message,
                     reasoning=rec.reasoning,
                     category=rec.category,
                     severity=rec.severity,
                     is_read=False,
-                ))
+                    execution_action=rec_action,
+                )
+                db.add(db_rec)
+                await db.flush()
                 print(f"[REC] Farm {fid} | Added: {rec.message} ({rec.category})")
+            elif rec_action:
+                db_rec.execution_action = rec_action
+            if rec_action.get("action") in {"start", "stop", "cooling_full", "fan_only"}:
+                domain = rec_action.get("domain")
+                if domain not in {"irrigation", "climate"}:
+                    domain = "irrigation" if rec_action.get("action") in {"start", "stop"} else "climate"
+                saved_executable_recs[domain] = db_rec
+
+        linked_climate_rec = saved_executable_recs.get("climate")
+        if linked_climate_rec and (state.get("fan_on") or state.get("cooler_on")):
+            linked_climate_rec.mode = "executing"
         
         # Save alerts with 30-minute cooldown
         cooldown_30min = datetime.now(timezone.utc) - timedelta(minutes=30)
@@ -972,9 +989,13 @@ async def process_farm(db, farm, ext_temp, ext_hum, lux, is_day=True):
                             status=IrrigationStatus.active
                         )
                         db.add(new_event)
+                        linked_rec = saved_executable_recs.get("irrigation")
+                        if linked_rec:
+                            linked_rec.mode = "executing"
                         pump_on = True
                         await log_action(db, fid, "irrigation_auto_start", f"irrigation_{fid}",
                             {"ml_score": irrigation_action.get("score"),
+                             "recommendation_id": getattr(linked_rec, "id", None) if linked_rec else None,
                              "soil_moisture": round(state["soil_moisture"], 1)})
                         print(f"[AUTO-IRRIGATE] Farm {fid} | ML Score: {irrigation_action.get('score', 0):.2f} | Starting irrigation")
 
