@@ -1,6 +1,7 @@
 """Recommendation suppression helpers for active device decisions."""
 
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Dict, Optional
 
 from sqlalchemy import desc, select
@@ -59,23 +60,29 @@ async def get_recommendation_suppression(
     domain = _domain_for_category(normalized_category)
     active_rec = await _active_domain_recommendation(db, farm_id, domain)
     if active_rec:
-        _refresh_recommendation(active_rec, message, decision)
-        return {
-            "suppress": True,
-            "state": "executing",
-            "reason": f"{domain} recommendation is already in progress",
-            "recommendation_id": active_rec.id,
-        }
+        if auto_mode and not await _domain_is_actively_handled(db, farm_id, domain):
+            active_rec.mode = None
+        else:
+            _refresh_recommendation(active_rec, message, decision)
+            return {
+                "suppress": True,
+                "state": "executing",
+                "reason": f"{domain} recommendation is already in progress",
+                "recommendation_id": active_rec.id,
+            }
 
     active_alert = await _active_domain_alert(db, farm_id, domain)
     if active_alert:
-        _refresh_alert(active_alert, message, decision)
-        return {
-            "suppress": True,
-            "state": "executing",
-            "reason": f"{domain} alert is already in progress",
-            "alert_id": active_alert.id,
-        }
+        if auto_mode and not await _domain_is_actively_handled(db, farm_id, domain):
+            active_alert.action_status = None
+        else:
+            _refresh_alert(active_alert, message, decision)
+            return {
+                "suppress": True,
+                "state": "executing",
+                "reason": f"{domain} alert is already in progress",
+                "alert_id": active_alert.id,
+            }
 
     if not auto_mode:
         unread_rec = await _unread_domain_recommendation(db, farm_id, domain)
@@ -92,6 +99,25 @@ async def get_recommendation_suppression(
         return await _irrigation_suppression(db, farm_id, message, decision)
 
     return await _climate_suppression(db, farm_id, normalized_category, message, decision)
+
+
+async def _domain_is_actively_handled(db: AsyncSession, farm_id: int, domain: str) -> bool:
+    if domain == "irrigation":
+        if await _recent_pending_command(db, _irrigation_device_ids(farm_id), PENDING_WINDOW):
+            return True
+        return await _active_irrigation_event(db, farm_id) is not None
+
+    if domain == "climate":
+        if await _recent_pending_command(db, _climate_device_ids(farm_id), PENDING_WINDOW):
+            return True
+        latest = await _latest_climate_log(db, farm_id)
+        if not latest:
+            return False
+        details = latest.details if isinstance(latest.details, dict) else {}
+        mode = details.get("mode") or _mode_from_action(latest.action_type)
+        return mode in {"full", "fan_only"}
+
+    return False
 
 
 async def get_current_decision_state(
@@ -390,17 +416,20 @@ async def _recent_recommendation_exists(
         return False
 
     since = datetime.now(timezone.utc) - window
+    target_signature = _recommendation_text_signature(message)
     result = await db.execute(
         select(Recommendation)
         .where(
             Recommendation.farm_id == farm_id,
             Recommendation.category == _normalize_category(category),
-            Recommendation.message == message,
             Recommendation.created_at >= since,
         )
-        .limit(1)
+        .order_by(desc(Recommendation.created_at))
     )
-    return result.scalar_one_or_none() is not None
+    return any(
+        _recommendation_text_signature(rec.message) == target_signature
+        for rec in result.scalars().all()
+    )
 
 
 async def _recent_category_recommendation_exists(
@@ -573,6 +602,13 @@ def _add_window(value: Optional[datetime], window: timedelta) -> Optional[dateti
 def _looks_blocked_irrigation_message(message: Optional[str]) -> bool:
     text = (message or "").lower()
     return "تأجيل الري" in text or "defer" in text or "blocked" in text
+
+
+def _recommendation_text_signature(message: Optional[str]) -> str:
+    text = (message or "").lower()
+    text = re.sub(r"\d+(?:\.\d+)?\s*(?:%|°?\s*c|م|lux)?", "#", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:160]
 
 
 def _iso(value: Optional[datetime]) -> Optional[str]:

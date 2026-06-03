@@ -12,8 +12,10 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
+MAKKAH_TZ = ZoneInfo("Asia/Riyadh")
 
 
 @dataclass
@@ -97,6 +99,9 @@ class AnomalyDetector:
 
     def check_rate_of_change(self, sensor_type: str, current_value: float) -> Optional[AnomalyReport]:
         """Validates value rate of change to detect anomalous temporal spikes"""
+        if sensor_type == "light_intensity":
+            return None
+
         if sensor_type not in self.sensor_history or len(self.sensor_history[sensor_type]) < 2:
             return None
 
@@ -123,6 +128,9 @@ class AnomalyDetector:
         if sensor_type not in self.sensor_history or len(self.sensor_history[sensor_type]) < history_depth:
             return None
 
+        if sensor_type == "light_intensity" and self._is_expected_night_light_zero(current_value):
+            return None
+
         recent_values = self.sensor_history[sensor_type][-history_depth:]
         unique_values = len(set([round(v, 2) for v in recent_values]))
 
@@ -142,6 +150,9 @@ class AnomalyDetector:
 
     def check_pattern_break(self, sensor_type: str, current_value: float) -> Optional[AnomalyReport]:
         """Analyzes reading statistical deviation to detect pattern breaks (Z-Score)"""
+        if sensor_type == "light_intensity":
+            return None
+
         if sensor_type not in self.sensor_history or len(self.sensor_history[sensor_type]) < 20:
             return None
 
@@ -267,3 +278,8 @@ class AnomalyDetector:
                 return anomaly
 
         return None
+
+    def _is_expected_night_light_zero(self, value: float) -> bool:
+        """The simulator reports 0 lux at night; that is normal, not a stuck sensor."""
+        hour = datetime.now(MAKKAH_TZ).hour
+        return value <= 1.0 and (hour >= 18 or hour < 6)

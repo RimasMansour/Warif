@@ -832,7 +832,7 @@ export async function executeRecommendation(_category, farmId, recommendationId 
     Object.keys(globalCache.recommendations).forEach(key => {
       if (String(key) !== String(farmId) && !key.startsWith(`${farmId}_`)) return;
       globalCache.recommendations[key] = globalCache.recommendations[key].map(rec =>
-        String(rec.id) === String(recommendationId) ? { ...rec, action_status: data.executed === false ? null : 'executed', is_read: true } : rec
+        String(rec.id) === String(recommendationId) ? { ...rec, action_status: data.executed === false ? null : 'executing', is_read: true } : rec
       );
     });
     console.log('[Warif] Recommendation executed by backend decision:', data);
