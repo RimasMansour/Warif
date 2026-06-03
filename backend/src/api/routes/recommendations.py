@@ -134,12 +134,6 @@ async def list_recommendations(
             normalized_category = normalize_category(category_value)
             action_status = rec.mode if rec.mode in ("executed", "ignored", "deferred", "auto", "legacy", "stale", "executing") else None
             action_status = await _resolve_live_recommendation_status(db, farm_id, rec, normalized_category, action_status)
-            if action_status == "executing":
-                domain = _recommendation_domain(normalized_category)
-                if domain in executing_domains:
-                    action_status = "executed"
-                elif domain:
-                    executing_domains.add(domain)
             if action_status == "executed" and rec.mode != "executed":
                 rec.mode = "executed"
                 status_changed = True
@@ -208,6 +202,26 @@ async def list_recommendations(
                     action_status = "legacy"
                 elif state == "completed":
                     action_status = "executed"
+            if action_status == "executing" or (decision_state and decision_state.get("state") == "executing"):
+                domain = _recommendation_domain(normalized_category)
+                if domain in executing_domains:
+                    action_status = "legacy"
+                    decision_state = _decision_state_from_action_status(
+                        "legacy",
+                        normalized_category,
+                        rec.message,
+                        rec.reasoning,
+                    )
+                    if rec.mode != "legacy":
+                        rec.mode = "legacy"
+                        status_changed = True
+                elif domain:
+                    executing_domains.add(domain)
+                    if action_status != "executing":
+                        action_status = "executing"
+                        if rec.mode != "executing":
+                            rec.mode = "executing"
+                            status_changed = True
             if action_status == "executed" and decision_state and decision_state.get("state") == "hold":
                 decision_state = {
                     **decision_state,
@@ -217,6 +231,8 @@ async def list_recommendations(
                     "reason": "تم تنفيذ التوصية ولا يوجد إجراء نشط حاليا.",
                     "reason_en": "The recommendation was executed and no action is active now.",
                 }
+            elif action_status == "executed" and not decision_state:
+                decision_state = _completed_recommendation_state(normalized_category)
             if action_status in {"deferred", "legacy", "auto", "executing"} and not decision_state:
                 decision_state = _decision_state_from_action_status(action_status, normalized_category, rec.message, rec.reasoning)
 
@@ -397,6 +413,40 @@ def _decision_state_from_action_status(action_status: str, category: str, messag
         }
 
     return None
+
+
+def _completed_recommendation_state(category: str) -> dict:
+    reason_ar, reason_en = _completed_recommendation_reason(category)
+    return {
+        "state": "completed",
+        "domain": category,
+        "label": "تم التنفيذ",
+        "label_en": "Completed",
+        "reason": reason_ar,
+        "reason_en": reason_en,
+    }
+
+
+def _completed_recommendation_reason(category: str) -> tuple[str, str]:
+    if category == "irrigation":
+        return (
+            "تم تنفيذ إجراء الري المرتبط بهذه التوصية، وتم حفظ النتيجة للتقييم والمتابعة.",
+            "The irrigation action linked to this recommendation was executed and saved for evaluation.",
+        )
+    if category == "humidity":
+        return (
+            "تم تشغيل نظام التهوية والمراوح لتصريف الرطوبة الزائدة وحماية المحصول.",
+            "Ventilation fans were activated to exhaust excess humidity and protect crop health.",
+        )
+    if category == "temperature":
+        return (
+            "تم تشغيل التبريد والمراوح لخفض درجة الحرارة وتحسين أجواء المحمية حفاظًا على استقرار المحصول.",
+            "Cooling and fans were activated to lower temperature and stabilize the greenhouse environment.",
+        )
+    return (
+        "تم تنفيذ إجراء الجهاز المرتبط بهذه التوصية، وتم حفظ النتيجة للتقييم والمتابعة.",
+        "The device action linked to this recommendation was executed and saved for evaluation.",
+    )
 
 
 def _stale_recommendation_state(reason: str) -> dict:
@@ -802,7 +852,7 @@ def _recommendation_execution_intent(rec: Recommendation, category: str) -> Opti
             category == "irrigation"
             or "ري" in text
             or "irrigat" in text
-            or "رطوبة التربة" in text
+            or ("رطوبة التربة" in text and "حرارة التربة" not in text)
             or "soil moisture" in text
         )
         if not has_irrigation_intent:

@@ -255,6 +255,13 @@ class SmartDecisionEngine:
         ml_result = self.run_ml_prediction(sensor_data)
 
         hour = datetime.now(RIYADH_TZ).hour
+        crop_type = (sensor_data.get("crop_type") or "tomatoes").lower()
+        if crop_type in ["cucumber", "خيار"]:
+            optimal_min, optimal_max = 70, 80
+        elif crop_type in ["tomatoes", "طماطم"]:
+            optimal_min, optimal_max = 60, 70
+        else:
+            optimal_min, optimal_max = 55, 75
 
         # ─── IRRIGATION DECISION ──────────────────────────────────────────
         if soil_moisture is not None:
@@ -264,14 +271,6 @@ class SmartDecisionEngine:
                 ml_vote = ml_result["ensemble_pred"] * ml_result["confidence"] * 0.50
 
             # Tomato optimal: 60-70%, Cucumber: 70-80%
-            crop_type = (sensor_data.get("crop_type") or "tomatoes").lower()
-            if crop_type in ["cucumber", "خيار"]:
-                optimal_min, optimal_max = 70, 80
-            elif crop_type in ["tomatoes", "طماطم"]:
-                optimal_min, optimal_max = 60, 70
-            else:
-                optimal_min, optimal_max = 55, 75
-
             if soil_moisture < optimal_min - 15:
                 soil_vote = 0.9 * 0.25   # critically dry
             elif soil_moisture < optimal_min:
@@ -479,12 +478,48 @@ class SmartDecisionEngine:
         # ─── SOIL TEMPERATURE ────────────────────────────────────────────
         if soil_temperature is not None:
             if soil_temperature > 35:
+                action = None
+                action_text = "استخدام التظليل أو تغطية التربة"
+                execution_action = self._hold_action_contract(
+                    "soil",
+                    "حرارة التربة مرتفعة، لكن القراءات الحالية لا تحدد أمر جهاز مباشر آمن الآن.",
+                )
+                if air_temperature is not None and air_temperature >= 30:
+                    action = "climate"
+                    action_text = "تشغيل التبريد والتهوية لتخفيف الحرارة المحيطة بالتربة"
+                    execution_action = self._build_climate_action_contract(
+                        air_temperature=air_temperature,
+                        air_humidity=air_humidity,
+                    )
+                elif (
+                    soil_moisture is not None
+                    and soil_moisture < optimal_min
+                    and not _irrigation_safety_context(soil_moisture, weather).get("blocked")
+                ):
+                    action = "irrigation"
+                    action_text = "تشغيل ري قصير وآمن لرفع رطوبة التربة والمساعدة في خفض حرارتها"
+                    execution_action = self._build_irrigation_action_contract(
+                        should_irrigate=True,
+                        soil_moisture=soil_moisture,
+                        optimal_min=optimal_min,
+                        optimal_max=optimal_max,
+                        score=0.65,
+                        confidence=0.78,
+                        ml_available=False,
+                        reason=f"حرارة التربة {soil_temperature:.1f}°C ورطوبة التربة {soil_moisture:.0f}%",
+                        safety_context=_irrigation_safety_context(soil_moisture, weather),
+                    )
+
                 recommendations.append(SmartRecommendation(
                     message="تحسين حماية التربة من الحرارة",
-                    reasoning=f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) مرتفعة جداً وتعيق قدرة الجذور على امتصاص العناصر الغذائية. الإجراء: استخدام التظليل أو تغطية التربة لخفض درجة حرارتها.",
+                    reasoning=(
+                        f"درجة حرارة التربة الحالية ({soil_temperature:.1f}°C) مرتفعة جداً وقد تقلل قدرة الجذور "
+                        f"على امتصاص العناصر الغذائية. الإجراء المناسب: {action_text}."
+                    ),
                     category="soil",
                     severity="warning",
                     confidence=0.82,
+                    execution_action=execution_action,
                 ))
             elif soil_temperature < 10:
                 recommendations.append(SmartRecommendation(
@@ -493,6 +528,10 @@ class SmartDecisionEngine:
                     category="soil",
                     severity="warning",
                     confidence=0.79,
+                    execution_action=self._hold_action_contract(
+                        "soil",
+                        "حرارة التربة منخفضة ولا يوجد جهاز تدفئة تربة مرتبط حاليًا؛ يتم تقليل/تأجيل الري فقط عند الحاجة.",
+                    ),
                 ))
 
         # NOTE: Removed the filter that was deleting all recommendations!

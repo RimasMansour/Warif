@@ -36,6 +36,52 @@ function recommendationStatus(rec) {
   return 'pending';
 }
 
+function recommendationDomain(rec) {
+  const category = String(rec.category || rec.type || '').toLowerCase();
+  if (category === 'irrigation' || category === 'water' || category === 'soil_moisture' || category === 'soil') {
+    return 'irrigation';
+  }
+  if (category === 'temperature' || category === 'air_temperature' || category === 'humidity' || category === 'air_humidity' || category === 'climate') {
+    return 'climate';
+  }
+  return category || 'general';
+}
+
+function inactiveDuplicateState(isEn, domain) {
+  const isClimate = domain === 'climate';
+  return {
+    state: 'monitoring',
+    label: isEn ? 'No Action Needed Now' : 'لا يتطلب إجراء الآن',
+    label_en: 'No Action Needed Now',
+    reason: isEn
+      ? 'A newer recommendation for the same device domain is already in progress. This older record remains for review only.'
+      : isClimate
+        ? 'توجد توصية مناخ أحدث قيد التنفيذ حاليًا. هذا السجل الأقدم محفوظ للمراجعة ولا يرسل أمر جهاز جديد.'
+        : 'توجد توصية ري أحدث قيد التنفيذ حاليًا. هذا السجل الأقدم محفوظ للمراجعة ولا يرسل أمر جهاز جديد.',
+    reason_en: 'A newer recommendation for the same device domain is already in progress. This older record remains for review only.',
+  };
+}
+
+function normalizeVisibleExecutionStates(items, isEn) {
+  const activeDomains = new Set();
+  return items.map(item => {
+    const isExecuting = item.action_status === 'executing' || item.decision_state?.state === 'executing';
+    if (!isExecuting) return item;
+
+    const domain = recommendationDomain(item);
+    if (!activeDomains.has(domain)) {
+      activeDomains.add(domain);
+      return item;
+    }
+
+    return {
+      ...item,
+      action_status: 'legacy',
+      decision_state: inactiveDuplicateState(isEn, domain),
+    };
+  });
+}
+
 function deferredReason(rec, isEn) {
   const category = String(rec.category || rec.type || '').toLowerCase();
   const text = `${rec.message || ''} ${rec.reasoning || ''} ${rec.data_insight || ''}`.toLowerCase();
@@ -55,17 +101,17 @@ function deferredReason(rec, isEn) {
 function inferredDecisionState(rec, isEn) {
   if (rec.decision_state) return rec.decision_state;
   const category = String(rec.category || rec.type || '').toLowerCase();
+  const isIrrigationCategory = category === 'irrigation' || category === 'water' || category === 'soil_moisture';
+  const isHumidityCategory = category === 'humidity' || category === 'air_humidity';
+  const isTemperatureCategory = category === 'temperature' || category === 'air_temperature' || category === 'climate';
   if (rec.action_status === 'stale') {
-    const isIrrigation = category === 'irrigation' || category === 'water' || category === 'soil_moisture';
-    const isHumidity = category === 'humidity' || category === 'air_humidity';
-    const isTemperature = category === 'temperature' || category === 'air_temperature' || category === 'climate';
     const reason = isEn
       ? 'The relevant sensor reading changed after this recommendation was created. No device command is needed from this record; the system will rely on the latest recommendation when new readings arrive.'
-      : isIrrigation
+      : isIrrigationCategory
         ? 'لم يتم تشغيل الري لأن قراءة رطوبة التربة تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.'
-        : isHumidity
+        : isHumidityCategory
           ? 'لم يتم تشغيل التهوية لأن قراءة رطوبة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.'
-          : isTemperature
+          : isTemperatureCategory
             ? 'لم يتم تشغيل التبريد لأن قراءة حرارة الهواء تغيّرت بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.'
             : 'تغيّرت القراءة بعد إنشاء هذه التوصية. لا يتطلب هذا السجل أمر جهاز الآن، وسيعتمد النظام على أحدث توصية عند وصول قراءة جديدة.';
     return {
@@ -112,12 +158,33 @@ function inferredDecisionState(rec, isEn) {
     };
   }
   if (rec.action_status === 'executed') {
+    const reason = isEn
+      ? isIrrigationCategory
+        ? 'The irrigation action linked to this recommendation was executed and saved for evaluation.'
+        : isHumidityCategory
+          ? 'Ventilation fans were activated to exhaust excess humidity and protect crop health.'
+          : isTemperatureCategory
+            ? 'Cooling and fans were activated to lower temperature and stabilize the greenhouse environment.'
+            : 'The device action linked to this recommendation was executed and saved for evaluation.'
+      : isIrrigationCategory
+        ? 'تم تنفيذ إجراء الري المرتبط بهذه التوصية، وتم حفظ النتيجة للتقييم والمتابعة.'
+        : isHumidityCategory
+          ? 'تم تشغيل نظام التهوية والمراوح لتصريف الرطوبة الزائدة وحماية المحصول.'
+          : isTemperatureCategory
+            ? 'تم تشغيل التبريد والمراوح لخفض درجة الحرارة وتحسين أجواء المحمية حفاظًا على استقرار المحصول.'
+            : 'تم تنفيذ إجراء الجهاز المرتبط بهذه التوصية، وتم حفظ النتيجة للتقييم والمتابعة.';
     return {
       state: 'completed',
       label: isEn ? 'Executed' : 'تم التنفيذ',
       label_en: 'Executed',
-      reason: '',
-      reason_en: '',
+      reason,
+      reason_en: isIrrigationCategory
+        ? 'The irrigation action linked to this recommendation was executed and saved for evaluation.'
+        : isHumidityCategory
+          ? 'Ventilation fans were activated to exhaust excess humidity and protect crop health.'
+          : isTemperatureCategory
+            ? 'Cooling and fans were activated to lower temperature and stabilize the greenhouse environment.'
+            : 'The device action linked to this recommendation was executed and saved for evaluation.',
     };
   }
   if (rec.action_status === 'executing') {
@@ -157,7 +224,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
 
   const allRecommendations = useMemo(() => {
     if (apiRecs && apiRecs.length > 0) {
-      return apiRecs.map(r => ({
+      return normalizeVisibleExecutionStates(apiRecs.map(r => ({
         id: `${r.source || 'recommendation'}-${r.id}`,
         rawId: r.id,
         source: r.source || 'recommendation',
@@ -172,7 +239,7 @@ export function DecisionSupportPage({ onBack, farmId, globalAutoMode }) {
         created_at: r.created_at,
         status: r.is_read ? 'accepted' : 'pending',
         farmIndices: [0, 1, 2],
-      }));
+      })), isEn);
     }
     return [];
   }, [apiRecs, isEn]);

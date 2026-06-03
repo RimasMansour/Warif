@@ -294,6 +294,10 @@ async def ingest_sensor_reading(
                 # The current reading was flushed above, so the transaction can see it
                 # without injecting raw payload values directly into the ML/decision path.
                 full_sensor_data = {r.sensor_type: r.value for r in latest_rows.scalars().all()}
+                farm_result = await db.execute(select(Farm).where(Farm.id == farm_id).limit(1))
+                farm = farm_result.scalar_one_or_none()
+                if farm and getattr(farm, "crop_type", None):
+                    full_sensor_data["crop_type"] = farm.crop_type
 
                 # ML anomaly detection — reuses the already-fetched sensor snapshot
                 from src.services.anomaly_alert_system import get_anomaly_alert_system
@@ -308,8 +312,6 @@ async def ingest_sensor_reading(
                 engine = _get_decision_engine()
                 intelligence_report = await engine.analyze_with_intelligence(full_sensor_data, farm_id)
                 smart_recs = intelligence_report.get('recommendations', [])
-                farm_result = await db.execute(select(Farm).where(Farm.id == farm_id).limit(1))
-                farm = farm_result.scalar_one_or_none()
                 farm_auto_mode = bool(getattr(farm, "auto_mode", False))
                 saved_recommendations = []
                 saved_alerts = []
@@ -534,8 +536,8 @@ def _apply_auto_recommendation_statuses(saved_recommendations: list, automation_
 
     results = (automation_result or {}).get("results") or {}
     for rec, sr in saved_recommendations:
-        domain = "irrigation" if sr.category == "irrigation" else "climate" if sr.category in ("temperature", "humidity") else None
         decision = getattr(sr, "execution_action", None) or {}
+        domain = _execution_domain(decision, sr.category)
         decision_action = decision.get("action")
         result = results.get(domain) if domain else None
 
@@ -560,16 +562,36 @@ def _action_decisions_from_saved_recommendations(saved_recommendations: list) ->
         action = decision.get("action")
         if action not in {"start", "stop", "cooling_full", "fan_only"}:
             continue
+        domain = _execution_domain(decision, sr.category)
+        if domain not in {"irrigation", "climate"}:
+            continue
         decision = {
             **decision,
             "execution_source": "saved_recommendation",
             "saved_recommendation_id": getattr(rec, "id", None),
         }
-        if sr.category == "irrigation":
+        if domain == "irrigation":
             action_decisions["irrigation"] = decision
-        elif sr.category in {"temperature", "humidity"}:
+        elif domain == "climate":
             action_decisions["climate"] = decision
     return action_decisions
+
+
+def _execution_domain(decision: Optional[dict], fallback_category: Optional[str]) -> Optional[str]:
+    decision = decision or {}
+    domain = decision.get("domain")
+    action = decision.get("action")
+    if domain in {"irrigation", "climate"}:
+        return domain
+    if action in {"start", "stop"}:
+        return "irrigation"
+    if action in {"cooling_full", "fan_only"}:
+        return "climate"
+    if fallback_category == "irrigation":
+        return "irrigation"
+    if fallback_category in {"temperature", "humidity"}:
+        return "climate"
+    return None
 
 
 def _apply_auto_alert_statuses(saved_alerts: list, automation_result: dict, farm_auto_mode: bool) -> None:
@@ -582,8 +604,8 @@ def _apply_auto_alert_statuses(saved_alerts: list, automation_result: dict, farm
 
     results = (automation_result or {}).get("results") or {}
     for alert, sr in saved_alerts:
-        domain = "irrigation" if sr.category == "irrigation" else "climate" if sr.category in ("temperature", "humidity") else None
         decision = getattr(sr, "execution_action", None) or {}
+        domain = _execution_domain(decision, sr.category)
         decision_action = decision.get("action")
         result = results.get(domain) if domain else None
         alert.action_result = result

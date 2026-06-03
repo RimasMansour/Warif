@@ -49,15 +49,14 @@ async def get_recommendation_suppression(
 ) -> Dict:
     """Return whether a recommendation should be skipped while a prior decision settles."""
     normalized_category = _normalize_category(category)
-    if normalized_category not in {"irrigation", "temperature", "humidity"}:
-        return {"suppress": False}
-
     decision = decision or {}
     action = decision.get("action")
     if action == "stop":
         return {"suppress": False}
 
-    domain = _domain_for_category(normalized_category)
+    domain = _domain_for_decision(decision, normalized_category)
+    if domain not in {"irrigation", "climate"}:
+        return {"suppress": False}
     active_rec = await _active_domain_recommendation(db, farm_id, domain)
     if active_rec:
         if auto_mode and not await _domain_is_actively_handled(db, farm_id, domain):
@@ -95,7 +94,7 @@ async def get_recommendation_suppression(
                 "recommendation_id": unread_rec.id,
             }
 
-    if normalized_category == "irrigation":
+    if domain == "irrigation":
         return await _irrigation_suppression(db, farm_id, message, decision)
 
     return await _climate_suppression(db, farm_id, normalized_category, message, decision)
@@ -541,6 +540,18 @@ def _domain_for_category(category: str) -> str:
     if category == "irrigation":
         return "irrigation"
     return category
+
+
+def _domain_for_decision(decision: Dict, category: str) -> str:
+    domain = decision.get("domain")
+    action = decision.get("action")
+    if domain in {"irrigation", "climate"}:
+        return domain
+    if action in {"start", "stop"}:
+        return "irrigation"
+    if action in {"cooling_full", "fan_only"}:
+        return "climate"
+    return _domain_for_category(category)
 
 
 def _normalize_category(category: Optional[str]) -> str:
