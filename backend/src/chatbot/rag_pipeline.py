@@ -178,10 +178,6 @@ def format_sensor_context(sensor_data: Optional[dict]) -> str:
             lines.append(f"Soil moisture    : {soil['moisture_percent']}%")
         if soil.get("temperature_celsius") is not None:
             lines.append(f"Soil temperature : {soil['temperature_celsius']}°C")
-        if soil.get("ph") is not None:
-            lines.append(f"Soil pH          : {soil['ph']}")
-        if soil.get("ec") is not None:
-            lines.append(f"Soil EC          : {soil['ec']} mS/cm")
 
     air = sensor_data.get("air", {})
     if air:
@@ -189,14 +185,10 @@ def format_sensor_context(sensor_data: Optional[dict]) -> str:
             lines.append(f"Air temperature  : {air['temperature_celsius']}°C")
         if air.get("humidity_percent") is not None:
             lines.append(f"Air humidity     : {air['humidity_percent']}%")
-        if air.get("co2_ppm") is not None:
-            lines.append(f"CO2              : {air['co2_ppm']} ppm")
 
-    alerts = sensor_data.get("alerts", [])
-    if alerts:
-        lines.append("\nActive agricultural alerts:")
-        for a in alerts:
-            lines.append(f"  • {a}")
+    stale_warning = sensor_data.get("stale_warning")
+    if stale_warning:
+        lines.append(f"\n⚠ {stale_warning}")
 
     return "\n".join(lines)
 

@@ -21,18 +21,17 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Body, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, desc, case
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.chatbot.rag_pipeline import ask, get_collection, get_groq_client
 from src.core.security import get_current_user
-from src.db.models.models import Alert, AlertSeverity, AlertStatus, Farm, SensorReading
+from src.db.models.models import Farm, SensorReading
 from src.db.session import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Readings older than this are flagged as stale and the LLM is warned
 SENSOR_MAX_AGE_HOURS = int(os.getenv("SENSOR_MAX_AGE_HOURS", "2"))
 
 
@@ -45,7 +44,7 @@ class ConversationMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     question : str = Field(..., min_length=2, description="Farmer's question (Arabic or English)")
-    farm_id  : int = Field(..., description="Farm ID — sensor data and alerts are fetched automatically")
+    farm_id  : int = Field(..., description="Farm ID — sensor data is fetched automatically")
     n_chunks : int = Field(4, ge=1, le=8, description="Number of knowledge chunks to retrieve")
     language : str = Field("ar", description="Response language: 'ar' for Arabic, 'en' for English")
     history  : list[ConversationMessage] = Field(default_factory=list, description="Previous turns — append {role, content} pairs to enable follow-up questions")
@@ -66,14 +65,13 @@ class HealthResponse(BaseModel):
     vector_count : int
 
 
-# ── DB helper: fetch latest sensor readings + active (unfixed) alerts ──────────
+# ── DB helper: fetch latest sensor readings ────────────────────────────────────
 async def fetch_farm_context(farm_id: int, user_id: int, db: AsyncSession) -> dict | None:
     """
     Build the sensor context dict for the RAG pipeline:
     - Verifies the requesting user owns this farm (403 if not)
     - Fetches the latest reading per sensor type via MAX(timestamp) subquery
     - Flags readings older than SENSOR_MAX_AGE_HOURS as stale
-    - Fetches only open/acknowledged alerts, ordered by severity then recency
     Returns None if the farm doesn't exist or isn't owned by this user.
     """
     farm_result = await db.execute(
@@ -104,22 +102,6 @@ async def fetch_farm_context(farm_id: int, user_id: int, db: AsyncSession) -> di
     )
     latest_readings = readings_result.scalars().all()
 
-    # Active alerts only — resolved alerts mean the issue is fixed, skip them
-    # Order: critical first, then warning, then info; newest within each severity
-    severity_order = case(
-        (Alert.severity == AlertSeverity.critical, 0),
-        (Alert.severity == AlertSeverity.warning,  1),
-        else_=2
-    )
-    alerts_result = await db.execute(
-        select(Alert)
-        .where(Alert.farm_id == farm_id)
-        .where(Alert.status.in_([AlertStatus.open, AlertStatus.acknowledged]))
-        .order_by(severity_order, desc(Alert.created_at))
-        .limit(10)
-    )
-    active_alerts = alerts_result.scalars().all()
-
     # Build soil/air dicts from the sensor map
     sensor_map = {r.sensor_type: r.value for r in latest_readings}
 
@@ -128,54 +110,29 @@ async def fetch_farm_context(farm_id: int, user_id: int, db: AsyncSession) -> di
         soil["moisture_percent"] = sensor_map["soil_moisture"]
     if "soil_temperature" in sensor_map:
         soil["temperature_celsius"] = sensor_map["soil_temperature"]
-    if "soil_ph" in sensor_map:
-        soil["ph"] = sensor_map["soil_ph"]
-    if "soil_ec" in sensor_map:
-        soil["ec"] = sensor_map["soil_ec"]
 
     air: dict = {}
     if "air_temperature" in sensor_map:
         air["temperature_celsius"] = sensor_map["air_temperature"]
     if "air_humidity" in sensor_map:
         air["humidity_percent"] = sensor_map["air_humidity"]
-    if "co2_ppm" in sensor_map:
-        air["co2_ppm"] = sensor_map["co2_ppm"]
-    elif "co2" in sensor_map:
-        air["co2_ppm"] = sensor_map["co2"]
 
-    # Only pass agricultural/environmental alerts to the LLM.
-    # Sensor hardware anomalies (stuck sensor, unrealistic jump, etc.) have
-    # explanation set to the anomaly_type — they are irrelevant to crop advice
-    # and confuse the LLM into giving nonsensical recommendations.
-    alert_messages = [
-        a.message for a in active_alerts
-        if not a.explanation or a.explanation not in (
-            "sensor_stuck", "unrealistic_jump", "pattern_break", "threshold_violation"
-        )
-    ]
-
-    # Stale data check — find the most recent timestamp across all sensor readings
+    stale_warning = None
     if latest_readings:
         newest_ts = max(r.timestamp for r in latest_readings)
-        # Make both datetimes timezone-aware for comparison
         if newest_ts.tzinfo is None:
             newest_ts = newest_ts.replace(tzinfo=timezone.utc)
         age = datetime.now(timezone.utc) - newest_ts
         if age > timedelta(hours=SENSOR_MAX_AGE_HOURS):
             hours_old = int(age.total_seconds() // 3600)
-            alert_messages.insert(
-                0,
-                f"⚠ Sensor data is {hours_old}h old — live readings may be unavailable"
-            )
-    else:
-        alert_messages.insert(0, "⚠ No sensor readings found for this farm")
+            stale_warning = f"Sensor data is {hours_old}h old — readings may not reflect current conditions."
 
     return {
-        "farm_id" : farm_id,
-        "crop"    : farm.crop_type or "cucumber",
-        "soil"    : soil if soil else None,
-        "air"     : air  if air  else None,
-        "alerts"  : alert_messages,
+        "farm_id"       : farm_id,
+        "crop"          : farm.crop_type or "cucumber",
+        "soil"          : soil if soil else None,
+        "air"           : air  if air  else None,
+        "stale_warning" : stale_warning,
     }
 
 
@@ -188,9 +145,8 @@ async def chat(
     current_user : dict          = Depends(get_current_user),
 ):
     """
-    Main chat endpoint. Automatically fetches the latest sensor readings and all
-    unresolved alerts for the given farm, then answers the farmer's question.
-    Only the farm's owner can query it.
+    Main chat endpoint. Automatically fetches the latest sensor readings for the
+    given farm, then answers the farmer's question. Only the farm's owner can query it.
 
     Example request body:
     ```json
@@ -268,24 +224,15 @@ async def test_with_sensor():
     Useful for checking the full pipeline without a real farm or IoT connection.
     """
     simulated_sensor = {
-        "timestamp"    : "2026-04-13T10:00:00Z",
-        "crop"         : "cucumber",
-        "growth_stage" : "fruiting",
-        "soil": {
+        "crop" : "cucumber",
+        "soil" : {
             "moisture_percent"   : 43,
             "temperature_celsius": 25.0,
-            "ph"                 : 6.5,
-            "ec"                 : 2.0
         },
-        "air": {
+        "air"  : {
             "temperature_celsius": 31.0,
             "humidity_percent"   : 82,
-            "co2_ppm"            : 620
         },
-        "alerts": [
-            "Soil moisture below optimal (43% < 60%)",
-            "CO2 below recommended level (620 ppm < 800 ppm)"
-        ]
     }
 
     result = await asyncio.to_thread(
