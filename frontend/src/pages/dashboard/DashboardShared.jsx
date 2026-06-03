@@ -122,6 +122,21 @@ const localizedRecommendationCopy = (rec, isEn) => {
   const valueMatch = reasoning.match(/(\d+(?:\.\d+)?\s*%|\d+(?:\.\d+)?\s*°\s*[Cc]|\d+(?:\.\d+)?)/);
   const value = valueMatch ? valueMatch[1] : (isEn ? 'current value' : 'القيمة الحالية');
   const numericValue = valueMatch ? Number.parseFloat(valueMatch[1]) : null;
+  const irrigationIncreaseReasoning = (lang) => {
+    if (numericValue !== null && numericValue >= 70 && numericValue <= 80) {
+      return lang === 'en'
+        ? `Soil moisture (${value}) is within the suitable crop range (70-80%). No extra irrigation is needed now; the system will keep monitoring before any pump command.`
+        : `رطوبة التربة (${value}) ضمن النطاق المناسب للمحصول (70-80%). لا يحتاج النظام إلى تشغيل ري إضافي الآن، وسيواصل المراقبة قبل إرسال أي أمر للمضخة.`;
+    }
+    if (numericValue !== null && numericValue > 80) {
+      return lang === 'en'
+        ? `Soil moisture (${value}) is above the suitable crop range (70-80%). Recommendation: avoid additional irrigation to prevent saturation.`
+        : `رطوبة التربة (${value}) أعلى من النطاق المناسب للمحصول (70-80%). التوصية: تجنب تشغيل ري إضافي حتى لا تتشبع التربة.`;
+    }
+    return lang === 'en'
+      ? `Soil moisture (${value}) is below the suitable crop range (70-80%). Recommendation: run irrigation to restore soil moisture without saturation.`
+      : `رطوبة التربة (${value}) أقل من النطاق المناسب للمحصول (70-80%). التوصية: تشغيل الري لاستعادة رطوبة التربة المناسبة بدون تشبع.`;
+  };
 
   const EN = {
     general: {
@@ -130,35 +145,35 @@ const localizedRecommendationCopy = (rec, isEn) => {
     },
     irrigation_increase: {
       title: 'Increase Irrigation Frequency',
-      reasoning: `Soil moisture (${value}) is below the suitable crop range (70-80%). Recommendation: run irrigation to restore soil moisture without saturation.`,
+      reasoning: irrigationIncreaseReasoning('en'),
     },
     irrigation_reduce: {
       title: 'Reduce Irrigation',
-      reasoning: `Soil moisture (${value}) is above the ideal range for the crop (80%). Recommendation: reduce irrigation frequency to conserve water and protect the roots.`,
+      reasoning: `Soil moisture (${value}) is above the suitable crop limit. Recommendation: avoid extra irrigation until moisture returns to the safe crop range.`,
     },
     temperature_high: {
       title: 'Activate Cooling',
-      reasoning: `Current temperature (${value}) has exceeded the critical threshold (38°C). Recommendation: activate cooling systems immediately and open all ventilation windows.`,
+      reasoning: `Current temperature (${value}) has exceeded the critical operating threshold. Recommendation: activate cooling and fans to lower temperature and improve airflow.`,
     },
     temperature_moderate: {
       title: 'Improve Cooling and Ventilation',
-      reasoning: `Current temperature (${value}) is higher than the ideal range (28°C). Recommendation: increase ventilation and confirm airflow to avoid plant stress.`,
+      reasoning: `Current temperature (${value}) is higher than the target comfort range (28°C). Recommendation: run ventilation or cooling according to the climate decision while monitoring humidity.`,
     },
     temperature_low: {
-      title: 'Activate Heating',
-      reasoning: `Current temperature (${value}) has dropped below the lower limit (15°C). Recommendation: activate heating gradually to avoid thermal shock to the crop.`,
+      title: 'Low Greenhouse Temperature',
+      reasoning: `Current temperature (${value}) is below the safe lower limit (15°C). Recommendation: review insulation or the available heating source and raise temperature gradually.`,
     },
     humidity_high: {
       title: 'Improve Ventilation',
-      reasoning: `Current air humidity (${value}) is too high. Recommendation: improve ventilation to reduce the risk of fungal disease.`,
+      reasoning: `Current air humidity (${value}) is above the target comfort range (60-70%). Recommendation: run ventilation fans to exhaust excess humidity and reduce fungal-risk conditions.`,
     },
     humidity_low: {
-      title: 'Activate Misting',
-      reasoning: `Current air humidity (${value}) is below the lower limit (40%). Recommendation: activate the misting system to raise humidity and reduce water stress.`,
+      title: 'Low Air Humidity',
+      reasoning: `Current air humidity (${value}) is below the safe lower limit (40%). Recommendation: raise humidity using the available method or reduce drying sources while monitoring crop response.`,
     },
     soil_hot: {
       title: 'Protect Soil from Heat',
-      reasoning: `Current soil temperature (${value}) is too high and may reduce root nutrient uptake. Recommendation: use shading or soil cover to lower the temperature.`,
+      reasoning: `Current soil temperature (${value}) is too high and may reduce root nutrient uptake. Recommendation: reduce greenhouse heat when needed and use shading or soil cover to protect roots.`,
     },
     soil_cold: {
       title: 'Reduce Irrigation in Cold Weather',
@@ -173,35 +188,35 @@ const localizedRecommendationCopy = (rec, isEn) => {
     },
     irrigation_increase: {
       title: 'زيادة تكرار الري',
-      reasoning: `رطوبة التربة (${value}) أقل من النطاق المناسب للمحصول (70-80%). التوصية: تشغيل الري لاستعادة رطوبة التربة المناسبة بدون تشبع.`,
+      reasoning: irrigationIncreaseReasoning('ar'),
     },
     irrigation_reduce: {
       title: 'تقليل الري',
-      reasoning: `رطوبة التربة (${value}) أعلى من المدى المناسب للمحصول (80%). التوصية: تقليل تكرار الري لتوفير المياه وتجنب تعفن الجذور.`,
+      reasoning: `رطوبة التربة (${value}) أعلى من الحد المناسب للمحصول. التوصية: تجنب تشغيل ري إضافي حتى تعود الرطوبة إلى النطاق الآمن للمحصول.`,
     },
     temperature_high: {
       title: 'تفعيل التبريد',
-      reasoning: `درجة الحرارة الحالية (${value}) تجاوزت الحد الحرج (38°م). التوصية: تشغيل أنظمة التبريد فورًا وتعزيز التهوية للحد من الإجهاد الحراري.`,
+      reasoning: `درجة الحرارة الحالية (${value}) تجاوزت حد التشغيل الحرج. التوصية: تشغيل التبريد والمراوح لخفض الحرارة وتحسين تدفق الهواء.`,
     },
     temperature_moderate: {
       title: 'تحسين التبريد والتهوية',
-      reasoning: `درجة الحرارة الحالية (${value}) أعلى من المدى المثالي (28°م). التوصية: زيادة التهوية والتأكد من تدفق الهواء لتجنب إجهاد النبات.`,
+      reasoning: `درجة الحرارة الحالية (${value}) أعلى من نطاق الراحة المستهدف (28°م). التوصية: تشغيل التهوية أو التبريد حسب قرار نظام المناخ مع متابعة الرطوبة.`,
     },
     temperature_low: {
-      title: 'تفعيل التدفئة',
-      reasoning: `درجة الحرارة الحالية (${value}) انخفضت إلى أقل من الحد الأدنى (15°م). التوصية: تشغيل التدفئة تدريجيًا لتجنب صدمة حرارية للمحصول.`,
+      title: 'انخفاض حرارة المحمية',
+      reasoning: `درجة الحرارة الحالية (${value}) أقل من الحد الأدنى الآمن (15°م). التوصية: مراجعة العزل أو مصدر التدفئة المتاح ورفع الحرارة تدريجيًا.`,
     },
     humidity_high: {
       title: 'تحسين التهوية',
-      reasoning: `رطوبة الهواء الحالية (${value}) مرتفعة جدًا. التوصية: تحسين التهوية لتقليل خطر الأمراض الفطرية.`,
+      reasoning: `رطوبة الهواء الحالية (${value}) أعلى من نطاق الراحة المستهدف (60-70%). التوصية: تشغيل مراوح التهوية لتصريف الرطوبة الزائدة وتقليل خطر الأمراض الفطرية.`,
     },
     humidity_low: {
-      title: 'تفعيل الترطيب',
-      reasoning: `رطوبة الهواء الحالية (${value}) أقل من الحد الأدنى (40%). التوصية: تشغيل نظام الترطيب لرفع الرطوبة وتقليل الإجهاد المائي.`,
+      title: 'انخفاض رطوبة الهواء',
+      reasoning: `رطوبة الهواء الحالية (${value}) أقل من الحد الأدنى الآمن (40%). التوصية: رفع الرطوبة بالوسائل المتاحة أو تقليل مصادر الجفاف مع متابعة استجابة المحصول.`,
     },
     soil_hot: {
       title: 'حماية التربة من الحرارة',
-      reasoning: `درجة حرارة التربة الحالية (${value}) مرتفعة جدًا وقد تقلل قدرة الجذور على امتصاص العناصر الغذائية. التوصية: استخدام التظليل أو تغطية التربة لخفض الحرارة.`,
+      reasoning: `درجة حرارة التربة الحالية (${value}) مرتفعة جدًا وقد تقلل قدرة الجذور على امتصاص العناصر الغذائية. التوصية: خفض حرارة بيئة المحمية عند الحاجة واستخدام التظليل أو تغطية التربة لحماية الجذور.`,
     },
     soil_cold: {
       title: 'تقليل الري أثناء انخفاض حرارة التربة',
@@ -859,31 +874,31 @@ function getActionExplanation(category, isEn, isAuto, sensorType = '') {
   // Soil
   if (c === 'soil') {
     if (isAuto) return isEn
-      ? "Soil treatment protocol initiated autonomously to restore soil vitality and root health."
-      : "تم بدء بروتوكول معالجة التربة تلقائياً لاستعادة حيوية التربة وصحة الجذور.";
+      ? "The system logged the soil condition and will keep monitoring soil moisture, soil temperature, and sensor connectivity."
+      : "سجّل النظام حالة التربة وسيواصل مراقبة رطوبة التربة وحرارتها واتصال الحساس.";
     return isEn
-      ? "Do you want to initiate soil treatment to restore vitality and root health?"
-      : "هل تود بدء معالجة التربة لاستعادة حيويتها وصحة الجذور؟";
+      ? "Do you want to review soil moisture, soil temperature, and the soil sensor connection?"
+      : "هل تود مراجعة رطوبة التربة وحرارتها واتصال حساس التربة؟";
   }
 
   // Lighting
   if (c === 'lighting' || c === 'light') {
     if (isAuto) return isEn
-      ? "Supplemental lighting adjusted autonomously to maintain optimal photosynthesis conditions."
-      : "تم ضبط إضاءة التعويض تلقائياً للحفاظ على ظروف التمثيل الضوئي المثالية.";
+      ? "The system logged the light reading condition and will keep monitoring it with the next readings."
+      : "سجّل النظام حالة قراءة الإضاءة وسيواصل مراقبتها مع القراءات القادمة.";
     return isEn
-      ? "Do you want to adjust the lighting system to optimize photosynthesis conditions?"
-      : "هل تود ضبط نظام الإضاءة لتحسين ظروف التمثيل الضوئي؟";
+      ? "Do you want to review the light sensor reading and its connection?"
+      : "هل تود مراجعة قراءة حساس الإضاءة واتصاله؟";
   }
 
   // Fertilization / Nutrients
   if (c === 'fertilization' || c === 'nutrients' || c === 'nutrition') {
     if (isAuto) return isEn
-      ? "Nutrient dosing system activated autonomously to replenish essential crop minerals."
-      : "تم تفعيل نظام التسميد تلقائياً لتعزيز المعادن الأساسية للمحصول.";
+      ? "The system logged the nutrient-related recommendation for review; no direct dosing device command is linked now."
+      : "سجّل النظام توصية التغذية للمراجعة، ولا يوجد أمر جهاز تسميد مباشر مرتبط بها الآن.";
     return isEn
-      ? "Do you want to activate the nutrient dosing system to replenish crop minerals?"
-      : "هل تود تفعيل نظام التسميد لتعزيز المعادن الأساسية للمحصول؟";
+      ? "Do you want to review the crop nutrition condition and related readings?"
+      : "هل تود مراجعة حالة تغذية المحصول والقراءات المرتبطة بها؟";
   }
 
   // Power / energy sensors
