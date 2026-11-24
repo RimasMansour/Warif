@@ -30,6 +30,7 @@ engine = create_async_engine(
     pool_recycle=1800,      # Recycle connections every 30 min
     pool_pre_ping=True,     # Test connection before using it
     connect_args={
+        "ssl": "require",
         "server_settings": {
             "application_name": "warif_backend"
         }
